@@ -1,10 +1,7 @@
-import { ASTRONOMICAL_DATA } from "@/app/lib/planetData";
-import { ScalingUtils } from "@/app/lib/scalingUtils";
 import * as THREE from "three";
 
 export function createSun() {
-  const sunRadius = ScalingUtils.getRealisticRadius('sun', ASTRONOMICAL_DATA);
-  const geometry = new THREE.SphereGeometry(sunRadius, 64, 64);
+  const geometry = new THREE.SphereGeometry(30, 64, 64);
 
   // Load texture
   const textureLoader = new THREE.TextureLoader();

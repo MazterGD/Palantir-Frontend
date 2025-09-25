@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import * as THREE from "three";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
-import { createSun } from "./three/objects/createSun";
-import { createEarth } from "./three/objects/createEarth";
-import {
-  createJupiter,
-  createMars,
-  createMercury,
-  createSaturn,
-  createVenus,
-} from "./three/objects/planetConfig";
 import { setupBloom } from "./three/setupBloom";
+
+// Step 1: Import your solar system files
+import { createAllPlanets } from "./three/objects/createPlanet";
+import { createAllMoons } from "./three/objects/createMoon";
+import { scaleSunSize } from "../lib/scalingUtils";
+import { createSun } from "./three/objects/createSun";
+
+interface CelestialBody {
+  mesh: THREE.Mesh;
+  orbitGenerator: any;
+  orbitLine?: THREE.Line;
+}
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -24,24 +28,38 @@ export default function ThreeScene() {
     const { scene, camera, renderer } = setupScene(mountRef.current);
     const controls = setupControls(camera, renderer);
 
-    // Create celestial objects
+    // Step 2: Create celestial objects
+    const celestialBodies: CelestialBody[] = [];
+    let currentTime = 0;
+
+    // Create Sun
     const { sun, update: updateSun } = createSun();
-    const { planet: mercury, update: updateMercury } = createMercury();
-    const { planet: venus, update: updateVenus } = createVenus();
-    const { earth, update: updateEarth } = createEarth();
-    const { planet: mars, update: updateMars } = createMars();
-    const { planet: jupiter, update: updateJupiter } = createJupiter();
-    const { planet: saturn, update: updateSaturn } = createSaturn();
-
-    // Add all objects to scene
     scene.add(sun);
-    scene.add(mercury);
-    scene.add(venus);
-    scene.add(earth);
-    scene.add(mars);
-    scene.add(jupiter);
-    scene.add(saturn);
 
+    // Create Planets
+    const planets = createAllPlanets();
+    planets.forEach(planet => {
+      // Create planet mesh
+      const radius = planet.diameter / 2;
+      const geometry = new THREE.SphereGeometry(radius, 16, 16);
+      const material = new THREE.MeshPhongMaterial({ 
+        color: planet.color || 0xcccccc 
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      
+      
+      // Add to scene
+      scene.add(mesh);
+      scene.add(planet.orbitLine);
+      
+      // Store for animation
+      celestialBodies.push({
+        mesh,
+        orbitGenerator: planet.orbitGenerator,
+      });
+    });
+
+    // Step 3: Add lights
     addLights(scene);
     const { update: renderWithBloom, resize: resizeBloom } = setupBloom(
       scene,
@@ -49,20 +67,25 @@ export default function ThreeScene() {
       renderer
     );
 
-    camera.position.set(0, 10, 25);
+    // Step 4: Set camera position
+    camera.position.set(0, 500, 1000);
     camera.lookAt(0, 0, 0);
 
+    // Step 5: Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
 
-      // Update planets
+      // Update time (speed up for visualization)
+      currentTime += 86400; // 1 day per frame
+
+      // Update all celestial bodies
+      celestialBodies.forEach(body => {
+        const position = body.orbitGenerator.getPositionAtTime(currentTime);
+        body.mesh.position.set(position.position.x, position.position.y, position.position.z);
+      });
+
+      // Rotate sun
       updateSun();
-      updateMercury();
-      updateVenus();
-      updateEarth();
-      updateMars();
-      updateJupiter();
-      updateSaturn();
 
       controls.update();
       renderWithBloom();

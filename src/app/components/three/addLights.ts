@@ -15,4 +15,9 @@ export function addLights(scene: THREE.Scene) {
   );
   fillLight.position.set(50, 50, -100);
   scene.add(fillLight);
+
+  const light = new THREE.PointLight(0xffffff, 100, 1000, 0.5);
+  light.position.set(0, 0, 0);
+  light.castShadow = true;
+  scene.add(light);
 }

@@ -1,109 +1,127 @@
-import { OrbitalData } from "../components/three/orbitalMechanics";
+/**
+ * Planetary orbital elements and physical data
+ * Orbital angles in degrees - convert to radians using DegreesToRadians()
+ * Orbital periods in Earth days - multiply by 24*3600 for seconds
+ */
 
-export interface PlanetSizeData {
-  radius: number; // Planet radius in km
+export interface PlanetData {
+  name: string;
+  semiMajorAxis: number;        // AU
+  eccentricity: number;         // 0-1
+  inclination: number;          // degrees
+  longitudeOfAscendingNode: number;  // degrees (ω)
+  rightAscensionOfAscendingNode: number; // degrees (Ω)
+  orbitalPeriod: number;        // Earth days
+  diameter: number;             // kilometers
 }
 
-export const ASTRONOMICAL_DATA: {
-  [key: string]: { orbital: OrbitalData; size: PlanetSizeData };
-} = {
-  sun: {
-    orbital: {
-      semiMajorAxis: 0,
-      eccentricity: 0,
-      orbitalPeriod: 0,
-      inclination: 0,
-      longitudeOfAscendingNode: 0,
-      argumentOfPeriapsis: 0,
-    },
-    size: { radius: 695700 }, // Sun radius in km
-  },
+export const PLANETS: Record<string, PlanetData> = {
   mercury: {
-    orbital: {
-      semiMajorAxis: 0.387, // AU
-      eccentricity: 0.2056,
-      orbitalPeriod: 0.241, // Earth years (88 days)
-      inclination: 7.0, // degrees to ecliptic
-      longitudeOfAscendingNode: 48.3,
-      argumentOfPeriapsis: 29.1,
-    },
-    size: { radius: 2439.7 }, // km
+    name: "Mercury",
+    semiMajorAxis: 0.387,
+    eccentricity: 0.206,
+    inclination: 7.005,
+    longitudeOfAscendingNode: 77.456,
+    rightAscensionOfAscendingNode: 48.331,
+    orbitalPeriod: 87.97,
+    diameter: 4879
   },
+  
   venus: {
-    orbital: {
-      semiMajorAxis: 0.723, // AU
-      eccentricity: 0.0068,
-      orbitalPeriod: 0.615, // Earth years (225 days)
-      inclination: 3.4, // degrees to ecliptic
-      longitudeOfAscendingNode: 76.7,
-      argumentOfPeriapsis: 54.9,
-    },
-    size: { radius: 6051.8 }, // km
+    name: "Venus", 
+    semiMajorAxis: 0.723,
+    eccentricity: 0.007,
+    inclination: 3.395,
+    longitudeOfAscendingNode: 131.563,
+    rightAscensionOfAscendingNode: 76.678,
+    orbitalPeriod: 224.70,
+    diameter: 12104
   },
+  
   earth: {
-    orbital: {
-      semiMajorAxis: 1.0, // 1 AU by definition (149.6 million km)
-      eccentricity: 0.0167,
-      orbitalPeriod: 1.0, // 1 Earth year (365.25 days)
-      inclination: 0.0, // Reference plane
-      longitudeOfAscendingNode: 0.0,
-      argumentOfPeriapsis: 102.9,
-    },
-    size: { radius: 6371 }, // km
+    name: "Earth",
+    semiMajorAxis: 1.000,
+    eccentricity: 0.017,
+    inclination: 0.000,
+    longitudeOfAscendingNode: 102.937,
+    rightAscensionOfAscendingNode: 0.000,
+    orbitalPeriod: 365.26,
+    diameter: 12756
   },
+  
   mars: {
-    orbital: {
-      semiMajorAxis: 1.524, // AU
-      eccentricity: 0.0935,
-      orbitalPeriod: 1.881, // Earth years (687 days)
-      inclination: 1.85, // degrees to ecliptic
-      longitudeOfAscendingNode: 49.6,
-      argumentOfPeriapsis: 286.5,
-    },
-    size: { radius: 3390 }, // km
+    name: "Mars",
+    semiMajorAxis: 1.524,
+    eccentricity: 0.093,
+    inclination: 1.850,
+    longitudeOfAscendingNode: 336.041,
+    rightAscensionOfAscendingNode: 49.558,
+    orbitalPeriod: 686.98,
+    diameter: 6792
   },
+  
   jupiter: {
-    orbital: {
-      semiMajorAxis: 5.203, // AU
-      eccentricity: 0.0489,
-      orbitalPeriod: 11.86, // Earth years
-      inclination: 1.3, // degrees to ecliptic
-      longitudeOfAscendingNode: 100.5,
-      argumentOfPeriapsis: 273.9,
-    },
-    size: { radius: 69911 }, // km
+    name: "Jupiter",
+    semiMajorAxis: 5.203,
+    eccentricity: 0.049,
+    inclination: 1.303,
+    longitudeOfAscendingNode: 14.753,
+    rightAscensionOfAscendingNode: 100.464,
+    orbitalPeriod: 4332.59,
+    diameter: 142984
   },
+  
   saturn: {
-    orbital: {
-      semiMajorAxis: 9.537, // AU
-      eccentricity: 0.0565,
-      orbitalPeriod: 29.45, // Earth years
-      inclination: 2.5, // degrees to ecliptic
-      longitudeOfAscendingNode: 113.7,
-      argumentOfPeriapsis: 339.4,
-    },
-    size: { radius: 58232 }, // km
+    name: "Saturn",
+    semiMajorAxis: 9.537,
+    eccentricity: 0.057,
+    inclination: 2.485,
+    longitudeOfAscendingNode: 93.057,
+    rightAscensionOfAscendingNode: 113.665,
+    orbitalPeriod: 10759.22,
+    diameter: 120536
   },
+  
   uranus: {
-    orbital: {
-      semiMajorAxis: 19.191, // AU
-      eccentricity: 0.0457,
-      orbitalPeriod: 84.02, // Earth years
-      inclination: 0.8, // degrees to ecliptic
-      longitudeOfAscendingNode: 74.0,
-      argumentOfPeriapsis: 96.5,
-    },
-    size: { radius: 25362 }, // km
+    name: "Uranus",
+    semiMajorAxis: 19.191,
+    eccentricity: 0.046,
+    inclination: 0.773,
+    longitudeOfAscendingNode: 173.005,
+    rightAscensionOfAscendingNode: 74.006,
+    orbitalPeriod: 30688.5,
+    diameter: 51118
   },
+  
   neptune: {
-    orbital: {
-      semiMajorAxis: 30.069, // AU
-      eccentricity: 0.0113,
-      orbitalPeriod: 164.8, // Earth years
-      inclination: 1.8, // degrees to ecliptic
-      longitudeOfAscendingNode: 131.8,
-      argumentOfPeriapsis: 273.2,
-    },
-    size: { radius: 24622 }, // km
-  },
+    name: "Neptune",
+    semiMajorAxis: 30.069,
+    eccentricity: 0.010,
+    inclination: 1.770,
+    longitudeOfAscendingNode: 48.124,
+    rightAscensionOfAscendingNode: 131.784,
+    orbitalPeriod: 60182,
+    diameter: 49528
+  }
 };
+
+// Helper function to convert planet data to orbital elements
+export function planetToOrbitalElements(planet: PlanetData, degreesToRadians: (deg: number) => number): {
+  semiMajorAxis: number;
+  eccentricity: number;
+  inclination: number;
+  longitudeOfAscendingNode: number;
+  rightAscensionOfAscendingNode: number;
+  orbitalPeriod: number;
+  timeOfPeriapsisPassage: number;
+} {
+  return {
+    semiMajorAxis: planet.semiMajorAxis,
+    eccentricity: planet.eccentricity,
+    inclination: degreesToRadians(planet.inclination),
+    longitudeOfAscendingNode: degreesToRadians(planet.longitudeOfAscendingNode),
+    rightAscensionOfAscendingNode: degreesToRadians(planet.rightAscensionOfAscendingNode),
+    orbitalPeriod: planet.orbitalPeriod * 24 * 3600, // Convert days to seconds
+    timeOfPeriapsisPassage: 0
+  };
+}
