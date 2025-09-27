@@ -1,86 +1,81 @@
 /**
- * Solar System Scaling Utilities
+ * Realistic Solar System Scaling Utilities
  * 
- * Converts real astronomical data to proportional render units for visualization
- * Scale: 1 render unit = 1000 km in real space
- * 
- * Scaling factors maintain visual proportions while keeping largest distances ~5000 units
- * and smallest visible objects ~0.01 units
+ * Scale: 100,000 km = 1 render unit
+ * All distances use this scale, angles remain unchanged
+ * All celestial bodies rendered at 1 unit diameter for visibility
  */
 
-export interface ScaleFactors {
-  /** A: Planet orbital distance scaling - makes planets closer for visibility */
-  planetOrbitScale: number;
-  /** B: Planet size scaling - makes planets bigger for visibility */
-  planetSizeScale: number;
-  /** C: Moon size scaling - makes moons bigger for visibility */
-  moonSizeScale: number;
-  /** D: Moon orbital distance scaling - makes moon orbits closer for visibility */
-  moonOrbitScale: number;
-  /** Sun size scaling - makes sun smaller to avoid overwhelming scene */
-  sunSizeScale: number;
+export interface RealisticScaleFactors {
+  /** Kilometers per render unit */
+  kmPerRenderUnit: number;
+  /** Standard diameter for all celestial bodies in render units */
+  standardBodyDiameter: number;
 }
 
-export const SCALE_FACTORS: ScaleFactors = {
-  planetOrbitScale: 150,      // A: Planets 150x closer (AU * 150 = render units)
-  planetSizeScale: 0.001,     // B: Planets at 1:1000 scale (km * 0.001 = render units)
-  moonSizeScale: 0.001,       // C: Moons at 1:1000 scale (km * 0.001 = render units)
-  moonOrbitScale: 0.00026,    // D: Moon orbits 3800x closer (km * 0.00026 = render units)
-  sunSizeScale: 0.000036      // Sun 28,000x smaller for visibility (km * 0.000036 = render units)
+export const REALISTIC_SCALE: RealisticScaleFactors = {
+  kmPerRenderUnit: 100000,        // 100,000 km = 1 render unit
+  standardBodyDiameter: 1         // All bodies rendered at 1 unit diameter
 };
 
 /**
- * Real space to render unit conversion
- * 1 render unit = 1000 km in real space
+ * Astronomical constants
  */
-export const KM_PER_RENDER_UNIT = 1000;
+export const ASTRONOMICAL_CONSTANTS = {
+  /** 1 Astronomical Unit in kilometers */
+  AU_TO_KM: 149597870.7,
+  /** Earth's orbital radius for reference */
+  EARTH_ORBIT_KM: 149597870.7,
+  /** Sun's actual diameter in km */
+  SUN_DIAMETER_KM: 1392700
+};
 
 /**
- * Scale planet orbital distances from AU to render units
+ * Convert Astronomical Units to kilometers
  */
-export function scalePlanetOrbit(semiMajorAxisAU: number): number {
-  return semiMajorAxisAU * SCALE_FACTORS.planetOrbitScale;
+export function auToKm(au: number): number {
+  return au * ASTRONOMICAL_CONSTANTS.AU_TO_KM;
 }
 
 /**
- * Scale planet diameter from km to render units
+ * Convert kilometers to render units
  */
-export function scalePlanetSize(diameterKm: number): number {
-  return diameterKm * SCALE_FACTORS.planetSizeScale;
+export function kmToRenderUnits(km: number): number {
+  return km / REALISTIC_SCALE.kmPerRenderUnit;
 }
 
 /**
- * Scale moon orbital distances from km to render units
+ * Convert Astronomical Units directly to render units
  */
-export function scaleMoonOrbit(semiMajorAxisKm: number): number {
-  return semiMajorAxisKm * SCALE_FACTORS.moonOrbitScale;
+export function auToRenderUnits(au: number): number {
+  return kmToRenderUnits(auToKm(au));
 }
 
 /**
- * Scale moon diameter from km to render units
- */
-export function scaleMoonSize(diameterKm: number): number {
-  return diameterKm * SCALE_FACTORS.moonSizeScale;
-}
-
-/**
- * Scale sun diameter from km to render units
- */
-export function scaleSunSize(diameterKm: number): number {
-  return diameterKm * SCALE_FACTORS.sunSizeScale;
-}
-
-/**
- * Convert render units back to real kilometers
+ * Convert render units back to kilometers
  */
 export function renderUnitsToKm(renderUnits: number): number {
-  return renderUnits * KM_PER_RENDER_UNIT;
+  return renderUnits * REALISTIC_SCALE.kmPerRenderUnit;
 }
 
 /**
- * Get scaled orbital elements for planets
+ * Convert render units back to AU
  */
-export function getScaledPlanetElements(planetData: {
+export function renderUnitsToAu(renderUnits: number): number {
+  return renderUnitsToKm(renderUnits) / ASTRONOMICAL_CONSTANTS.AU_TO_KM;
+}
+
+/**
+ * Get standard body diameter (all bodies same size for visibility)
+ */
+export function getStandardBodyDiameter(): number {
+  return REALISTIC_SCALE.standardBodyDiameter;
+}
+
+/**
+ * Get scaled orbital elements for planets (distances in render units)
+ */
+export function getRealisticPlanetElements(planetData: {
   semiMajorAxis: number; // AU
   eccentricity: number;
   inclination: number; // radians
@@ -91,14 +86,14 @@ export function getScaledPlanetElements(planetData: {
 }): typeof planetData {
   return {
     ...planetData,
-    semiMajorAxis: scalePlanetOrbit(planetData.semiMajorAxis)
+    semiMajorAxis: auToRenderUnits(planetData.semiMajorAxis)
   };
 }
 
 /**
- * Get scaled orbital elements for moons
+ * Get scaled orbital elements for moons (distances in render units)
  */
-export function getScaledMoonElements(moonData: {
+export function getRealisticMoonElements(moonData: {
   semiMajorAxis: number; // km
   eccentricity: number;
   inclination: number; // radians
@@ -109,90 +104,88 @@ export function getScaledMoonElements(moonData: {
 }): typeof moonData {
   return {
     ...moonData,
-    semiMajorAxis: scaleMoonOrbit(moonData.semiMajorAxis)
+    semiMajorAxis: kmToRenderUnits(moonData.semiMajorAxis)
   };
 }
 
 /**
- * Scaling reference data for documentation and debugging
+ * Realistic scaling reference data for documentation and debugging
  */
-export const SCALING_REFERENCE = {
-  // Real distances that become our reference points
-  neptune_orbit_au: 30.069,
-  neptune_orbit_km: 30.069 * 149597870.7, // ~4.5 billion km
-  earth_moon_distance_km: 384400,
+export const REALISTIC_SCALING_REFERENCE = {
+  // Real distances in km
+  mercury_orbit_km: auToKm(0.387),      // ~57.9 million km
+  earth_orbit_km: auToKm(1.000),        // ~149.6 million km
+  mars_orbit_km: auToKm(1.524),         // ~227.9 million km
+  jupiter_orbit_km: auToKm(5.203),      // ~778.5 million km
+  saturn_orbit_km: auToKm(9.537),       // ~1.43 billion km
+  neptune_orbit_km: auToKm(30.069),     // ~4.5 billion km
   
   // Scaled distances in render units
-  neptune_orbit_scaled: scalePlanetOrbit(30.069), // ~4510 units
-  mercury_orbit_scaled: scalePlanetOrbit(0.387), // ~58 units
-  earth_moon_scaled: scaleMoonOrbit(384400), // ~100 units
-  phobos_orbit_scaled: scaleMoonOrbit(9376), // ~2.4 units
+  mercury_orbit_units: auToRenderUnits(0.387),    // ~579 units
+  earth_orbit_units: auToRenderUnits(1.000),      // ~1496 units
+  mars_orbit_units: auToRenderUnits(1.524),       // ~2279 units
+  jupiter_orbit_units: auToRenderUnits(5.203),    // ~7785 units
+  saturn_orbit_units: auToRenderUnits(9.537),     // ~14270 units
+  neptune_orbit_units: auToRenderUnits(30.069),   // ~45001 units
   
-  // Real sizes
+  // Real sizes in km (for reference, but all rendered at 1 unit)
+  sun_diameter_km: ASTRONOMICAL_CONSTANTS.SUN_DIAMETER_KM,
   jupiter_diameter_km: 142984,
+  earth_diameter_km: 12756,
   mercury_diameter_km: 4879,
-  sun_diameter_km: 1392700,
   
-  // Scaled sizes in render units
-  jupiter_diameter_scaled: scalePlanetSize(142984), // ~143 units
-  mercury_diameter_scaled: scalePlanetSize(4879), // ~5 units
-  sun_diameter_scaled: scaleSunSize(1392700), // ~50 units
+  // All rendered diameters
+  standard_body_diameter: REALISTIC_SCALE.standardBodyDiameter,
   
-  // Moon sizes
-  titan_diameter_km: 5150,
-  deimos_diameter_km: 12,
-  titan_diameter_scaled: scaleMoonSize(5150), // ~5.2 units
-  deimos_diameter_scaled: scaleMoonSize(12), // ~0.012 units
-  
-  // Conversion
-  km_per_render_unit: KM_PER_RENDER_UNIT
+  // Scale conversion
+  km_per_render_unit: REALISTIC_SCALE.kmPerRenderUnit
 };
 
 /**
- * Get human readable scale info
+ * Get human readable scale information
  */
-export function getScaleInfo(): string {
+export function getRealisticScaleInfo(): string {
   return `
-Solar System Scaling Information:
-- 1 render unit = ${KM_PER_RENDER_UNIT.toLocaleString()} km in real space
-- Planets are ${SCALE_FACTORS.planetOrbitScale}x closer than reality
-- Planet sizes are ${1/SCALE_FACTORS.planetSizeScale}x smaller than 1:1 scale
-- Moon orbits are ${Math.round(1/SCALE_FACTORS.moonOrbitScale)}x closer than reality
-- Moon sizes are ${1/SCALE_FACTORS.moonSizeScale}x smaller than 1:1 scale
-- Sun is ${Math.round(1/SCALE_FACTORS.sunSizeScale)}x smaller than 1:1 scale
+Realistic Solar System Scaling Information:
+- 1 render unit = ${REALISTIC_SCALE.kmPerRenderUnit.toLocaleString()} km
+- 1 AU = ${ASTRONOMICAL_CONSTANTS.AU_TO_KM.toLocaleString()} km = ${auToRenderUnits(1).toFixed(1)} render units
+- All celestial bodies rendered at ${REALISTIC_SCALE.standardBodyDiameter} unit diameter
 
-Example scaled sizes:
-- Neptune orbit: ${SCALING_REFERENCE.neptune_orbit_scaled.toFixed(0)} units
-- Jupiter diameter: ${SCALING_REFERENCE.jupiter_diameter_scaled.toFixed(1)} units
-- Sun diameter: ${SCALING_REFERENCE.sun_diameter_scaled.toFixed(0)} units
-- Earth-Moon distance: ${SCALING_REFERENCE.earth_moon_scaled.toFixed(0)} units
+Orbital distances in render units:
+- Mercury: ${REALISTIC_SCALING_REFERENCE.mercury_orbit_units.toFixed(0)} units
+- Earth: ${REALISTIC_SCALING_REFERENCE.earth_orbit_units.toFixed(0)} units  
+- Mars: ${REALISTIC_SCALING_REFERENCE.mars_orbit_units.toFixed(0)} units
+- Jupiter: ${REALISTIC_SCALING_REFERENCE.jupiter_orbit_units.toFixed(0)} units
+- Saturn: ${REALISTIC_SCALING_REFERENCE.saturn_orbit_units.toFixed(0)} units
+- Neptune: ${REALISTIC_SCALING_REFERENCE.neptune_orbit_units.toFixed(0)} units
+
+Scene extents: ~${REALISTIC_SCALING_REFERENCE.neptune_orbit_units.toFixed(0)} units radius
   `.trim();
 }
 
 /**
- * Validate if an object will be visible with current scaling
+ * Get recommended camera distance for the realistic scale
  */
-export function isVisibleSize(sizeInRenderUnits: number): boolean {
-  return sizeInRenderUnits >= 0.01; // Minimum visible size
+export function getRecommendedCameraDistance(): number {
+  // Position camera to see most of the solar system
+  const neptuneOrbit = auToRenderUnits(30.069);
+  return neptuneOrbit * 1.5; // 1.5x Neptune's orbit distance
 }
 
 /**
- * Custom scaling for specific visualization needs
+ * Get scene boundaries for realistic solar system
  */
-export function createCustomScale(maxDistance: number, minVisibleSize: number): ScaleFactors {
-  // Calculate scales to fit Neptune orbit within maxDistance
-  const neptuneOrbitKm = 30.069 * 149597870.7;
-  const planetOrbitScale = maxDistance / (neptuneOrbitKm / KM_PER_RENDER_UNIT);
-  
-  // Scale sizes so smallest moon is at least minVisibleSize
-  const smallestMoonKm = 12; // Deimos
-  const sizeScale = minVisibleSize / smallestMoonKm;
+export function getSceneBoundaries(): {
+  innerBoundary: number;
+  outerBoundary: number;
+  recommendedViewDistance: number;
+} {
+  const mercuryOrbit = auToRenderUnits(0.387);
+  const neptuneOrbit = auToRenderUnits(30.069);
   
   return {
-    planetOrbitScale,
-    planetSizeScale: sizeScale,
-    moonSizeScale: sizeScale,
-    moonOrbitScale: SCALE_FACTORS.moonOrbitScale, // Keep proportional to planet orbits
-    sunSizeScale: sizeScale * 0.036 // Keep sun reasonable
+    innerBoundary: mercuryOrbit * 0.5,
+    outerBoundary: neptuneOrbit * 1.2,
+    recommendedViewDistance: neptuneOrbit * 1.5
   };
 }

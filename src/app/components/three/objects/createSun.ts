@@ -1,7 +1,8 @@
 import * as THREE from "three";
+import { getStandardBodyDiameter } from "@/app/lib/scalingUtils";
 
 export function createSun() {
-  const geometry = new THREE.SphereGeometry(30, 64, 64);
+  const geometry = new THREE.SphereGeometry(1, 64, 64);
 
   // Load texture
   const textureLoader = new THREE.TextureLoader();
@@ -18,7 +19,8 @@ export function createSun() {
   const sun = new THREE.Mesh(geometry, material);
 
   // Add point light to simulate sunlight
-  const light = new THREE.PointLight(0xffffff, 10, 1000, 0.5);
+  // Adjust light intensity and distance for realistic scale
+  const light = new THREE.PointLight(0xffffff, 10, 50000, 0.1);
   light.position.set(0, 0, 0);
   light.castShadow = true;
   sun.add(light);

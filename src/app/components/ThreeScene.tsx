@@ -7,11 +7,14 @@ import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupBloom } from "./three/setupBloom";
 
-// Step 1: Import your solar system files
+// Import realistic solar system files
 import { createAllPlanets } from "./three/objects/createPlanet";
 import { createAllMoons } from "./three/objects/createMoon";
-import { scaleSunSize } from "../lib/scalingUtils";
 import { createSun } from "./three/objects/createSun";
+import {
+  getRecommendedCameraDistance,
+  getSceneBoundaries,
+} from "../lib/scalingUtils";
 
 interface CelestialBody {
   mesh: THREE.Mesh;
@@ -28,7 +31,7 @@ export default function ThreeScene() {
     const { scene, camera, renderer } = setupScene(mountRef.current);
     const controls = setupControls(camera, renderer);
 
-    // Step 2: Create celestial objects
+    // Create celestial objects
     const celestialBodies: CelestialBody[] = [];
     let currentTime = 0;
 
@@ -36,30 +39,21 @@ export default function ThreeScene() {
     const { sun, update: updateSun } = createSun();
     scene.add(sun);
 
-    // Create Planets
+    // Create Planets using the updated createPlanet helper
     const planets = createAllPlanets();
-    planets.forEach(planet => {
-      // Create planet mesh
-      const radius = planet.diameter / 2;
-      const geometry = new THREE.SphereGeometry(radius, 16, 16);
-      const material = new THREE.MeshPhongMaterial({ 
-        color: planet.color || 0xcccccc 
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      
-      
-      // Add to scene
-      scene.add(mesh);
+    planets.forEach((planet) => {
+      // Use pre-created mesh and orbit line
+      scene.add(planet.mesh);
       scene.add(planet.orbitLine);
-      
+
       // Store for animation
       celestialBodies.push({
-        mesh,
+        mesh: planet.mesh,
         orbitGenerator: planet.orbitGenerator,
       });
     });
 
-    // Step 3: Add lights
+    // Add lights
     addLights(scene);
     const { update: renderWithBloom, resize: resizeBloom } = setupBloom(
       scene,
@@ -67,21 +61,40 @@ export default function ThreeScene() {
       renderer
     );
 
-    // Step 4: Set camera position
-    camera.position.set(0, 500, 1000);
+    // Set camera position for realistic scale
+    const cameraDistance = getRecommendedCameraDistance();
+    const sceneBounds = getSceneBoundaries();
+
+    camera.position.set(0, cameraDistance * 0.3, cameraDistance);
     camera.lookAt(0, 0, 0);
 
-    // Step 5: Animation loop
+    // Update camera near/far planes for the realistic scale
+    camera.near = 1;
+    camera.far = sceneBounds.outerBoundary * 2;
+    camera.updateProjectionMatrix();
+
+    // Configure controls for large scale
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 10;
+    controls.maxDistance = cameraDistance * 2;
+
+    // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
 
-      // Update time (speed up for visualization)
+      // Update time (speed up significantly for visualization of realistic orbits)
+      // 1 frame = 1 day, adjust as needed for desired animation speed
       currentTime += 86400; // 1 day per frame
 
       // Update all celestial bodies
-      celestialBodies.forEach(body => {
+      celestialBodies.forEach((body) => {
         const position = body.orbitGenerator.getPositionAtTime(currentTime);
-        body.mesh.position.set(position.position.x, position.position.y, position.position.z);
+        body.mesh.position.set(
+          position.position.x,
+          position.position.y,
+          position.position.z
+        );
       });
 
       // Rotate sun

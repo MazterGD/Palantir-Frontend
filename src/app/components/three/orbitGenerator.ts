@@ -1,381 +1,221 @@
 /**
- * Elliptical Orbit Generator
- * TypeScript implementation based on Keplerian orbital mechanics
- * Converted from R implementation by Daniel A. O'Neil
+ * Orbit Generator - All orbit-related functionality
  */
 
 import * as THREE from "three";
 
-export interface Vector3D {
+export interface Point3D {
   x: number;
   y: number;
   z: number;
 }
 
-export interface OrbitalElements {
-  /** Semi-major axis (in astronomical units or desired distance units) */
-  semiMajorAxis: number;
-  /** Eccentricity (0 = circle, 0-1 = ellipse, 1 = parabola) */
-  eccentricity: number;
-  /** Inclination in radians (tilt of orbit plane) */
-  inclination: number;
-  /** Longitude of ascending node in radians (ω) */
-  longitudeOfAscendingNode: number;
-  /** Right Ascension of Ascending Node in radians (Ω) */
-  rightAscensionOfAscendingNode: number;
-  /** Orbital period in seconds */
-  orbitalPeriod: number;
-  /** Time of periapsis passage in seconds */
-  timeOfPeriapsisPassage: number;
+export interface OrbitElements {
+  semiMajorAxis: number;        // a (AU)
+  eccentricity: number;         // e
+  inclination: number;          // i (degrees)
+  ascendingNode: number;        // Ω (degrees) 
+  perihelionArgument: number;   // ω (degrees)
+  orbitalPeriod: number;        // T (days)
+  perihelionTime: number;       // time of perihelion (Julian Date)
+  meanAnomaly: number;          // M at epoch (degrees)
+  meanMotion: number;           // n (degrees/day)
+  epoch: number;                // reference time (Julian Date)
 }
 
-export interface OrbitPoint {
-  position: Vector3D;
+export interface OrbitPosition {
+  position: Point3D;
   time: number;
-  trueAnomaly: number;
   radius: number;
 }
 
-export class EllipticalOrbitGenerator {
-  private elements: OrbitalElements;
-  private meanMotion: number; // n = 2π/T
+export interface OrbitLineOptions {
+  color?: string;
+  opacity?: number;
+  emissiveIntensity?: number;
+  lineWidth?: number;
+  segments?: number;
+  scale?: number;
+}
 
-  constructor(elements: OrbitalElements) {
+export class OrbitGenerator {
+  private elements: OrbitElements;
+
+  constructor(elements: OrbitElements) {
     this.elements = elements;
-    this.meanMotion = (2 * Math.PI) / elements.orbitalPeriod;
   }
 
-  /**
-   * Generate a flat 2D ellipse before 3D transformations
-   */
-  private generateFlatEllipse(numPoints: number = 80): Vector3D[] {
-    const { semiMajorAxis: a, eccentricity: e } = this.elements;
-    const semiMinorAxis = a * Math.sqrt(1 - e * e);
-    const points: Vector3D[] = [];
-
-    for (let i = 0; i < numPoints; i++) {
-      const u = -Math.PI + (2 * Math.PI * i) / (numPoints - 1);
-      const x = a * Math.cos(u) - e;
-      const y = a * Math.sqrt(1 - e * e) * Math.sin(u);
-      const z = 0;
-
-      points.push({ x, y, z });
-    }
-
-    return points;
+  private toRadians(degrees: number): number {
+    return degrees * Math.PI / 180;
   }
 
-  /**
-   * Rotate a 3D point around an axis
-   */
-  private rotate3D(
-    point: Vector3D,
-    angle: number,
-    axisX: number,
-    axisY: number,
-    axisZ: number
-  ): Vector3D {
+  private julianToUnix(jd: number): number {
+    return (jd - 2440587.5) * 86400;
+  }
+
+  private rotatePoint(point: Point3D, angle: number, axisX: number, axisY: number, axisZ: number): Point3D {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     const oneMinusCos = 1 - cos;
 
-    // Normalize the axis vector
     const magnitude = Math.sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ);
     const ux = axisX / magnitude;
     const uy = axisY / magnitude;
     const uz = axisZ / magnitude;
 
-    // Rodrigues' rotation formula
-    const rotationMatrix = [
-      [
-        cos + ux * ux * oneMinusCos,
-        ux * uy * oneMinusCos - uz * sin,
-        ux * uz * oneMinusCos + uy * sin,
-      ],
-      [
-        uy * ux * oneMinusCos + uz * sin,
-        cos + uy * uy * oneMinusCos,
-        uy * uz * oneMinusCos - ux * sin,
-      ],
-      [
-        uz * ux * oneMinusCos - uy * sin,
-        uz * uy * oneMinusCos + ux * sin,
-        cos + uz * uz * oneMinusCos,
-      ],
+    const rotMatrix = [
+      [cos + ux * ux * oneMinusCos, ux * uy * oneMinusCos - uz * sin, ux * uz * oneMinusCos + uy * sin],
+      [uy * ux * oneMinusCos + uz * sin, cos + uy * uy * oneMinusCos, uy * uz * oneMinusCos - ux * sin],
+      [uz * ux * oneMinusCos - uy * sin, uz * uy * oneMinusCos + ux * sin, cos + uz * uz * oneMinusCos]
     ];
 
     return {
-      x:
-        rotationMatrix[0][0] * point.x +
-        rotationMatrix[0][1] * point.y +
-        rotationMatrix[0][2] * point.z,
-      y:
-        rotationMatrix[1][0] * point.x +
-        rotationMatrix[1][1] * point.y +
-        rotationMatrix[1][2] * point.z,
-      z:
-        rotationMatrix[2][0] * point.x +
-        rotationMatrix[2][1] * point.y +
-        rotationMatrix[2][2] * point.z,
+      x: rotMatrix[0][0] * point.x + rotMatrix[0][1] * point.y + rotMatrix[0][2] * point.z,
+      y: rotMatrix[1][0] * point.x + rotMatrix[1][1] * point.y + rotMatrix[1][2] * point.z,
+      z: rotMatrix[2][0] * point.x + rotMatrix[2][1] * point.y + rotMatrix[2][2] * point.z
     };
   }
 
-  /**
-   * Apply 3D rotations using Keplerian parameters
-   */
-  private apply3DRotations(points: Vector3D[]): Vector3D[] {
-    const {
-      inclination,
-      longitudeOfAscendingNode,
-      rightAscensionOfAscendingNode,
-    } = this.elements;
-
-    return points.map((point) => {
-      // Step 1: Pitch (Inclination) - rotate around Y-axis
-      let rotatedPoint = this.rotate3D(point, inclination, 0, 1, 0);
-
-      // Step 2: Yaw (Longitude of ascending node) - rotate around Z-axis
-      rotatedPoint = this.rotate3D(
-        rotatedPoint,
-        longitudeOfAscendingNode,
-        0,
-        0,
-        1
-      );
-
-      // Step 3: Roll (RAAN) - rotate around X-axis
-      rotatedPoint = this.rotate3D(
-        rotatedPoint,
-        rightAscensionOfAscendingNode,
-        1,
-        0,
-        0
-      );
-
-      return rotatedPoint;
-    });
-  }
-
-  /**
-   * Marc Murison's algorithm for solving Kepler's equation
-   */
-  private keplerStart3(e: number, M: number): number {
-    const t34 = e * e;
-    const t35 = e * t34;
-    const t33 = Math.cos(M);
-
-    return M + (-0.5 * t35 + e + (t34 + 1.5 * t33 * t35) * t33) * Math.sin(M);
-  }
-
-  private eps3(e: number, M: number, x: number): number {
-    const t1 = Math.cos(x);
-    const t2 = -1 + e * t1;
-    const t3 = Math.sin(x);
-    const t4 = e * t3;
-    const t5 = -x + t4 + M;
-    const t6 = t5 / ((0.5 * t5 * t4) / t2 + t2);
-
-    return t5 / ((0.5 * t3 - (1 / 6) * t1 * t6) * e * t6 + t2);
-  }
-
-  /**
-   * Solve Kepler's equation iteratively
-   */
   private solveKepler(e: number, M: number): number {
     const tolerance = 1.0e-14;
     const maxIterations = 100;
-
+    
     const MNorm = M % (2 * Math.PI);
-    let E0 = this.keplerStart3(e, MNorm);
+    let E0 = MNorm + e * Math.sin(MNorm);
     let dE = tolerance + 1;
     let count = 0;
 
     while (dE > tolerance && count < maxIterations) {
-      const E = E0 - this.eps3(e, MNorm, E0);
+      const eps = (E0 - e * Math.sin(E0) - MNorm) / (1 - e * Math.cos(E0));
+      const E = E0 - eps;
       dE = Math.abs(E - E0);
       E0 = E;
       count++;
     }
 
-    if (count >= maxIterations) {
-      console.warn("Kepler equation solver failed to converge");
-    }
-
     return E0;
   }
 
-  /**
-   * Propagate orbit to get position at specific time
-   */
-  private propagateOrbit(time: number): OrbitPoint {
-    const {
-      semiMajorAxis: a,
-      eccentricity: e,
-      timeOfPeriapsisPassage: tau,
-    } = this.elements;
+  private getMeanAnomalyAtTime(julianDate: number): number {
+    const daysSinceEpoch = julianDate - this.elements.epoch;
+    const meanAnomalyDegrees = this.elements.meanAnomaly + (this.elements.meanMotion * daysSinceEpoch);
+    return this.toRadians(meanAnomalyDegrees % 360);
+  }
 
-    // Calculate mean anomaly
-    const M = this.meanMotion * (time - tau);
+  private apply3DRotations(points: Point3D[]): Point3D[] {
+    const incRad = this.toRadians(this.elements.inclination);
+    const argRad = this.toRadians(this.elements.perihelionArgument);
+    const nodeRad = this.toRadians(this.elements.ascendingNode);
+    
+    return points.map(point => {
+      let rotated = this.rotatePoint(point, argRad, 0, 0, 1);
+      rotated = this.rotatePoint(rotated, incRad, 1, 0, 0);
+      rotated = this.rotatePoint(rotated, nodeRad, 0, 0, 1);
+      return rotated;
+    });
+  }
 
-    // Solve Kepler's equation for eccentric anomaly
+  generateOrbit(numPoints: number = 100): Point3D[] {
+    const { semiMajorAxis: a, eccentricity: e } = this.elements;
+    const points: Point3D[] = [];
+
+    for (let i = 0; i < numPoints; i++) {
+      const u = (-Math.PI + (2 * Math.PI * i) / (numPoints - 1));
+      const x = a * Math.cos(u) - e;
+      const y = a * Math.sqrt(1 - e * e) * Math.sin(u);
+      const z = 0;
+      points.push({ x, y, z });
+    }
+
+    return this.apply3DRotations(points);
+  }
+
+  getPositionAtTime(julianDate: number): OrbitPosition {
+    const { semiMajorAxis: a, eccentricity: e } = this.elements;
+    
+    const M = this.getMeanAnomalyAtTime(julianDate);
     const E = this.solveKepler(e, M);
     const cosE = Math.cos(E);
-
-    // Calculate radius and position in orbital plane
+    
     const r = a * (1 - e * cosE);
     const x = r * ((cosE - e) / (1 - e * cosE));
     const y = r * ((Math.sqrt(1 - e * e) * Math.sin(E)) / (1 - e * cosE));
     const z = 0;
-
-    // Apply 3D rotations
-    let position = { x, y, z };
-    position = this.rotate3D(position, this.elements.inclination, 0, 1, 0);
-    position = this.rotate3D(
-      position,
-      this.elements.longitudeOfAscendingNode,
-      0,
-      0,
-      1
-    );
-    position = this.rotate3D(
-      position,
-      this.elements.rightAscensionOfAscendingNode,
-      1,
-      0,
-      0
-    );
-
-    // Calculate true anomaly
-    const trueAnomaly = Math.atan2(
-      Math.sqrt(1 - e * e) * Math.sin(E),
-      cosE - e
-    );
-
+    
+    const rotated = this.apply3DRotations([{ x, y, z }])[0];
+    
     return {
-      position,
-      time,
-      trueAnomaly,
-      radius: r,
+      position: rotated,
+      time: this.julianToUnix(julianDate),
+      radius: r
     };
   }
 
-  /**
-   * Generate complete orbital trajectory
-   */
-  generateOrbitTrajectory(numPoints: number = 80): Vector3D[] {
-    const flatEllipse = this.generateFlatEllipse(numPoints);
-    return this.apply3DRotations(flatEllipse);
-  }
+  generateOrbitLine(options: OrbitLineOptions = {}): THREE.Line {
+    const {
+      color = '#ffffff',
+      opacity = 0.8,
+      emissiveIntensity = 0.3,
+      lineWidth = 2,
+      segments = 360,
+      scale = 1
+    } = options;
 
-  /**
-   * Generate orbit points over time with propagation
-   */
-  generateOrbitOverTime(
-    startTime: number,
-    endTime: number,
-    timeSteps: number
-  ): OrbitPoint[] {
-    const points: OrbitPoint[] = [];
-    const deltaTime = (endTime - startTime) / (timeSteps - 1);
+    // Generate orbit points
+    const orbitPoints = this.generateOrbit(segments);
 
-    for (let i = 0; i < timeSteps; i++) {
-      const time = startTime + i * deltaTime;
-      points.push(this.propagateOrbit(time));
+    // Convert to Three.js format with scaling
+    const positions = new Float32Array(orbitPoints.length * 3);
+    for (let i = 0; i < orbitPoints.length; i++) {
+      const point = orbitPoints[i];
+      positions[i * 3] = point.x * scale;
+      positions[i * 3 + 1] = point.y * scale;
+      positions[i * 3 + 2] = point.z * scale;
     }
 
-    return points;
-  }
+    // Create Three.js Line object
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
-  /**
-   * Get position at specific time
-   */
-  getPositionAtTime(time: number): OrbitPoint {
-    return this.propagateOrbit(time);
-  }
+    const material = new THREE.LineBasicMaterial({
+      color: color,
+      transparent: opacity < 1,
+      opacity: opacity,
+    });
 
-  /**
-   * Calculate orbital velocity at given position
-   */
-  getVelocityAtTime(time: number, deltaTime: number = 1): Vector3D {
-    const pos1 = this.propagateOrbit(time - deltaTime / 2);
-    const pos2 = this.propagateOrbit(time + deltaTime / 2);
-
-    return {
-      x: (pos2.position.x - pos1.position.x) / deltaTime,
-      y: (pos2.position.y - pos1.position.y) / deltaTime,
-      z: (pos2.position.z - pos1.position.z) / deltaTime,
-    };
-  }
-
-  /**
-   * Get focus point (where the central body is located)
-   */
-  getFocusPoint(): Vector3D {
-    const { semiMajorAxis: a, eccentricity: e } = this.elements;
-    const c = e * a;
-    let focus = { x: -c, y: 0, z: 0 };
-
-    // Apply same rotations as orbit
-    focus = this.rotate3D(focus, this.elements.inclination, 0, 1, 0);
-    focus = this.rotate3D(
-      focus,
-      this.elements.longitudeOfAscendingNode,
-      0,
-      0,
-      1
-    );
-    focus = this.rotate3D(
-      focus,
-      this.elements.rightAscensionOfAscendingNode,
-      1,
-      0,
-      0
-    );
-
-    return focus;
-  }
-
-  /**
-   * Update orbital elements
-   */
-  updateElements(newElements: Partial<OrbitalElements>): void {
-    this.elements = { ...this.elements, ...newElements };
-    this.meanMotion = (2 * Math.PI) / this.elements.orbitalPeriod;
-  }
-
-  /**
-   * Get current orbital elements
-   */
-  getElements(): OrbitalElements {
-    return { ...this.elements };
-  }
-
-  /**
-   * Generate orbit points using actual orbital mechanics (matches planet movement)
-   */
-  generateOrbitLine(numPoints: number = 100): THREE.Vector3[] {
-    const points: THREE.Vector3[] = [];
-    const { orbitalPeriod } = this.elements;
-
-    // Generate points over one complete orbit using the same physics as propagateOrbit
-    for (let i = 0; i < numPoints; i++) {
-      const time = (orbitalPeriod * i) / numPoints;
-      const orbitPoint = this.propagateOrbit(time);
-      points.push(
-        new THREE.Vector3(
-          orbitPoint.position.x,
-          orbitPoint.position.y,
-          orbitPoint.position.z
-        )
-      );
-    }
-
-    return points;
+    return new THREE.Line(geometry, material);
   }
 }
 
-// Utility functions for unit conversion
-export const DegreesToRadians = (degrees: number): number =>
-  (degrees * Math.PI) / 180;
-export const RadiansToDegrees = (radians: number): number =>
-  (radians * 180) / Math.PI;
+// Wrapper class for Three.js compatibility
+export class ScaledOrbitGenerator {
+  private orbitGenerator: OrbitGenerator;
+  private scale: number;
+
+  constructor(orbitGenerator: OrbitGenerator, scale: number = 10) {
+    this.orbitGenerator = orbitGenerator;
+    this.scale = scale;
+  }
+
+  getPositionAtTime(unixTime: number) {
+    const julianDate = unixTime / 86400 + 2440587.5;
+    const orbitPosition = this.orbitGenerator.getPositionAtTime(julianDate);
+    
+    return {
+      position: {
+        x: orbitPosition.position.x * this.scale,
+        y: orbitPosition.position.y * this.scale,
+        z: orbitPosition.position.z * this.scale,
+      },
+      radius: orbitPosition.radius * this.scale,
+      time: orbitPosition.time,
+    };
+  }
+}
+
+// Orbit line presets
+export const ORBIT_PRESETS = {
+  standard: { opacity: 0.7, emissiveIntensity: 0.3, lineWidth: 2, segments: 360 },
+  bright: { opacity: 0.9, emissiveIntensity: 0.6, lineWidth: 3, segments: 360 },
+  subtle: { opacity: 0.4, emissiveIntensity: 0.2, lineWidth: 1, segments: 180 }
+};
