@@ -1,9 +1,5 @@
-/**
- * Planet Creation - Three.js planet objects with meshes and orbit lines
- */
-
 import * as THREE from "three";
-import { ALL_PLANETS, PLANET_COLORS, PLANET_PHYSICAL_DATA } from "@/app/lib/planetData";
+import { PLANETS } from "@/app/lib/planetData";
 import { OrbitGenerator, ScaledOrbitGenerator, ORBIT_PRESETS } from "../orbitGenerator";
 
 export interface Planet {
@@ -15,53 +11,33 @@ export interface Planet {
   mesh: THREE.Mesh;
 }
 
-function scalePlanetSize(diameterKm: number): number {
-  return diameterKm * 0.0001; // Scale factor for reasonable planet sizes
-}
+const createPlanetMesh = (diameter: number, color: string) => 
+  new THREE.Mesh(new THREE.SphereGeometry(diameter / 2, 16, 16), new THREE.MeshPhongMaterial({ color }));
 
-function createPlanetMesh(diameter: number, color: string): THREE.Mesh {
-  const geometry = new THREE.SphereGeometry(diameter / 2, 16, 16);
-  const material = new THREE.MeshPhongMaterial({ color });
-  return new THREE.Mesh(geometry, material);
-}
+export const createPlanet = (planetName: string) => {
+  const name = planetName.toLowerCase() as keyof typeof PLANETS;
+  const planetData = PLANETS[name];
+  if (!planetData) return null;
 
-export function createPlanet(planetName: string): Planet | null {
-  const lowerName = planetName.toLowerCase() as keyof typeof ALL_PLANETS;
-  const orbitalElements = ALL_PLANETS[lowerName];
-  const physicalData = PLANET_PHYSICAL_DATA[lowerName];
-
-  if (!orbitalElements || !physicalData) {
-    console.warn(`Planet data not found for: ${planetName}`);
-    return null;
-  }
-
-  const orbitGenerator = new OrbitGenerator(orbitalElements);
-  const positionScale = 10; // 10 AU = 10 scene units
-  const scaledOrbitGenerator = new ScaledOrbitGenerator(orbitGenerator, positionScale);
+  const { diameter, color, ...orbitElements } = planetData;
+  const orbitGenerator = new OrbitGenerator(orbitElements);
+  const positionScale = 100;
   
-  const scaledDiameter = scalePlanetSize(physicalData.diameter);
-  
-  // Generate orbit line directly from orbit generator
   const orbitLine = orbitGenerator.generateOrbitLine({
-    color: PLANET_COLORS[lowerName],
+    color,
     scale: positionScale,
     ...ORBIT_PRESETS.standard
   });
-  
-  const mesh = createPlanetMesh(scaledDiameter, physicalData.color);
 
   return {
     name: planetName,
-    orbitGenerator: scaledOrbitGenerator,
-    diameter: scaledDiameter,
-    color: physicalData.color,
+    orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
+    diameter: diameter * 0.0001,
+    color,
     orbitLine,
-    mesh,
+    mesh: createPlanetMesh(diameter * 0.0001, color)
   };
-}
+};
 
-export function createAllPlanets(): Planet[] {
-  return Object.keys(ALL_PLANETS)
-    .map(planetName => createPlanet(planetName))
-    .filter(planet => planet !== null) as Planet[];
-}
+export const createAllPlanets = () => 
+  Object.keys(PLANETS).map(name => createPlanet(name)).filter(Boolean) as Planet[];

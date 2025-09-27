@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { getStandardBodyDiameter } from "@/app/lib/scalingUtils";
 
 export function createSun() {
-  const geometry = new THREE.SphereGeometry(1, 64, 64);
+  const geometry = new THREE.SphereGeometry(20, 64, 64);
 
   // Load texture
   const textureLoader = new THREE.TextureLoader();

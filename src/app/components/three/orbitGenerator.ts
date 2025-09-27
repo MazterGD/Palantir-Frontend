@@ -121,7 +121,7 @@ export class OrbitGenerator {
 
     for (let i = 0; i < numPoints; i++) {
       const u = (-Math.PI + (2 * Math.PI * i) / (numPoints - 1));
-      const x = a * Math.cos(u) - e;
+      const x = a * (Math.cos(u) - e);
       const y = a * Math.sqrt(1 - e * e) * Math.sin(u);
       const z = 0;
       points.push({ x, y, z });
@@ -192,7 +192,7 @@ export class ScaledOrbitGenerator {
   private orbitGenerator: OrbitGenerator;
   private scale: number;
 
-  constructor(orbitGenerator: OrbitGenerator, scale: number = 10) {
+  constructor(orbitGenerator: OrbitGenerator, scale: number = 100) {
     this.orbitGenerator = orbitGenerator;
     this.scale = scale;
   }
