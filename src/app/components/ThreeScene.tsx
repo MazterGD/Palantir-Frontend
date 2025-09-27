@@ -20,6 +20,7 @@ interface CelestialBody {
   mesh: THREE.Mesh;
   orbitGenerator: any;
   orbitLine?: THREE.Line;
+  rotationSpeed?: number;
 }
 
 export default function ThreeScene() {
@@ -50,6 +51,7 @@ export default function ThreeScene() {
       celestialBodies.push({
         mesh: planet.mesh,
         orbitGenerator: planet.orbitGenerator,
+        rotationSpeed: planet.rotationSpeed,
       });
     });
 
@@ -83,18 +85,25 @@ export default function ThreeScene() {
     const animate = () => {
       requestAnimationFrame(animate);
 
-      // Update time (speed up significantly for visualization of realistic orbits)
+      // Update time
       // 1 frame = 1 day, adjust as needed for desired animation speed
-      currentTime += 86400; // 1 day per frame
+      currentTime += 360; // 1 day per frame
 
       // Update all celestial bodies
       celestialBodies.forEach((body) => {
+        // Update orbital position
         const position = body.orbitGenerator.getPositionAtTime(currentTime);
         body.mesh.position.set(
           position.position.x,
           position.position.y,
           position.position.z
         );
+
+        // Update planetary rotation
+        if (body.rotationSpeed) {
+          // Rotate around Y-axis (body.rotationSpeed is in radians per day)
+          body.mesh.rotation.z += body.rotationSpeed;
+        }
       });
 
       // Rotate sun

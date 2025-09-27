@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { PLANETS } from "@/app/lib/planetData";
+import { PLANET_TEXTURES, PLANETS } from "@/app/lib/planetData";
 import { OrbitGenerator, ScaledOrbitGenerator, ORBIT_PRESETS } from "../orbitGenerator";
 
 export interface Planet {
@@ -9,17 +9,53 @@ export interface Planet {
   color: string;
   orbitLine: THREE.Line;
   mesh: THREE.Mesh;
+  rotationPeriod: number; // in hours
+  axisTilt: number; // in degrees
+  rotationSpeed: number; // radians per day
 }
 
-const createPlanetMesh = (diameter: number, color: string) => 
-  new THREE.Mesh(new THREE.SphereGeometry(diameter / 2, 16, 16), new THREE.MeshPhongMaterial({ color }));
+const textureLoader = new THREE.TextureLoader();
+
+const createPlanetMesh = (planetName: string, diameter: number, fallbackColor: string) => {
+  const geometry = new THREE.SphereGeometry(diameter / 2, 64, 64);
+
+  const texConfig = PLANET_TEXTURES[planetName] || {};
+  const materialOptions: THREE.MeshPhongMaterialParameters = {};
+
+  if (texConfig.color) materialOptions.map = textureLoader.load(texConfig.color);
+  if (texConfig.bump) materialOptions.bumpMap = textureLoader.load(texConfig.bump);
+  if (texConfig.normal) materialOptions.normalMap = textureLoader.load(texConfig.normal);
+  if (texConfig.specular) materialOptions.specularMap = textureLoader.load(texConfig.specular);
+
+  // Fallback if no color texture
+  if (!materialOptions.map) materialOptions.color = fallbackColor;
+
+  const material = new THREE.MeshPhongMaterial(materialOptions);
+
+  const mesh = new THREE.Mesh(geometry, material);
+
+  // Optional: add a separate transparent cloud layer
+  if (texConfig.cloud) {
+    const cloudGeometry = new THREE.SphereGeometry(diameter / 2 * 1.01, 64, 64);
+    const cloudMaterial = new THREE.MeshPhongMaterial({
+      map: textureLoader.load(texConfig.cloud),
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+    });
+    const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
+    mesh.add(cloudMesh);
+  }
+
+  return mesh;
+};
 
 export const createPlanet = (planetName: string) => {
   const name = planetName.toLowerCase() as keyof typeof PLANETS;
   const planetData = PLANETS[name];
   if (!planetData) return null;
 
-  const { diameter, color, ...orbitElements } = planetData;
+  const { diameter, color, rotationPeriod, axisTilt, ...orbitElements } = planetData;
   const orbitGenerator = new OrbitGenerator(orbitElements);
   const positionScale = 100;
   
@@ -29,13 +65,24 @@ export const createPlanet = (planetName: string) => {
     ...ORBIT_PRESETS.standard
   });
 
+  const mesh = createPlanetMesh(name, diameter * 0.0001, color);
+  
+  // Apply axis tilt
+  mesh.rotation.x = THREE.MathUtils.degToRad(axisTilt);
+  
+  // Calculate rotation speed (radians per day)
+  const rotationSpeed = rotationPeriod !== 0 ? (2 * Math.PI) / (rotationPeriod / 24) : 0;
+
   return {
     name: planetName,
     orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
     diameter: diameter * 0.0001,
     color,
     orbitLine,
-    mesh: createPlanetMesh(diameter * 0.0001, color)
+    mesh,
+    rotationPeriod,
+    axisTilt,
+    rotationSpeed
   };
 };
 
