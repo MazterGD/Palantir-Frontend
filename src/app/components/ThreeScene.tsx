@@ -17,7 +17,7 @@ import {
 } from "../lib/scalingUtils";
 
 interface CelestialBody {
-  mesh: THREE.Mesh;
+  mesh: THREE.Group; // Changed to Group to handle axis tilt
   orbitGenerator: any;
   orbitLine?: THREE.Line;
   rotationSpeed?: number;
@@ -35,6 +35,9 @@ export default function ThreeScene() {
     // Create celestial objects
     const celestialBodies: CelestialBody[] = [];
     let currentTime = 0;
+    
+    // Speed control: 1.0 = normal, 0.1 = 10x slower, 0.01 = 100x slower
+    const speedMultiplier = 0.1;
 
     // Create Sun
     const { sun, update: updateSun } = createSun();
@@ -85,9 +88,9 @@ export default function ThreeScene() {
     const animate = () => {
       requestAnimationFrame(animate);
 
-      // Update time
-      // 1 frame = 1 day, adjust as needed for desired animation speed
-      currentTime += 360; // 1 day per frame
+      // Update time (speed up significantly for visualization of realistic orbits)
+      // 1 frame = 1 day * speedMultiplier
+      currentTime += 360 * speedMultiplier;
 
       // Update all celestial bodies
       celestialBodies.forEach((body) => {
@@ -101,8 +104,9 @@ export default function ThreeScene() {
 
         // Update planetary rotation
         if (body.rotationSpeed) {
-          // Rotate around Y-axis (body.rotationSpeed is in radians per day)
-          body.mesh.rotation.z += body.rotationSpeed;
+          // Rotate the planet mesh inside the tilted group around Y-axis
+          const planetMesh = body.mesh.children[0] as THREE.Mesh;
+          planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
         }
       });
 
