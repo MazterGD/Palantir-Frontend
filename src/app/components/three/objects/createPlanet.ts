@@ -6,6 +6,7 @@ import {
   ScaledOrbitGenerator,
   ORBIT_PRESETS,
 } from "../orbitGenerator";
+import { addObjectHalo } from "../objectHalo";
 
 export interface Planet {
   name: string;
@@ -19,12 +20,14 @@ export interface Planet {
   rotationSpeed: number; // radians per day
 }
 
+type HaloUpdate = () => void;
+
 const textureLoader = new THREE.TextureLoader();
 
 const createPlanetMesh = (
   planetName: string,
   diameter: number,
-  fallbackColor: string
+  fallbackColor: string,
 ) => {
   const geometry = new THREE.SphereGeometry(diameter / 2, 64, 64);
   const texConfig = PLANET_TEXTURES[planetName] || {};
@@ -50,7 +53,7 @@ const createPlanetMesh = (
     const cloudGeometry = new THREE.SphereGeometry(
       (diameter / 2) * 1.01,
       64,
-      64
+      64,
     );
     const cloudMaterial = new THREE.MeshPhongMaterial({
       map: textureLoader.load(texConfig.cloud),
@@ -65,7 +68,7 @@ const createPlanetMesh = (
   return mesh;
 };
 
-export const createPlanet = (planetName: string) => {
+export const createPlanet = (planetName: string, camera: THREE.Camera,halos:HaloUpdate[]) => {
   const name = planetName.toLowerCase() as keyof typeof PLANETS;
   const planetData = PLANETS[name];
   if (!planetData) return null;
@@ -83,6 +86,11 @@ export const createPlanet = (planetName: string) => {
 
   const mesh = createPlanetMesh(name, diameter * 0.0001, color);
 
+  const { sprite: halo, update: updateHalo } = addObjectHalo(mesh, camera, {
+    texture: "/textures/Sprites/circle.png",
+    color:planetData.color,
+  });
+  halos.push(updateHalo);
   // Rotate mesh so its Y-axis (rotation axis) is perpendicular to orbital plane
   mesh.rotation.x = Math.PI / 2; // 90 degrees
 
@@ -110,7 +118,7 @@ export const createPlanet = (planetName: string) => {
   };
 };
 
-export const createAllPlanets = () =>
+export const createAllPlanets = (camera: THREE.Camera,halos:HaloUpdate[]) =>
   Object.keys(PLANETS)
-    .map((name) => createPlanet(name))
+    .map((name) => createPlanet(name, camera,halos))
     .filter(Boolean) as Planet[];

@@ -25,7 +25,7 @@ export function createSun(camera: THREE.Camera) {
   light.castShadow = true;
   sun.add(light);
 
-  const glowTexture = textureLoader.load("/textures/glow.png");
+  const glowTexture = textureLoader.load("/textures/PostProcessing/glow.png");
   const glowMaterial = new THREE.SpriteMaterial({
     map: glowTexture,
     color: 0xffb300,

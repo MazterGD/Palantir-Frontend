@@ -33,7 +33,7 @@ export default function ThreeScene() {
     // Create celestial objects
     const celestialBodies: CelestialBody[] = [];
     let currentTime = 0;
-    
+
     // Speed control: 1.0 = normal, 0.1 = 10x slower, 0.01 = 100x slower
     const speedMultiplier = 0.1;
 
@@ -42,7 +42,8 @@ export default function ThreeScene() {
     scene.add(sun);
 
     // Create Planets using the updated createPlanet helper
-    const planets = createAllPlanets();
+    const halos: (() => void)[] = [];
+    const planets = createAllPlanets(camera, halos);
     planets.forEach((planet) => {
       // Use pre-created mesh and orbit line
       scene.add(planet.mesh);
@@ -58,17 +59,14 @@ export default function ThreeScene() {
 
     // Add lights
     addLights(scene);
-    const { update: renderWithPostProcessing, resize: resizePostProcessing } = setupPostProcessing(
-      scene,
-      camera,
-      renderer
-    );
+    const { update: renderWithPostProcessing, resize: resizePostProcessing } =
+      setupPostProcessing(scene, camera, renderer);
 
     // Set camera position for realistic scale
     const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
 
-    camera.position.set(0, -cameraDistance * 0.065,cameraDistance * 0.015);
+    camera.position.set(0, -cameraDistance * 0.065, cameraDistance * 0.015);
     camera.lookAt(0, 0, 0);
 
     // Update camera near/far planes for the realistic scale
@@ -97,7 +95,7 @@ export default function ThreeScene() {
         body.mesh.position.set(
           position.position.x,
           position.position.y,
-          position.position.z
+          position.position.z,
         );
 
         // Update planetary rotation
@@ -107,6 +105,8 @@ export default function ThreeScene() {
           planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
         }
       });
+
+      halos.forEach((updateHalo) => updateHalo());
 
       // Rotate sun
       updateSun();
@@ -123,7 +123,7 @@ export default function ThreeScene() {
       camera.updateProjectionMatrix();
       renderer.setSize(
         mountRef.current!.clientWidth,
-        mountRef.current!.clientHeight
+        mountRef.current!.clientHeight,
       );
       resizePostProcessing();
     };
