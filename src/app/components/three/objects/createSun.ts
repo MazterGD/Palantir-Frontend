@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { getStandardBodyDiameter } from "@/app/lib/scalingUtils";
 
-export function createSun() {
+export function createSun(camera: THREE.Camera) {
   const geometry = new THREE.SphereGeometry(20, 64, 64);
 
   // Load texture
@@ -25,9 +25,29 @@ export function createSun() {
   light.castShadow = true;
   sun.add(light);
 
-  // Animation function
+  const glowTexture = textureLoader.load("/textures/glow.png");
+  const glowMaterial = new THREE.SpriteMaterial({
+    map: glowTexture,
+    color: 0xffb300,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthTest: false,  // ignores depth (always visible)
+    depthWrite: false, // doesn't block other objects
+  });
+  
+
+  const glowSprite = new THREE.Sprite(glowMaterial);
+  glowSprite.renderOrder = 9999; // render on top
+  sun.add(glowSprite);
+
   const update = () => {
     sun.rotation.y += 0.002;
+
+    // Auto-scale glow with distance
+    const distance = camera.position.distanceTo(sun.position);
+    const baseSize = 24;
+    const scaleFactor = distance * 0.2; 
+    glowSprite.scale.set(baseSize + scaleFactor, baseSize + scaleFactor, 1);
   };
 
   return { sun, update };

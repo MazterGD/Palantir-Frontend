@@ -38,7 +38,7 @@ export default function ThreeScene() {
     const speedMultiplier = 0.1;
 
     // Create Sun
-    const { sun, update: updateSun } = createSun();
+    const { sun, update: updateSun } = createSun(camera);
     scene.add(sun);
 
     // Create Planets using the updated createPlanet helper
