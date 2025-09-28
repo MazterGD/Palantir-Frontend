@@ -68,7 +68,7 @@ export default function ThreeScene() {
     const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
 
-    camera.position.set(0, cameraDistance * 0.3, cameraDistance);
+    camera.position.set(0, -cameraDistance * 0.065,cameraDistance * 0.015);
     camera.lookAt(0, 0, 0);
 
     // Update camera near/far planes for the realistic scale
