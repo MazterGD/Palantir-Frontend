@@ -181,7 +181,7 @@ export class OrbitGenerator {
       color: color,
       transparent: opacity < 1,
       opacity: opacity,
-      linewidth: 2.5
+      linewidth: 3
     });
 
     return new Line2(geometry, material);

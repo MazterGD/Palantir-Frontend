@@ -11,9 +11,15 @@ export function setupScene(container: HTMLDivElement) {
   );
   camera.position.z = 5;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: false });
-  renderer.setSize(container.clientWidth, container.clientHeight);
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
   container.appendChild(renderer.domElement);
+
+  const ResScalling = 2;
+  renderer.setSize(container.clientWidth * ResScalling, container.clientHeight * ResScalling, false);
+  renderer.domElement.style.width = container.clientWidth + "px";
+  renderer.domElement.style.height = container.clientHeight + "px";
+
+  renderer.setPixelRatio(window.devicePixelRatio);
 
   return { scene, camera, renderer };
 }
