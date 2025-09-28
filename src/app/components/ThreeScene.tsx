@@ -5,11 +5,9 @@ import * as THREE from "three";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
-import { setupBloom } from "./three/setupBloom";
+import { setupPostProcessing } from "./three/PostProcessing";
 
-// Import realistic solar system files
 import { createAllPlanets } from "./three/objects/createPlanet";
-import { createAllMoons } from "./three/objects/createMoon";
 import { createSun } from "./three/objects/createSun";
 import {
   getRecommendedCameraDistance,
@@ -60,7 +58,7 @@ export default function ThreeScene() {
 
     // Add lights
     addLights(scene);
-    const { update: renderWithBloom, resize: resizeBloom } = setupBloom(
+    const { update: renderWithPostProcessing, resize: resizePostProcessing } = setupPostProcessing(
       scene,
       camera,
       renderer
@@ -114,7 +112,7 @@ export default function ThreeScene() {
       updateSun();
 
       controls.update();
-      renderWithBloom();
+      renderWithPostProcessing();
     };
     animate();
 
@@ -127,7 +125,7 @@ export default function ThreeScene() {
         mountRef.current!.clientWidth,
         mountRef.current!.clientHeight
       );
-      resizeBloom();
+      resizePostProcessing();
     };
     window.addEventListener("resize", handleResize);
 

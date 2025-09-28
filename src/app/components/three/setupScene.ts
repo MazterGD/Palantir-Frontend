@@ -11,7 +11,7 @@ export function setupScene(container: HTMLDivElement) {
   );
   camera.position.z = 5;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);
 
