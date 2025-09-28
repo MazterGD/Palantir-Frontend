@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { PLANET_TEXTURES, PLANETS } from "@/app/lib/planetData";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import {
   OrbitGenerator,
   ScaledOrbitGenerator,
@@ -11,7 +12,7 @@ export interface Planet {
   orbitGenerator: ScaledOrbitGenerator;
   diameter: number;
   color: string;
-  orbitLine: THREE.Line;
+  orbitLine: Line2;
   mesh: THREE.Group; // Changed to Group to handle axis tilt
   rotationPeriod: number; // in hours
   axisTilt: number; // in degrees

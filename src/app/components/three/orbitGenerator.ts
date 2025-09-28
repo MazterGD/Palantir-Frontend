@@ -1,7 +1,9 @@
 /**
  * Orbit Generator - All orbit-related functionality
  */
-
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import * as THREE from "three";
 
 export interface Point3D {
@@ -151,12 +153,10 @@ export class OrbitGenerator {
     };
   }
 
-  generateOrbitLine(options: OrbitLineOptions = {}): THREE.Line {
+  generateOrbitLine(options: OrbitLineOptions = {}): Line2 {
     const {
       color = '#ffffff',
       opacity = 0.8,
-      emissiveIntensity = 0.3,
-      lineWidth = 2,
       segments = 360,
       scale = 1
     } = options;
@@ -173,17 +173,18 @@ export class OrbitGenerator {
       positions[i * 3 + 2] = point.z * scale;
     }
 
-    // Create Three.js Line object
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    // Create Line2 object
+    const geometry = new LineGeometry();
+    geometry.setPositions(positions);
 
-    const material = new THREE.LineBasicMaterial({
+    const material = new LineMaterial({
       color: color,
       transparent: opacity < 1,
       opacity: opacity,
+      linewidth: 2.5
     });
 
-    return new THREE.Line(geometry, material);
+    return new Line2(geometry, material);
   }
 }
 
