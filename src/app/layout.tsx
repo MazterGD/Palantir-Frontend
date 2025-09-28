@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project Palantir",
+  title: "Palantir",
   description: "Ever Watchful Eye of Sauron",
 };
 
