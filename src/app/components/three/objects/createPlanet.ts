@@ -86,7 +86,7 @@ export const createPlanet = (planetName: string, camera: THREE.Camera,halos:Halo
 
   const mesh = createPlanetMesh(name, diameter * 0.0001, color);
 
-  const { sprite: halo, update: updateHalo } = addObjectHalo(mesh, camera, {
+  const updateHalo = addObjectHalo(mesh, camera, {
     texture: "/textures/Sprites/circle.png",
     color:planetData.color,
   });

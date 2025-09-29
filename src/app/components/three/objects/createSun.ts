@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { getStandardBodyDiameter } from "@/app/lib/scalingUtils";
+// import { getStandardBodyDiameter } from "@/app/lib/scalingUtils";
 
 export function createSun(camera: THREE.Camera) {
   const geometry = new THREE.SphereGeometry(2, 64, 64);

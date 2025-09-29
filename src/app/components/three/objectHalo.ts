@@ -60,5 +60,5 @@ export function addObjectHalo(
     sprite.scale.set(worldScale, worldScale, 1);
   };
 
-  return {sprite,update};
+  return update;
 }

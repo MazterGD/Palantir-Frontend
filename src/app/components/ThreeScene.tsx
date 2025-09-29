@@ -6,7 +6,7 @@ import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupPostProcessing } from "./three/PostProcessing";
-
+import { ScaledOrbitGenerator } from "./three/orbitGenerator";
 import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
 import {
@@ -16,7 +16,7 @@ import {
 
 interface CelestialBody {
   mesh: THREE.Group; // Changed to Group to handle axis tilt
-  orbitGenerator: any;
+  orbitGenerator: ScaledOrbitGenerator;
   orbitLine?: THREE.Line;
   rotationSpeed?: number;
 }
@@ -26,6 +26,7 @@ export default function ThreeScene() {
 
   useEffect(() => {
     if (!mountRef.current) return;
+    const Refcurrent = mountRef.current;
 
     const { scene, camera, renderer } = setupScene(mountRef.current);
     const controls = setupControls(camera, renderer);
@@ -133,8 +134,8 @@ export default function ThreeScene() {
       window.removeEventListener("resize", handleResize);
       controls.dispose();
       renderer.dispose();
-      if (mountRef.current) {
-        mountRef.current.removeChild(renderer.domElement);
+      if (Refcurrent) {
+        Refcurrent.removeChild(renderer.domElement);
       }
     };
   }, []);
