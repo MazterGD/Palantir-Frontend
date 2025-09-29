@@ -49,8 +49,8 @@ export default function ThreeScene() {
     scene.add(sun);
 
     // Create Planets using the updated createPlanet helper
-    const halos: (() => void)[] = [];
-    const planets = createAllPlanets(camera, halos);
+    const halos_and_labels: (() => void)[] = [];
+    const planets = createAllPlanets(camera, halos_and_labels);
     planets.forEach((planet) => {
       // Use pre-created mesh and orbit line
       scene.add(planet.mesh);
@@ -108,7 +108,7 @@ export default function ThreeScene() {
         }
       });
 
-      halos.forEach((updateHalo) => updateHalo());
+      halos_and_labels.forEach((updateHalo) => updateHalo());
 
       // Rotate sun
       updateSun();

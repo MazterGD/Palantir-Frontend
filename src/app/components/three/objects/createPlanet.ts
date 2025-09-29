@@ -6,7 +6,9 @@ import {
   ScaledOrbitGenerator,
   ORBIT_PRESETS,
 } from "../orbitGenerator";
-import { addObjectHalo } from "../objectHalo";
+import { addObjectLabel } from "../objectLabel";
+import { createLabel } from "../objectTextLables";
+import { TexturePass } from "three/examples/jsm/Addons.js";
 
 export interface Planet {
   name: string;
@@ -71,7 +73,7 @@ const createPlanetMesh = (
 export const createPlanet = (
   planetName: string,
   camera: THREE.Camera,
-  halos: HaloUpdate[],
+  halos_and_labels: HaloUpdate[],
 ) => {
   const name = planetName.toLowerCase() as keyof typeof PLANETS;
   const planetData = PLANETS[name];
@@ -90,11 +92,20 @@ export const createPlanet = (
 
   const mesh = createPlanetMesh(name, diameter * 0.0001, color);
 
-  const updateHalo = addObjectHalo(mesh, camera, {
-    texture: "/textures/Sprites/circle.png",
+  const texturePath = "/textures/Sprites/circle.png"
+
+    let map: THREE.Texture | undefined;
+    if (texturePath) {
+      map = new THREE.TextureLoader().load(texturePath);
+    }
+  
+  const updateHalo = addObjectLabel(mesh, camera, {
+    texture: map,
     color: planetData.color,
   });
-  halos.push(updateHalo);
+  const updateLable = createLabel(mesh,planetName,camera);
+  halos_and_labels.push(updateHalo);
+  halos_and_labels.push(updateLable);
   // Rotate mesh so its Y-axis (rotation axis) is perpendicular to orbital plane
   mesh.rotation.x = Math.PI / 2; // 90 degrees
 
@@ -122,7 +133,7 @@ export const createPlanet = (
   };
 };
 
-export const createAllPlanets = (camera: THREE.Camera, halos: HaloUpdate[]) =>
+export const createAllPlanets = (camera: THREE.Camera, halos_and_labels: HaloUpdate[]) =>
   Object.keys(PLANETS)
-    .map((name) => createPlanet(name, camera, halos))
+    .map((name) => createPlanet(name, camera, halos_and_labels))
     .filter(Boolean) as Planet[];
