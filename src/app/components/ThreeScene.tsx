@@ -13,6 +13,7 @@ import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
 } from "../lib/scalingUtils";
+import { addStarsBackground } from "./three/createBackground";
 
 interface CelestialBody {
   mesh: THREE.Group; // Changed to Group to handle axis tilt
@@ -29,6 +30,11 @@ export default function ThreeScene() {
     const Refcurrent = mountRef.current;
 
     const { scene, camera, renderer } = setupScene(mountRef.current);
+    // Set camera position for realistic scale
+    const cameraDistance = getRecommendedCameraDistance();
+    camera.position.set(0, cameraDistance * 0.065, 0);
+    camera.lookAt(0, 0, 0);
+    addStarsBackground(scene);
     const controls = setupControls(camera, renderer);
 
     // Create celestial objects
@@ -63,12 +69,7 @@ export default function ThreeScene() {
     const { update: renderWithPostProcessing, resize: resizePostProcessing } =
       setupPostProcessing(scene, camera, renderer);
 
-    // Set camera position for realistic scale
-    const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
-
-    camera.position.set(0, -cameraDistance * 0.065, cameraDistance * 0.015);
-    camera.lookAt(0, 0, 0);
 
     // Update camera near/far planes for the realistic scale
     camera.near = 1;
