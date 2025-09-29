@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
-import { setupPostProcessing } from "./three/PostProcessing";
+import { setupPostProcessing } from "./three/postProcessing";
 import { ScaledOrbitGenerator } from "./three/orbitGenerator";
 import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
@@ -13,6 +13,7 @@ import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
 } from "../lib/scalingUtils";
+import { addStarsBackground } from "./three/createBackground";
 
 interface CelestialBody {
   mesh: THREE.Group; // Changed to Group to handle axis tilt
@@ -29,6 +30,11 @@ export default function ThreeScene() {
     const Refcurrent = mountRef.current;
 
     const { scene, camera, renderer } = setupScene(mountRef.current);
+    // Set camera position for realistic scale
+    const cameraDistance = getRecommendedCameraDistance();
+    camera.position.set(0, cameraDistance * 0.065, 0);
+    camera.lookAt(0, 0, 0);
+    addStarsBackground(scene);
     const controls = setupControls(camera, renderer);
 
     // Create celestial objects
@@ -43,8 +49,8 @@ export default function ThreeScene() {
     scene.add(sun);
 
     // Create Planets using the updated createPlanet helper
-    const halos: (() => void)[] = [];
-    const planets = createAllPlanets(camera, halos);
+    const halos_and_labels: (() => void)[] = [];
+    const planets = createAllPlanets(camera, halos_and_labels);
     planets.forEach((planet) => {
       // Use pre-created mesh and orbit line
       scene.add(planet.mesh);
@@ -63,12 +69,7 @@ export default function ThreeScene() {
     const { update: renderWithPostProcessing, resize: resizePostProcessing } =
       setupPostProcessing(scene, camera, renderer);
 
-    // Set camera position for realistic scale
-    const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
-
-    camera.position.set(0, -cameraDistance * 0.065, cameraDistance * 0.015);
-    camera.lookAt(0, 0, 0);
 
     // Update camera near/far planes for the realistic scale
     camera.near = 1;
@@ -107,7 +108,7 @@ export default function ThreeScene() {
         }
       });
 
-      halos.forEach((updateHalo) => updateHalo());
+      halos_and_labels.forEach((updateHalo) => updateHalo());
 
       // Rotate sun
       updateSun();
