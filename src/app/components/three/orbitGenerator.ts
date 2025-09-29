@@ -205,11 +205,17 @@ export class OrbitGenerator {
     const geometry = new LineGeometry();
     geometry.setPositions(positions);
 
+      const isMobile =
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
+
+    const lineW = isMobile ? 1.5 : 3;
+
     const material = new LineMaterial({
       color: color,
       transparent: opacity < 1,
       opacity: opacity,
-      linewidth: 3,
+      linewidth: lineW,
     });
 
     return new Line2(geometry, material);
