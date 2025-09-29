@@ -8,7 +8,6 @@ import {
 } from "../orbitGenerator";
 import { addObjectLabel } from "../objectLabel";
 import { createLabel } from "../objectTextLables";
-import { TexturePass } from "three/examples/jsm/Addons.js";
 
 export interface Planet {
   name: string;
@@ -20,6 +19,8 @@ export interface Planet {
   rotationPeriod: number; // in hours
   axisTilt: number; // in degrees
   rotationSpeed: number; // radians per day
+  haloSprite?: THREE.Sprite;
+  labelSprite?: THREE.Sprite;
 }
 
 type HaloUpdate = () => void;
@@ -99,13 +100,15 @@ export const createPlanet = (
       map = new THREE.TextureLoader().load(texturePath);
     }
   
-  const updateHalo = addObjectLabel(mesh, camera, {
-    texture: map,
-    color: planetData.color,
-  });
-  const updateLable = createLabel(mesh,planetName,camera);
-  halos_and_labels.push(updateHalo);
-  halos_and_labels.push(updateLable);
+  const haloResult = addObjectLabel(mesh, camera, {
+  texture: map,
+  color: planetData.color,
+});
+const labelResult = createLabel(mesh, planetName, camera);
+
+halos_and_labels.push(haloResult.update);
+halos_and_labels.push(labelResult.update);
+
   // Rotate mesh so its Y-axis (rotation axis) is perpendicular to orbital plane
   mesh.rotation.x = Math.PI / 2; // 90 degrees
 
@@ -121,16 +124,20 @@ export const createPlanet = (
     rotationPeriod !== 0 ? (2 * Math.PI) / (rotationPeriod / 24) : 0;
 
   return {
-    name: planetName,
-    orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
-    diameter: diameter * 0.0001,
-    color,
-    orbitLine,
-    mesh: planetGroup,
-    rotationPeriod,
-    axisTilt,
-    rotationSpeed,
-  };
+  name: planetName,
+  orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
+  diameter: diameter * 0.0001,
+  color,
+  orbitLine,
+  mesh: planetGroup,
+  rotationPeriod,
+  axisTilt,
+  rotationSpeed,
+  haloSprite: haloResult.sprite,
+  labelSprite: labelResult.sprite,
+  setHaloHighlight: haloResult.setHighlight,
+  setLabelHighlight: labelResult.setHighlight,
+};
 };
 
 export const createAllPlanets = (camera: THREE.Camera, halos_and_labels: HaloUpdate[]) =>

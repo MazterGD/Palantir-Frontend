@@ -74,5 +74,13 @@ export function addObjectLabel(
     sprite.visible = opacity > 0.001; // hide if nearly transparent
   };
 
-  return update;
+  return { 
+  update, 
+  sprite,
+  setHighlight: (highlighted: boolean) => {
+  sprite.material.opacity = highlighted ? Math.min(baseOpacity * 1.5, 1) : baseOpacity;
+  const baseColor = new THREE.Color(color);
+  sprite.material.color.set(highlighted ? 0xffff00 : baseColor);
+}
+};
 }
