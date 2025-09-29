@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
-import { setupPostProcessing } from "./three/PostProcessing";
+import { setupPostProcessing } from "./three/postProcessing";
 import { ScaledOrbitGenerator } from "./three/orbitGenerator";
 import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
