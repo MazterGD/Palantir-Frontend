@@ -15,7 +15,7 @@ export function addObjectHalo(
 ) {
   const color = options?.color ?? 0xffffff;
   const scale = options?.scale ?? 1; // base screen-space scale
-  const minDistance = options?.minDistance ?? 5; // disappear when too close
+  const minDistance = options?.minDistance ?? 500; // disappear when too close
   const maxDistance = options?.maxDistance ?? 10000; // disappear when too far
   const size = options?.size ?? 0.1;
   const texturePath = options?.texture;
@@ -37,15 +37,17 @@ export function addObjectHalo(
   const sprite = new THREE.Sprite(spriteMaterial);
 
   // Scale relative to object size
-  const radius =
-    (object.geometry as THREE.SphereGeometry)?.parameters?.radius ?? 1;
-  sprite.scale.set(radius * scale, radius * scale, 1);
+  sprite.scale.set(scale, scale, 1);
   sprite.renderOrder = 9999; // render on top
   object.add(sprite);
 
   const update = () => {
     // Auto-scale glow with distance
-    const distance = camera.position.distanceTo(object.position);
+    const distance = camera.position.distanceTo(
+      sprite.getWorldPosition(new THREE.Vector3()),
+    );
+    const scale = distance / 35; // Adjust scale to counteract distance
+    sprite.scale.set(scale, scale, 1); // Maintain aspect ratio
 
     if (distance < minDistance || distance > maxDistance) {
       sprite.visible = false;
@@ -56,10 +58,7 @@ export function addObjectHalo(
 
     const vFOV = THREE.MathUtils.degToRad(
       (camera as THREE.PerspectiveCamera).fov,
-    ); // vertical fov in radians
-    const height = 2 * Math.tan(vFOV / 2) * distance; // visible height at distance
-    const worldScale = (height / window.innerHeight) * size * 100; // scale relative to screen
-    sprite.scale.set(worldScale, worldScale, 1);
+    );
   };
 
   return update;
