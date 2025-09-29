@@ -7,7 +7,7 @@ export function setupScene(container: HTMLDivElement) {
     75,
     container.clientWidth / container.clientHeight,
     0.01,
-    10000
+    10000,
   );
   camera.position.z = 5;
 
@@ -15,7 +15,11 @@ export function setupScene(container: HTMLDivElement) {
   container.appendChild(renderer.domElement);
 
   const ResScalling = 2;
-  renderer.setSize(container.clientWidth * ResScalling, container.clientHeight * ResScalling, false);
+  renderer.setSize(
+    container.clientWidth * ResScalling,
+    container.clientHeight * ResScalling,
+    false,
+  );
   renderer.domElement.style.width = container.clientWidth + "px";
   renderer.domElement.style.height = container.clientHeight + "px";
 

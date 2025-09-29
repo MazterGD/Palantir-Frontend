@@ -11,4 +11,3 @@ pre-commit:
 pre-push:
   build:
     run: "npm run build"
-

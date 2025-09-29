@@ -12,7 +12,7 @@ interface PlanetData extends OrbitElements {
 const createPlanet = (
   data: Omit<PlanetData, "epoch" | "perihelionTime"> & {
     perihelionTime?: number;
-  }
+  },
 ): PlanetData => ({
   ...data,
   epoch: J2000_EPOCH,
@@ -151,14 +151,17 @@ export const PLANETS = {
 
 export const getPlanet = (name: keyof typeof PLANETS) => PLANETS[name];
 
-export const PLANET_TEXTURES: Record<string, Partial<{
-  color: string;
-  bump: string;
-  normal: string;
-  specular: string;
-  cloud: string;
-  daymap: string;
-}>> = {
+export const PLANET_TEXTURES: Record<
+  string,
+  Partial<{
+    color: string;
+    bump: string;
+    normal: string;
+    specular: string;
+    cloud: string;
+    daymap: string;
+  }>
+> = {
   mercury: {
     color: "/textures/mercury/mercury_color.jpg",
     bump: "/textures/mercury/mercury_bump.jpg",
@@ -193,5 +196,5 @@ export const PLANET_TEXTURES: Record<string, Partial<{
   pluto: {
     color: "/textures/pluto/pluto_color.jpg",
     bump: "/textures/pluto/pluto_bump.jpg",
-  }
+  },
 };

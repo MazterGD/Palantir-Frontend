@@ -13,16 +13,16 @@ export interface Point3D {
 }
 
 export interface OrbitElements {
-  semiMajorAxis: number;        // a (AU)
-  eccentricity: number;         // e
-  inclination: number;          // i (degrees)
-  ascendingNode: number;        // Ω (degrees) 
-  perihelionArgument: number;   // ω (degrees)
-  orbitalPeriod: number;        // T (days)
-  perihelionTime: number;       // time of perihelion (Julian Date)
-  meanAnomaly: number;          // M at epoch (degrees)
-  meanMotion: number;           // n (degrees/day)
-  epoch: number;                // reference time (Julian Date)
+  semiMajorAxis: number; // a (AU)
+  eccentricity: number; // e
+  inclination: number; // i (degrees)
+  ascendingNode: number; // Ω (degrees)
+  perihelionArgument: number; // ω (degrees)
+  orbitalPeriod: number; // T (days)
+  perihelionTime: number; // time of perihelion (Julian Date)
+  meanAnomaly: number; // M at epoch (degrees)
+  meanMotion: number; // n (degrees/day)
+  epoch: number; // reference time (Julian Date)
 }
 
 export interface OrbitPosition {
@@ -48,14 +48,20 @@ export class OrbitGenerator {
   }
 
   private toRadians(degrees: number): number {
-    return degrees * Math.PI / 180;
+    return (degrees * Math.PI) / 180;
   }
 
   private julianToUnix(jd: number): number {
     return (jd - 2440587.5) * 86400;
   }
 
-  private rotatePoint(point: Point3D, angle: number, axisX: number, axisY: number, axisZ: number): Point3D {
+  private rotatePoint(
+    point: Point3D,
+    angle: number,
+    axisX: number,
+    axisY: number,
+    axisZ: number,
+  ): Point3D {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     const oneMinusCos = 1 - cos;
@@ -66,22 +72,43 @@ export class OrbitGenerator {
     const uz = axisZ / magnitude;
 
     const rotMatrix = [
-      [cos + ux * ux * oneMinusCos, ux * uy * oneMinusCos - uz * sin, ux * uz * oneMinusCos + uy * sin],
-      [uy * ux * oneMinusCos + uz * sin, cos + uy * uy * oneMinusCos, uy * uz * oneMinusCos - ux * sin],
-      [uz * ux * oneMinusCos - uy * sin, uz * uy * oneMinusCos + ux * sin, cos + uz * uz * oneMinusCos]
+      [
+        cos + ux * ux * oneMinusCos,
+        ux * uy * oneMinusCos - uz * sin,
+        ux * uz * oneMinusCos + uy * sin,
+      ],
+      [
+        uy * ux * oneMinusCos + uz * sin,
+        cos + uy * uy * oneMinusCos,
+        uy * uz * oneMinusCos - ux * sin,
+      ],
+      [
+        uz * ux * oneMinusCos - uy * sin,
+        uz * uy * oneMinusCos + ux * sin,
+        cos + uz * uz * oneMinusCos,
+      ],
     ];
 
     return {
-      x: rotMatrix[0][0] * point.x + rotMatrix[0][1] * point.y + rotMatrix[0][2] * point.z,
-      y: rotMatrix[1][0] * point.x + rotMatrix[1][1] * point.y + rotMatrix[1][2] * point.z,
-      z: rotMatrix[2][0] * point.x + rotMatrix[2][1] * point.y + rotMatrix[2][2] * point.z
+      x:
+        rotMatrix[0][0] * point.x +
+        rotMatrix[0][1] * point.y +
+        rotMatrix[0][2] * point.z,
+      y:
+        rotMatrix[1][0] * point.x +
+        rotMatrix[1][1] * point.y +
+        rotMatrix[1][2] * point.z,
+      z:
+        rotMatrix[2][0] * point.x +
+        rotMatrix[2][1] * point.y +
+        rotMatrix[2][2] * point.z,
     };
   }
 
   private solveKepler(e: number, M: number): number {
     const tolerance = 1.0e-14;
     const maxIterations = 100;
-    
+
     const MNorm = M % (2 * Math.PI);
     let E0 = MNorm + e * Math.sin(MNorm);
     let dE = tolerance + 1;
@@ -100,7 +127,8 @@ export class OrbitGenerator {
 
   private getMeanAnomalyAtTime(julianDate: number): number {
     const daysSinceEpoch = julianDate - this.elements.epoch;
-    const meanAnomalyDegrees = this.elements.meanAnomaly + (this.elements.meanMotion * daysSinceEpoch);
+    const meanAnomalyDegrees =
+      this.elements.meanAnomaly + this.elements.meanMotion * daysSinceEpoch;
     return this.toRadians(meanAnomalyDegrees % 360);
   }
 
@@ -108,8 +136,8 @@ export class OrbitGenerator {
     const incRad = this.toRadians(this.elements.inclination);
     const argRad = this.toRadians(this.elements.perihelionArgument);
     const nodeRad = this.toRadians(this.elements.ascendingNode);
-    
-    return points.map(point => {
+
+    return points.map((point) => {
       let rotated = this.rotatePoint(point, argRad, 0, 0, 1);
       rotated = this.rotatePoint(rotated, incRad, 1, 0, 0);
       rotated = this.rotatePoint(rotated, nodeRad, 0, 0, 1);
@@ -122,7 +150,7 @@ export class OrbitGenerator {
     const points: Point3D[] = [];
 
     for (let i = 0; i < numPoints; i++) {
-      const u = (-Math.PI + (2 * Math.PI * i) / (numPoints - 1));
+      const u = -Math.PI + (2 * Math.PI * i) / (numPoints - 1);
       const x = a * (Math.cos(u) - e);
       const y = a * Math.sqrt(1 - e * e) * Math.sin(u);
       const z = 0;
@@ -134,31 +162,31 @@ export class OrbitGenerator {
 
   getPositionAtTime(julianDate: number): OrbitPosition {
     const { semiMajorAxis: a, eccentricity: e } = this.elements;
-    
+
     const M = this.getMeanAnomalyAtTime(julianDate);
     const E = this.solveKepler(e, M);
     const cosE = Math.cos(E);
-    
+
     const r = a * (1 - e * cosE);
     const x = r * ((cosE - e) / (1 - e * cosE));
     const y = r * ((Math.sqrt(1 - e * e) * Math.sin(E)) / (1 - e * cosE));
     const z = 0;
-    
+
     const rotated = this.apply3DRotations([{ x, y, z }])[0];
-    
+
     return {
       position: rotated,
       time: this.julianToUnix(julianDate),
-      radius: r
+      radius: r,
     };
   }
 
   generateOrbitLine(options: OrbitLineOptions = {}): Line2 {
     const {
-      color = '#ffffff',
+      color = "#ffffff",
       opacity = 0.8,
       segments = 360,
-      scale = 1
+      scale = 1,
     } = options;
 
     // Generate orbit points
@@ -181,7 +209,7 @@ export class OrbitGenerator {
       color: color,
       transparent: opacity < 1,
       opacity: opacity,
-      linewidth: 3
+      linewidth: 3,
     });
 
     return new Line2(geometry, material);
@@ -201,7 +229,7 @@ export class ScaledOrbitGenerator {
   getPositionAtTime(unixTime: number) {
     const julianDate = unixTime / 86400 + 2440587.5;
     const orbitPosition = this.orbitGenerator.getPositionAtTime(julianDate);
-    
+
     return {
       position: {
         x: orbitPosition.position.x * this.scale,
@@ -216,7 +244,12 @@ export class ScaledOrbitGenerator {
 
 // Orbit line presets
 export const ORBIT_PRESETS = {
-  standard: { opacity: 0.7, emissiveIntensity: 0.3, lineWidth: 2, segments: 360 },
+  standard: {
+    opacity: 0.7,
+    emissiveIntensity: 0.3,
+    lineWidth: 2,
+    segments: 360,
+  },
   bright: { opacity: 0.9, emissiveIntensity: 0.6, lineWidth: 3, segments: 360 },
-  subtle: { opacity: 0.4, emissiveIntensity: 0.2, lineWidth: 1, segments: 180 }
+  subtle: { opacity: 0.4, emissiveIntensity: 0.2, lineWidth: 1, segments: 180 },
 };

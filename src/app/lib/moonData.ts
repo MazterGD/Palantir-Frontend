@@ -12,14 +12,14 @@ import { kmToRenderUnits } from "./scalingUtils";
 export interface MoonData {
   name: string;
   parentPlanet: string;
-  semiMajorAxis: number;        // km from planet center
-  eccentricity: number;         // 0-1
-  inclination: number;          // degrees relative to planet's equatorial plane
-  longitudeOfAscendingNode: number;  // degrees (ω)
+  semiMajorAxis: number; // km from planet center
+  eccentricity: number; // 0-1
+  inclination: number; // degrees relative to planet's equatorial plane
+  longitudeOfAscendingNode: number; // degrees (ω)
   rightAscensionOfAscendingNode: number; // degrees (Ω)
-  orbitalPeriod: number;        // hours
-  diameter: number;             // kilometers
-  mass?: number;                // kg (optional)
+  orbitalPeriod: number; // hours
+  diameter: number; // kilometers
+  mass?: number; // kg (optional)
 }
 
 export const MOONS: Record<string, MoonData> = {
@@ -34,7 +34,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 655.72, // 27.32 days
     diameter: 3474,
-    mass: 7.342e22
+    mass: 7.342e22,
   },
 
   // Mars' Moons
@@ -48,11 +48,11 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 7.6, // 7.6 hours
     diameter: 22, // Average diameter (irregular shape)
-    mass: 1.0659e16
+    mass: 1.0659e16,
   },
 
   deimos: {
-    name: "Deimos", 
+    name: "Deimos",
     parentPlanet: "mars",
     semiMajorAxis: 23463,
     eccentricity: 0.00033,
@@ -61,7 +61,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 30.3, // 30.3 hours
     diameter: 12, // Average diameter (irregular shape)
-    mass: 1.4762e15
+    mass: 1.4762e15,
   },
 
   // Jupiter's Major Moons (Galilean moons)
@@ -75,12 +75,12 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 42.5, // 1.77 days
     diameter: 3643,
-    mass: 8.932e22
+    mass: 8.932e22,
   },
 
   europa: {
     name: "Europa",
-    parentPlanet: "jupiter", 
+    parentPlanet: "jupiter",
     semiMajorAxis: 671034,
     eccentricity: 0.009,
     inclination: 0.47,
@@ -88,7 +88,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 85.2, // 3.55 days
     diameter: 3122,
-    mass: 4.8e22
+    mass: 4.8e22,
   },
 
   ganymede: {
@@ -101,7 +101,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 171.7, // 7.15 days
     diameter: 5268,
-    mass: 1.482e23
+    mass: 1.482e23,
   },
 
   callisto: {
@@ -114,7 +114,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 400.5, // 16.7 days
     diameter: 4821,
-    mass: 1.076e23
+    mass: 1.076e23,
   },
 
   // Saturn's Major Moons
@@ -128,7 +128,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 22.6, // 0.94 days
     diameter: 396,
-    mass: 3.75e19
+    mass: 3.75e19,
   },
 
   titan: {
@@ -141,7 +141,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 382.7, // 15.95 days
     diameter: 5150,
-    mass: 1.345e23
+    mass: 1.345e23,
   },
 
   iapetus: {
@@ -152,9 +152,9 @@ export const MOONS: Record<string, MoonData> = {
     inclination: 15.47,
     longitudeOfAscendingNode: 0,
     rightAscensionOfAscendingNode: 0,
-    orbitalPeriod: 1903.9, // 79.3 days  
+    orbitalPeriod: 1903.9, // 79.3 days
     diameter: 1469,
-    mass: 1.806e21
+    mass: 1.806e21,
   },
 
   // Uranus' Major Moons
@@ -168,7 +168,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 33.9, // 1.41 days
     diameter: 472,
-    mass: 6.59e19
+    mass: 6.59e19,
   },
 
   titania: {
@@ -181,7 +181,7 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: 208.9, // 8.7 days
     diameter: 1578,
-    mass: 3.527e21
+    mass: 3.527e21,
   },
 
   // Neptune's Major Moon
@@ -195,12 +195,15 @@ export const MOONS: Record<string, MoonData> = {
     rightAscensionOfAscendingNode: 0,
     orbitalPeriod: -141.0, // Negative for retrograde, 5.88 days
     diameter: 2707,
-    mass: 2.139e22
-  }
+    mass: 2.139e22,
+  },
 };
 
 // Helper function to convert moon data to orbital elements with realistic scaling
-export function moonToOrbitalElements(moon: MoonData, degreesToRadians: (deg: number) => number): {
+export function moonToOrbitalElements(
+  moon: MoonData,
+  degreesToRadians: (deg: number) => number,
+): {
   semiMajorAxis: number; // Will be in render units after conversion
   eccentricity: number;
   inclination: number; // radians
@@ -215,22 +218,24 @@ export function moonToOrbitalElements(moon: MoonData, degreesToRadians: (deg: nu
     eccentricity: moon.eccentricity,
     inclination: degreesToRadians(moon.inclination),
     longitudeOfAscendingNode: degreesToRadians(moon.longitudeOfAscendingNode),
-    rightAscensionOfAscendingNode: degreesToRadians(moon.rightAscensionOfAscendingNode),
+    rightAscensionOfAscendingNode: degreesToRadians(
+      moon.rightAscensionOfAscendingNode,
+    ),
     orbitalPeriod: Math.abs(moon.orbitalPeriod) * 3600, // Convert hours to seconds
-    timeOfPeriapsisPassage: 0
+    timeOfPeriapsisPassage: 0,
   };
 }
 
 // Get moons for a specific planet
 export function getMoonsForPlanet(planetName: string): MoonData[] {
-  return Object.values(MOONS).filter(moon => 
-    moon.parentPlanet.toLowerCase() === planetName.toLowerCase()
+  return Object.values(MOONS).filter(
+    (moon) => moon.parentPlanet.toLowerCase() === planetName.toLowerCase(),
   );
 }
 
 // Get all moon names for a planet
 export function getMoonNamesForPlanet(planetName: string): string[] {
-  return getMoonsForPlanet(planetName).map(moon => moon.name);
+  return getMoonsForPlanet(planetName).map((moon) => moon.name);
 }
 
 // Helper to get moon distance information
@@ -252,7 +257,7 @@ export function getMoonDistanceInfo(moonName: string): {
     parentPlanet: moon.parentPlanet,
     distanceKm: moon.semiMajorAxis,
     distanceRenderUnits,
-    orbitalPeriodDays
+    orbitalPeriodDays,
   };
 }
 
@@ -275,7 +280,7 @@ export function getMoonSizeInfo(moonName: string): {
     parentPlanet: moon.parentPlanet,
     diameterKm: moon.diameter,
     diameterRenderUnits: kmToRenderUnits(moon.diameter),
-    relativeSizeToEarthMoon
+    relativeSizeToEarthMoon,
   };
 }
 
@@ -299,6 +304,6 @@ export function getMoonOrbitalInfo(moonName: string): {
     periodDays: Math.abs(moon.orbitalPeriod) / 24,
     eccentricity: moon.eccentricity,
     inclinationDegrees: moon.inclination,
-    isRetrograde: moon.orbitalPeriod < 0
+    isRetrograde: moon.orbitalPeriod < 0,
   };
 }

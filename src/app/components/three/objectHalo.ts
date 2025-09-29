@@ -1,23 +1,23 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 export function addObjectHalo(
   object: THREE.Mesh,
   camera: THREE.Camera,
   options?: {
     color?: string;
-        minDistance?: number;
+    minDistance?: number;
     maxDistance?: number;
-        size?: number; 
+    size?: number;
     scale?: number;
     opacity?: number;
     texture?: string;
-  }
+  },
 ) {
   const color = options?.color ?? 0xffffff;
   const scale = options?.scale ?? 1; // base screen-space scale
-  const minDistance = options?.minDistance ?? 5;  // disappear when too close
+  const minDistance = options?.minDistance ?? 5; // disappear when too close
   const maxDistance = options?.maxDistance ?? 10000; // disappear when too far
-    const size = options?.size ?? 0.1;
+  const size = options?.size ?? 0.1;
   const texturePath = options?.texture;
 
   let map: THREE.Texture | undefined;
@@ -30,7 +30,7 @@ export function addObjectHalo(
     color,
     transparent: true,
     blending: THREE.AdditiveBlending,
-    depthTest: false,  // ignores depth (always visible)
+    depthTest: false, // ignores depth (always visible)
     depthWrite: false, // doesn't block other objects
   });
 
@@ -47,14 +47,16 @@ export function addObjectHalo(
     // Auto-scale glow with distance
     const distance = camera.position.distanceTo(object.position);
 
-        if (distance < minDistance || distance > maxDistance) {
+    if (distance < minDistance || distance > maxDistance) {
       sprite.visible = false;
       return;
     } else {
       sprite.visible = true;
     }
 
-    const vFOV = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov); // vertical fov in radians
+    const vFOV = THREE.MathUtils.degToRad(
+      (camera as THREE.PerspectiveCamera).fov,
+    ); // vertical fov in radians
     const height = 2 * Math.tan(vFOV / 2) * distance; // visible height at distance
     const worldScale = (height / window.innerHeight) * size * 100; // scale relative to screen
     sprite.scale.set(worldScale, worldScale, 1);

@@ -68,7 +68,11 @@ const createPlanetMesh = (
   return mesh;
 };
 
-export const createPlanet = (planetName: string, camera: THREE.Camera,halos:HaloUpdate[]) => {
+export const createPlanet = (
+  planetName: string,
+  camera: THREE.Camera,
+  halos: HaloUpdate[],
+) => {
   const name = planetName.toLowerCase() as keyof typeof PLANETS;
   const planetData = PLANETS[name];
   if (!planetData) return null;
@@ -88,7 +92,7 @@ export const createPlanet = (planetName: string, camera: THREE.Camera,halos:Halo
 
   const updateHalo = addObjectHalo(mesh, camera, {
     texture: "/textures/Sprites/circle.png",
-    color:planetData.color,
+    color: planetData.color,
   });
   halos.push(updateHalo);
   // Rotate mesh so its Y-axis (rotation axis) is perpendicular to orbital plane
@@ -118,7 +122,7 @@ export const createPlanet = (planetName: string, camera: THREE.Camera,halos:Halo
   };
 };
 
-export const createAllPlanets = (camera: THREE.Camera,halos:HaloUpdate[]) =>
+export const createAllPlanets = (camera: THREE.Camera, halos: HaloUpdate[]) =>
   Object.keys(PLANETS)
-    .map((name) => createPlanet(name, camera,halos))
+    .map((name) => createPlanet(name, camera, halos))
     .filter(Boolean) as Planet[];

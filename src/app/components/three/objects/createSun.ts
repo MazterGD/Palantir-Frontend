@@ -31,10 +31,9 @@ export function createSun(camera: THREE.Camera) {
     color: 0xffb300,
     transparent: true,
     blending: THREE.AdditiveBlending,
-    depthTest: false,  // ignores depth (always visible)
+    depthTest: false, // ignores depth (always visible)
     depthWrite: false, // doesn't block other objects
   });
-  
 
   const glowSprite = new THREE.Sprite(glowMaterial);
   glowSprite.renderOrder = 9999; // render on top
@@ -46,7 +45,7 @@ export function createSun(camera: THREE.Camera) {
     // Auto-scale glow with distance
     const distance = camera.position.distanceTo(sun.position);
     const baseSize = 24;
-    const scaleFactor = distance * 0.2; 
+    const scaleFactor = distance * 0.2;
     glowSprite.scale.set(baseSize + scaleFactor, baseSize + scaleFactor, 1);
   };
 

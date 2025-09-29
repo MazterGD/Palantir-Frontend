@@ -8,7 +8,7 @@ import { VignetteShader } from "three/examples/jsm/shaders/VignetteShader.js";
 export function setupPostProcessing(
   scene: THREE.Scene,
   camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer
+  renderer: THREE.WebGLRenderer,
 ) {
   const composer = new EffectComposer(renderer);
 
