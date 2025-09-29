@@ -21,6 +21,8 @@ export interface Planet {
   rotationSpeed: number; // radians per day
   haloSprite?: THREE.Sprite;
   labelSprite?: THREE.Sprite;
+  setHaloHighlight?: (highlighted: boolean) => void;
+  setLabelHighlight?: (highlighted: boolean) => void;
 }
 
 type HaloUpdate = () => void;

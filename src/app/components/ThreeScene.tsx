@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupPostProcessing } from "./three/postProcessing";
 import { ScaledOrbitGenerator } from "./three/orbitGenerator";
-import { createAllPlanets } from "./three/objects/createPlanet";
+import { createAllPlanets, Planet } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
 import {
   getRecommendedCameraDistance,
@@ -16,14 +18,9 @@ import {
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
 
-interface CelestialBody {
-  mesh: THREE.Group;
+// Extend Planet interface to include orbitGenerator for celestial bodies
+interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
-  orbitLine?: THREE.Line;
-  rotationSpeed?: number;
-  haloSprite?: THREE.Sprite;
-  labelSprite?: THREE.Sprite;
-  diameter?: number;
 }
 
 export default function ThreeScene() {
@@ -56,135 +53,141 @@ export default function ThreeScene() {
       scene.add(planet.orbitLine);
 
       celestialBodies.push({
-        mesh: planet.mesh,
+        ...planet,
         orbitGenerator: planet.orbitGenerator,
-        rotationSpeed: planet.rotationSpeed,
-        haloSprite: planet.haloSprite,
-        labelSprite: planet.labelSprite,
-        diameter: planet.diameter,
       });
     });
 
     // Raycaster setup for interactions
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let hoveredPlanet: any = null;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hoveredPlanet: CelestialBody | null = null;
 
-// Create mapping of interactive objects to planets
-const interactiveObjects: Map<THREE.Object3D, any> = new Map();
-planets.forEach((planet) => {
-  // Map sprites to planet
-  if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
-  if (planet.labelSprite) interactiveObjects.set(planet.labelSprite, planet);
-  // Map planet mesh to planet
-  planet.mesh.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      interactiveObjects.set(child, planet);
-    }
-  });
-});
+    // Create mapping of interactive objects to planets
+    const interactiveObjects: Map<THREE.Object3D, CelestialBody> = new Map();
+    planets.forEach((planet) => {
+      // Map sprites to planet
+      if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
+      if (planet.labelSprite) interactiveObjects.set(planet.labelSprite, planet);
+      // Map planet mesh to planet
+      planet.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          interactiveObjects.set(child, planet);
+        }
+      });
+    });
 
-// Helper function to highlight planet
-const highlightPlanet = (planet: any, highlighted: boolean) => {
-  // Highlight halo
-  if (planet.setHaloHighlight) {
-    planet.setHaloHighlight(highlighted);
-  }
-  
-  // Highlight label
-  if (planet.setLabelHighlight) {
-    planet.setLabelHighlight(highlighted);
-  }
-  
-  // Highlight orbit line
-  if (planet.orbitLine && planet.orbitLine.material) {
-    planet.orbitLine.material.opacity = highlighted ? 1.0 : 0.7;
-    planet.orbitLine.material.linewidth = highlighted ? 5 : 3;
-  }
-  
-  // Highlight planet mesh
-  planet.mesh.traverse((child: any) => {
-    if (child instanceof THREE.Mesh && child.material) {
-      child.material.emissive = new THREE.Color(planet.color);
-      child.material.emissiveIntensity = highlighted ? 0.3 : 0;
-    }
-  });
-};
-
-// Mouse move handler
-const onMouseMove = (event: MouseEvent) => {
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  
-  // Get all interactive objects
-  const checkObjects = Array.from(interactiveObjects.keys());
-  const intersects = raycaster.intersectObjects(checkObjects, true);
-
-  if (intersects.length > 0) {
-    const intersectedObject = intersects[0].object;
-    let planet = interactiveObjects.get(intersectedObject);
-    
-    // Check parent objects if direct mapping not found
-    if (!planet && intersectedObject.parent) {
-      planet = interactiveObjects.get(intersectedObject.parent);
-    }
-    
-    if (planet && planet !== hoveredPlanet) {
-      // Unhighlight previous planet
-      if (hoveredPlanet) {
-        highlightPlanet(hoveredPlanet, false);
+    // Helper function to highlight planet
+    const highlightPlanet = (planet: CelestialBody, highlighted: boolean) => {
+      // Highlight halo
+      if (planet.setHaloHighlight) {
+        planet.setHaloHighlight(highlighted);
       }
-      // Highlight new planet
-      highlightPlanet(planet, true);
-      hoveredPlanet = planet;
-    }
-    renderer.domElement.style.cursor = 'pointer';
-  } else {
-    if (hoveredPlanet) {
-      highlightPlanet(hoveredPlanet, false);
-      hoveredPlanet = null;
-    }
-    renderer.domElement.style.cursor = 'default';
-  }
-};
+      
+      // Highlight label
+      if (planet.setLabelHighlight) {
+        planet.setLabelHighlight(highlighted);
+      }
+      
+      // Highlight orbit line
+      if (planet.orbitLine && planet.orbitLine.material) {
+        const lineMaterial = planet.orbitLine.material as LineMaterial;
+        lineMaterial.opacity = highlighted ? 1.0 : 0.7;
+        lineMaterial.linewidth = highlighted ? 5 : 3;
+      }
+      
+      // Highlight planet mesh
+      planet.mesh.traverse((child: THREE.Object3D) => {
+        if (child instanceof THREE.Mesh) {
+          const materials = Array.isArray(child.material) 
+            ? child.material 
+            : [child.material];
+          
+          materials.forEach((material) => {
+            if (material instanceof THREE.MeshPhongMaterial || 
+                material instanceof THREE.MeshStandardMaterial) {
+              material.emissive = new THREE.Color(planet.color);
+              material.emissiveIntensity = highlighted ? 0.3 : 0;
+            }
+          });
+        }
+      });
+    };
 
-// Click handler
-const onClick = (event: MouseEvent) => {
-  raycaster.setFromCamera(mouse, camera);
-  const checkObjects = Array.from(interactiveObjects.keys());
-  const intersects = raycaster.intersectObjects(checkObjects, true);
+    // Mouse move handler
+    const onMouseMove = (event: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-  if (intersects.length > 0) {
-    const intersectedObject = intersects[0].object;
-    let planet = interactiveObjects.get(intersectedObject);
-    
-    if (!planet && intersectedObject.parent) {
-      planet = interactiveObjects.get(intersectedObject.parent);
-    }
-    
-    if (planet) {
-      const planetPosition = new THREE.Vector3();
-planet.mesh.getWorldPosition(planetPosition);
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Get all interactive objects
+      const checkObjects = Array.from(interactiveObjects.keys());
+      const intersects = raycaster.intersectObjects(checkObjects, true);
 
-// Camera offset (from above and slightly back)
-const viewDistance = planet.diameter * 1;
-const cameraOffset = new THREE.Vector3(viewDistance, 0, viewDistance); // stays in XZ plane
-const cameraPosition = planetPosition.clone().add(cameraOffset);
+      if (intersects.length > 0) {
+        const intersectedObject = intersects[0].object;
+        let planet = interactiveObjects.get(intersectedObject);
+        
+        // Check parent objects if direct mapping not found
+        if (!planet && intersectedObject.parent) {
+          planet = interactiveObjects.get(intersectedObject.parent);
+        }
+        
+        if (planet && planet !== hoveredPlanet) {
+          // Unhighlight previous planet
+          if (hoveredPlanet) {
+            highlightPlanet(hoveredPlanet, false);
+          }
+          // Highlight new planet
+          highlightPlanet(planet, true);
+          hoveredPlanet = planet;
+        }
+        renderer.domElement.style.cursor = 'pointer';
+      } else {
+        if (hoveredPlanet) {
+          highlightPlanet(hoveredPlanet, false);
+          hoveredPlanet = null;
+        }
+        renderer.domElement.style.cursor = 'default';
+      }
+    };
 
-// Force "up" to always be +Z (parallel to orbital plane)
-camera.up.set(0, 0, 1);
+    // Click handler
+    const onClick = (event: MouseEvent) => {
+      raycaster.setFromCamera(mouse, camera);
+      const checkObjects = Array.from(interactiveObjects.keys());
+      const intersects = raycaster.intersectObjects(checkObjects, true);
 
-// Smoothly animate camera
-moveCamera(camera, controls, cameraPosition, planetPosition);
-    }
-  }
-};
+      if (intersects.length > 0) {
+        const intersectedObject = intersects[0].object;
+        let planet = interactiveObjects.get(intersectedObject);
+        
+        if (!planet && intersectedObject.parent) {
+          planet = interactiveObjects.get(intersectedObject.parent);
+        }
+        
+        if (planet) {
+          const planetPosition = new THREE.Vector3();
+          planet.mesh.getWorldPosition(planetPosition);
 
-renderer.domElement.addEventListener('mousemove', onMouseMove);
-renderer.domElement.addEventListener('click', onClick);
+          // Camera offset (from above and slightly back)
+          const viewDistance = planet.diameter * 1;
+          const cameraOffset = new THREE.Vector3(viewDistance, 0, viewDistance); // stays in XZ plane
+          const cameraPosition = planetPosition.clone().add(cameraOffset);
+
+          // Force "up" to always be +Z (parallel to orbital plane)
+          camera.up.set(0, 0, 1);
+
+          // Smoothly animate camera
+          moveCamera(camera, controls, cameraPosition, planetPosition);
+        }
+      }
+    };
+
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('click', onClick);
 
     addLights(scene);
     const { update: renderWithPostProcessing, resize: resizePostProcessing } =
