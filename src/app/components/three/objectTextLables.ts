@@ -21,7 +21,7 @@ export function createLabel(
     opacity?: number;
     fontFamily?: string; // New option for Google Font
   },
-): () => void {
+): { update: () => void; sprite: THREE.Sprite; setHighlight: (highlighted: boolean) => void } {
   const canvas: HTMLCanvasElement = document.createElement('canvas');
   const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
 
@@ -33,6 +33,7 @@ export function createLabel(
   const color = options?.color ?? '#ffffff';
   const fontSize = options?.fontSize ?? 16;
   const fontFamily = options?.fontFamily ?? 'League Spartan'; // Default to Orbitron
+const originalColor = new THREE.Color(color);
 
   canvas.width = 256;
   canvas.height = 256;
@@ -74,10 +75,17 @@ export function createLabel(
   });
 
   // Create update function using addObjectHalo
-  const update = addObjectLabel(object, camera, {
+  const updateResult = addObjectLabel(object, camera, {
     texture,
     size: 10,
   });
 
-  return update;
+  return { 
+  update: updateResult.update, 
+  sprite: updateResult.sprite,
+  setHighlight: (highlighted: boolean) => {
+    updateResult.setHighlight(highlighted);
+    updateResult.sprite.material.color.setHex(highlighted ? 0xffff00 : originalColor.getHex());
+  }
+};
 }
