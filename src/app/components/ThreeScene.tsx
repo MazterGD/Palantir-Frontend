@@ -21,8 +21,15 @@ import { addStarsBackground } from "./three/createBackground";
 interface CelestialBody {
   mesh: THREE.Group | THREE.Points;
   orbitGenerator: ScaledOrbitGenerator;
-  orbitLine?: THREE.Line;
+  orbitLine?: THREE.Line | THREE.Object3D;
   rotationSpeed?: number;
+  diameter: number;
+  color: string;
+  name: string;
+  haloSprite?: THREE.Sprite;
+  labelSprite?: THREE.Sprite;
+  setHaloHighlight?: (highlighted: boolean) => void;
+  setLabelHighlight?: (highlighted: boolean) => void;
 }
 
 export default function ThreeScene() {
@@ -69,30 +76,75 @@ export default function ThreeScene() {
         mesh: planet.mesh,
         orbitGenerator: planet.orbitGenerator,
         rotationSpeed: planet.rotationSpeed,
+        diameter: planet.diameter,
+        color: planet.color,
+        name: planet.name,
+        haloSprite: planet.haloSprite,
+        labelSprite: planet.labelSprite,
+        setHaloHighlight: planet.setHaloHighlight,
+        setLabelHighlight: planet.setLabelHighlight,
       });
     });
 
     // Raycaster setup for interactions
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    let hoveredObject: any = null;
+    let hoveredObject: CelestialBody | null = null;
 
     // Create mapping of interactive objects
-    const interactiveObjects: Map<THREE.Object3D, any> = new Map();
+    const interactiveObjects: Map<THREE.Object3D, CelestialBody> = new Map();
     
     // Map planet sprites and meshes
     planets.forEach((planet) => {
-      if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
-      if (planet.labelSprite) interactiveObjects.set(planet.labelSprite, planet);
+      if (planet.haloSprite) {
+        interactiveObjects.set(planet.haloSprite, {
+          mesh: planet.mesh,
+          orbitGenerator: planet.orbitGenerator,
+          rotationSpeed: planet.rotationSpeed,
+          diameter: planet.diameter,
+          color: planet.color,
+          name: planet.name,
+          haloSprite: planet.haloSprite,
+          labelSprite: planet.labelSprite,
+          setHaloHighlight: planet.setHaloHighlight,
+          setLabelHighlight: planet.setLabelHighlight,
+        });
+      }
+      if (planet.labelSprite) {
+        interactiveObjects.set(planet.labelSprite, {
+          mesh: planet.mesh,
+          orbitGenerator: planet.orbitGenerator,
+          rotationSpeed: planet.rotationSpeed,
+          diameter: planet.diameter,
+          color: planet.color,
+          name: planet.name,
+          haloSprite: planet.haloSprite,
+          labelSprite: planet.labelSprite,
+          setHaloHighlight: planet.setHaloHighlight,
+          setLabelHighlight: planet.setLabelHighlight,
+        });
+      }
+      // Map planet mesh for direct clicking
       planet.mesh.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          interactiveObjects.set(child, planet);
+          interactiveObjects.set(child, {
+            mesh: planet.mesh,
+            orbitGenerator: planet.orbitGenerator,
+            rotationSpeed: planet.rotationSpeed,
+            diameter: planet.diameter,
+            color: planet.color,
+            name: planet.name,
+            haloSprite: planet.haloSprite,
+            labelSprite: planet.labelSprite,
+            setHaloHighlight: planet.setHaloHighlight,
+            setLabelHighlight: planet.setLabelHighlight,
+          });
         }
       });
     });
 
     // Helper function to highlight celestial objects
-    const highlightPlanet = (object: any, highlighted: boolean) => {
+    const highlightObject = (object: CelestialBody, highlighted: boolean) => {
       // Highlight halo with yellow color
       if (object.setHaloHighlight) {
         object.setHaloHighlight(highlighted);
@@ -104,25 +156,40 @@ export default function ThreeScene() {
       }
       
       // Highlight orbit line
-      if (object.orbitLine && object.orbitLine.material) {
-        object.orbitLine.material.opacity = highlighted ? 1.0 : 0.7;
-        object.orbitLine.material.linewidth = highlighted ? 5 : 3;
+      if (object.orbitLine && 'material' in object.orbitLine) {
+        const orbitLine = object.orbitLine as any;
+        if (orbitLine.material) {
+          orbitLine.material.opacity = highlighted ? 1.0 : 0.7;
+          if (orbitLine.material.linewidth !== undefined) {
+            orbitLine.material.linewidth = highlighted ? 5 : 3;
+          }
+        }
       }
       
-      // Handle planet mesh
-      if (object.mesh && object.mesh instanceof THREE.Group) {
+      // Handle planet mesh (Group)
+      if (object.mesh instanceof THREE.Group) {
         object.mesh.traverse((child: any) => {
           if (child instanceof THREE.Mesh && child.material) {
-            child.material.emissive = new THREE.Color(object.color);
-            child.material.emissiveIntensity = highlighted ? 0.3 : 0;
+            const materials = Array.isArray(child.material) 
+              ? child.material 
+              : [child.material];
+            
+            materials.forEach((material) => {
+              if (material instanceof THREE.MeshPhongMaterial || 
+                  material instanceof THREE.MeshStandardMaterial) {
+                material.emissive = new THREE.Color(object.color);
+                material.emissiveIntensity = highlighted ? 0.3 : 0;
+              }
+            });
           }
         });
       }
       
-      // Handle asteroid point
-      if (object.point && object.point instanceof THREE.Points) {
-        const material = object.point.material as THREE.PointsMaterial;
-        material.size = highlighted ? material.size * 1.5 : object.diameter * 5;
+      // Handle asteroid point (Points)
+      if (object.mesh instanceof THREE.Points) {
+        const material = object.mesh.material as THREE.PointsMaterial;
+        const baseSize = object.diameter * 5;
+        material.size = highlighted ? baseSize * 1.5 : baseSize;
         material.opacity = highlighted ? 1.0 : 0.9;
       }
     };
@@ -151,16 +218,16 @@ export default function ThreeScene() {
         if (object && object !== hoveredObject) {
           // Unhighlight previous object
           if (hoveredObject) {
-            highlightPlanet(hoveredObject, false);
+            highlightObject(hoveredObject, false);
           }
           // Highlight new object
-          highlightPlanet(object, true);
+          highlightObject(object, true);
           hoveredObject = object;
         }
         renderer.domElement.style.cursor = 'pointer';
       } else {
         if (hoveredObject) {
-          highlightPlanet(hoveredObject, false);
+          highlightObject(hoveredObject, false);
           hoveredObject = null;
         }
         renderer.domElement.style.cursor = 'default';
@@ -182,14 +249,19 @@ export default function ThreeScene() {
         }
         
         if (object) {
-          const targetMesh = object.mesh || object.point;
-          const position = targetMesh.position.clone();
-          const viewDistance = object.diameter * 5;
-          const cameraPosition = position.clone();
-          cameraPosition.y += viewDistance;
-          cameraPosition.z += viewDistance;
-          
-          moveCamera(camera, controls, cameraPosition, position);
+          const objectPosition = new THREE.Vector3();
+          object.mesh.getWorldPosition(objectPosition);
+
+          // Camera offset (from above and slightly back)
+          const viewDistance = object.diameter; // Adjust multiplier as needed
+          const cameraOffset = new THREE.Vector3(viewDistance, viewDistance * 0.5, viewDistance);
+          const cameraPosition = objectPosition.clone().add(cameraOffset);
+
+          // Force "up" to always be +Z (parallel to orbital plane)
+          camera.up.set(0, 0, 1);
+
+          // Smoothly animate camera
+          moveCamera(camera, controls, cameraPosition, objectPosition);
         }
       }
     };
@@ -205,27 +277,35 @@ export default function ThreeScene() {
       scene.add(asteroid.point);
       scene.add(asteroid.orbitLine);
       
-      // Add to animation loop
-      celestialBodies.push({
+      // Create asteroid celestial body
+      const asteroidBody: CelestialBody = {
         mesh: asteroid.point,
         orbitGenerator: asteroid.orbitGenerator,
-      });
+        diameter: asteroid.diameter,
+        color: asteroid.color,
+        name: asteroid.name,
+        haloSprite: asteroid.haloSprite,
+        labelSprite: asteroid.labelSprite,
+        setHaloHighlight: asteroid.setHaloHighlight,
+        setLabelHighlight: asteroid.setLabelHighlight,
+      };
+      
+      // Add to animation loop
+      celestialBodies.push(asteroidBody);
       
       // Add to interactive objects
       if (asteroid.haloSprite) {
-        interactiveObjects.set(asteroid.haloSprite, {
-          ...asteroid,
-          mesh: asteroid.point,
-          diameter: asteroid.diameter,
-        });
+        interactiveObjects.set(asteroid.haloSprite, asteroidBody);
       }
       if (asteroid.labelSprite) {
-        interactiveObjects.set(asteroid.labelSprite, {
-          ...asteroid, 
-          mesh: asteroid.point,
-          diameter: asteroid.diameter,
-        });
+        interactiveObjects.set(asteroid.labelSprite, asteroidBody);
       }
+      // Map asteroid point for direct clicking
+      asteroid.point.traverse((child) => {
+        if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+          interactiveObjects.set(child, asteroidBody);
+        }
+      });
       
       asteroids.push(asteroid);
     }
@@ -245,7 +325,7 @@ export default function ThreeScene() {
     // Configure controls for large scale
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 10;
+    controls.minDistance = 3;
     controls.maxDistance = cameraDistance * 2;
 
     // Animation loop
