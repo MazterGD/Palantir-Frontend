@@ -37,11 +37,20 @@ export default function ThreeScene() {
 
     const { scene, camera, renderer } = setupScene(mountRef.current);
     const cameraDistance = getRecommendedCameraDistance();
-    camera.position.set(0, cameraDistance * 0.065, 0);
-    camera.lookAt(0, 0, 0);
     
-    // Store the initial camera position for reset functionality
-    setInitialCameraPosition(camera.position.clone());
+    // Set camera at approximately 40 degrees from the z-axis
+    const angleFromY = 50 * (Math.PI / 180); // Convert to radians (90 - 40 = 50)
+    const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
+    
+    // Calculate position based on spherical coordinates
+    const x = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
+    const y = cameraDistance * 0.065 * Math.cos(angleFromY);
+    const z = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
+    
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+    camera.up.set(0, 0, 1); // Ensure z-up orientation
+    
     setCameraRef(camera);
     
     const controls = setupControls(camera, renderer);
@@ -288,10 +297,27 @@ export default function ThreeScene() {
   };
 
   const handleResetView = () => {
-    if (controlsRef && cameraRef && initialCameraPosition) {
-      // Reset to initial view
+    if (controlsRef && cameraRef) {
+      // Reset to a view at approximately 40 degrees from the z-axis
+      const cameraDistance = getRecommendedCameraDistance();
+      
+      // Calculate position using spherical coordinates
+      // 40 degrees from z-axis means 50 degrees from y-axis in this coordinate system
+      const angleFromY = 50 * (Math.PI / 180); // Convert to radians
+      const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
+      
+      // Calculate position based on spherical coordinates
+      const x = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
+      const y = cameraDistance * 0.065 * Math.cos(angleFromY);
+      const z = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
+      
+      const newPosition = new THREE.Vector3(x, y, z);
       const originTarget = new THREE.Vector3(0, 0, 0);
-      moveCamera(cameraRef, controlsRef, initialCameraPosition, originTarget, 1000);
+      
+      // Reset camera up vector to ensure proper orientation
+      cameraRef.up.set(0, 0, 1);
+      
+      moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
     }
   };
 
