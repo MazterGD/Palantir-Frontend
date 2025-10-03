@@ -1,65 +1,71 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import type { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupPostProcessing } from "./three/postProcessing";
-import { ScaledOrbitGenerator } from "./three/orbitGenerator";
-import { createAllPlanets } from "./three/objects/createPlanet";
+import type { ScaledOrbitGenerator } from "./three/orbitGenerator";
+import { createAllPlanets, type Planet } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
-import { createAsteroid, Asteroid } from "./three/objects/createAsteroid";
-import { moveCamera } from "./three/cameraUtils";
-import { useAsteroid } from "../hooks/useAsteroid";
 import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
+import { moveCamera } from "./three/cameraUtils";
 
-interface CelestialBody {
-  mesh: THREE.Group | THREE.Points;
+// Extend Planet interface to include orbitGenerator for celestial bodies
+interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
-  orbitLine?: THREE.Line | THREE.Object3D;
-  rotationSpeed?: number;
-  diameter: number;
-  color: string;
-  name: string;
-  haloSprite?: THREE.Sprite;
-  labelSprite?: THREE.Sprite;
-  setHaloHighlight?: (highlighted: boolean) => void;
-  setLabelHighlight?: (highlighted: boolean) => void;
 }
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  
-  // Load asteroid data
-  const { asteroid: asteroidData } = useAsteroid('3297389');
+  const [isReady, setIsReady] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const sceneInitialized = useRef(false);
 
   useEffect(() => {
-    if (!mountRef.current) return;
-    const Refcurrent = mountRef.current;
+    if (!mountRef.current || sceneInitialized.current) return;
 
+    const Refcurrent = mountRef.current;
+    sceneInitialized.current = true;
+
+    // Simulate loading progress
+    const progressInterval = setInterval(() => {
+      setLoadingProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 150);
+
+    // Initialize scene in hidden state
     const { scene, camera, renderer } = setupScene(mountRef.current);
-    // Set camera position for realistic scale
+
+    // Keep renderer hidden initially
+    renderer.domElement.style.opacity = "0";
+    renderer.domElement.style.pointerEvents = "none";
+
     const cameraDistance = getRecommendedCameraDistance();
     camera.position.set(0, cameraDistance * 0.065, 0);
     camera.lookAt(0, 0, 0);
-    
+
     const controls = setupControls(camera, renderer);
 
     // Create celestial objects
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
-    const asteroids: Asteroid[] = [];
     let currentTime = 0;
 
     // Speed control: 1.0 = normal, 0.1 = 10x slower, 0.01 = 100x slower
     const speedMultiplier = 0.1;
 
-    // Create Sun
     const { sun, update: updateSun } = createSun(camera);
     scene.add(sun);
 
@@ -73,125 +79,62 @@ export default function ThreeScene() {
 
       // Store for animation
       celestialBodies.push({
-        mesh: planet.mesh,
+        ...planet,
         orbitGenerator: planet.orbitGenerator,
-        rotationSpeed: planet.rotationSpeed,
-        diameter: planet.diameter,
-        color: planet.color,
-        name: planet.name,
-        haloSprite: planet.haloSprite,
-        labelSprite: planet.labelSprite,
-        setHaloHighlight: planet.setHaloHighlight,
-        setLabelHighlight: planet.setLabelHighlight,
       });
     });
 
     // Raycaster setup for interactions
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    let hoveredObject: CelestialBody | null = null;
+    let hoveredPlanet: CelestialBody | null = null;
 
     // Create mapping of interactive objects
     const interactiveObjects: Map<THREE.Object3D, CelestialBody> = new Map();
-    
-    // Map planet sprites and meshes
     planets.forEach((planet) => {
-      if (planet.haloSprite) {
-        interactiveObjects.set(planet.haloSprite, {
-          mesh: planet.mesh,
-          orbitGenerator: planet.orbitGenerator,
-          rotationSpeed: planet.rotationSpeed,
-          diameter: planet.diameter,
-          color: planet.color,
-          name: planet.name,
-          haloSprite: planet.haloSprite,
-          labelSprite: planet.labelSprite,
-          setHaloHighlight: planet.setHaloHighlight,
-          setLabelHighlight: planet.setLabelHighlight,
-        });
-      }
-      if (planet.labelSprite) {
-        interactiveObjects.set(planet.labelSprite, {
-          mesh: planet.mesh,
-          orbitGenerator: planet.orbitGenerator,
-          rotationSpeed: planet.rotationSpeed,
-          diameter: planet.diameter,
-          color: planet.color,
-          name: planet.name,
-          haloSprite: planet.haloSprite,
-          labelSprite: planet.labelSprite,
-          setHaloHighlight: planet.setHaloHighlight,
-          setLabelHighlight: planet.setLabelHighlight,
-        });
-      }
-      // Map planet mesh for direct clicking
+      if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
+      if (planet.labelSprite)
+        interactiveObjects.set(planet.labelSprite, planet);
       planet.mesh.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          interactiveObjects.set(child, {
-            mesh: planet.mesh,
-            orbitGenerator: planet.orbitGenerator,
-            rotationSpeed: planet.rotationSpeed,
-            diameter: planet.diameter,
-            color: planet.color,
-            name: planet.name,
-            haloSprite: planet.haloSprite,
-            labelSprite: planet.labelSprite,
-            setHaloHighlight: planet.setHaloHighlight,
-            setLabelHighlight: planet.setLabelHighlight,
-          });
+          interactiveObjects.set(child, planet);
         }
       });
     });
 
-    // Helper function to highlight celestial objects
-    const highlightObject = (object: CelestialBody, highlighted: boolean) => {
-      // Highlight halo with yellow color
-      if (object.setHaloHighlight) {
-        object.setHaloHighlight(highlighted);
+    // Helper function to highlight planet
+    const highlightPlanet = (planet: CelestialBody, highlighted: boolean) => {
+      if (planet.setHaloHighlight) {
+        planet.setHaloHighlight(highlighted);
       }
-      
-      // Highlight label with yellow color
-      if (object.setLabelHighlight) {
-        object.setLabelHighlight(highlighted);
+
+      if (planet.setLabelHighlight) {
+        planet.setLabelHighlight(highlighted);
       }
-      
-      // Highlight orbit line
-      if (object.orbitLine && 'material' in object.orbitLine) {
-        const orbitLine = object.orbitLine as any;
-        if (orbitLine.material) {
-          orbitLine.material.opacity = highlighted ? 1.0 : 0.7;
-          if (orbitLine.material.linewidth !== undefined) {
-            orbitLine.material.linewidth = highlighted ? 5 : 3;
-          }
+
+      if (planet.orbitLine && planet.orbitLine.material) {
+        const lineMaterial = planet.orbitLine.material as LineMaterial;
+        lineMaterial.opacity = highlighted ? 1.0 : 0.7;
+        lineMaterial.linewidth = highlighted ? 5 : 3;
+      }
+
+      planet.mesh.traverse((child: THREE.Object3D) => {
+        if (child instanceof THREE.Mesh) {
+          const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+
+          materials.forEach((material) => {
+            if (
+              material instanceof THREE.MeshPhongMaterial ||
+              material instanceof THREE.MeshStandardMaterial
+            ) {
+              material.emissive = new THREE.Color(planet.color);
+              material.emissiveIntensity = highlighted ? 0.3 : 0;
+            }
+          });
         }
-      }
-      
-      // Handle planet mesh (Group)
-      if (object.mesh instanceof THREE.Group) {
-        object.mesh.traverse((child: any) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const materials = Array.isArray(child.material) 
-              ? child.material 
-              : [child.material];
-            
-            materials.forEach((material) => {
-              if (material instanceof THREE.MeshPhongMaterial || 
-                  material instanceof THREE.MeshStandardMaterial) {
-                material.emissive = new THREE.Color(object.color);
-                material.emissiveIntensity = highlighted ? 0.3 : 0;
-              }
-            });
-          }
-        });
-      }
-      
-      // Handle asteroid point (Points)
-      if (object.mesh instanceof THREE.Points) {
-        const material = object.mesh.material as THREE.PointsMaterial;
-        const baseSize = object.diameter * 5;
-        material.size = highlighted ? baseSize * 1.5 : baseSize;
-        material.opacity = highlighted ? 1.0 : 0.9;
-      }
+      });
     };
 
     // Mouse move handler
@@ -201,36 +144,33 @@ export default function ThreeScene() {
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      
+
       // Get all interactive objects
       const checkObjects = Array.from(interactiveObjects.keys());
       const intersects = raycaster.intersectObjects(checkObjects, true);
 
       if (intersects.length > 0) {
         const intersectedObject = intersects[0].object;
-        let object = interactiveObjects.get(intersectedObject);
-        
-        // Check parent objects if direct mapping not found
-        if (!object && intersectedObject.parent) {
-          object = interactiveObjects.get(intersectedObject.parent);
+        let planet = interactiveObjects.get(intersectedObject);
+
+        if (!planet && intersectedObject.parent) {
+          planet = interactiveObjects.get(intersectedObject.parent);
         }
-        
-        if (object && object !== hoveredObject) {
-          // Unhighlight previous object
-          if (hoveredObject) {
-            highlightObject(hoveredObject, false);
+
+        if (planet && planet !== hoveredPlanet) {
+          if (hoveredPlanet) {
+            highlightPlanet(hoveredPlanet, false);
           }
-          // Highlight new object
-          highlightObject(object, true);
-          hoveredObject = object;
+          highlightPlanet(planet, true);
+          hoveredPlanet = planet;
         }
-        renderer.domElement.style.cursor = 'pointer';
+        renderer.domElement.style.cursor = "pointer";
       } else {
-        if (hoveredObject) {
-          highlightObject(hoveredObject, false);
-          hoveredObject = null;
+        if (hoveredPlanet) {
+          highlightPlanet(hoveredPlanet, false);
+          hoveredPlanet = null;
         }
-        renderer.domElement.style.cursor = 'default';
+        renderer.domElement.style.cursor = "default";
       }
     };
 
@@ -242,26 +182,24 @@ export default function ThreeScene() {
 
       if (intersects.length > 0) {
         const intersectedObject = intersects[0].object;
-        let object = interactiveObjects.get(intersectedObject);
-        
-        if (!object && intersectedObject.parent) {
-          object = interactiveObjects.get(intersectedObject.parent);
-        }
-        
-        if (object) {
-          const objectPosition = new THREE.Vector3();
-          object.mesh.getWorldPosition(objectPosition);
+        let planet = interactiveObjects.get(intersectedObject);
 
-          // Camera offset (from above and slightly back)
-          const viewDistance = object.diameter; // Adjust multiplier as needed
-          const cameraOffset = new THREE.Vector3(viewDistance, viewDistance * 0.5, viewDistance);
-          const cameraPosition = objectPosition.clone().add(cameraOffset);
+        if (!planet && intersectedObject.parent) {
+          planet = interactiveObjects.get(intersectedObject.parent);
+        }
+
+        if (planet) {
+          const planetPosition = new THREE.Vector3();
+          planet.mesh.getWorldPosition(planetPosition);
+
+          const viewDistance = planet.diameter * 1;
+          const cameraOffset = new THREE.Vector3(viewDistance, 0, viewDistance);
+          const cameraPosition = planetPosition.clone().add(cameraOffset);
 
           // Force "up" to always be +Z (parallel to orbital plane)
           camera.up.set(0, 0, 1);
 
-          // Smoothly animate camera
-          moveCamera(camera, controls, cameraPosition, objectPosition);
+          moveCamera(camera, controls, cameraPosition, planetPosition);
         }
       }
     };
@@ -310,7 +248,6 @@ export default function ThreeScene() {
       asteroids.push(asteroid);
     }
 
-    // Add lights
     addLights(scene);
     const { update: renderWithPostProcessing, resize: resizePostProcessing } =
       setupPostProcessing(scene, camera, renderer);
@@ -328,7 +265,9 @@ export default function ThreeScene() {
     controls.minDistance = 3;
     controls.maxDistance = cameraDistance * 2;
 
-    // Animation loop
+    let frameCount = 0;
+    const framesToWait = 30; // Wait for ~30 frames before showing
+
     const animate = () => {
   requestAnimationFrame(animate);
 
@@ -362,9 +301,21 @@ export default function ThreeScene() {
   // Rotate sun
   updateSun();
 
-  controls.update();
-  renderWithPostProcessing();
-};
+      controls.update();
+      renderWithPostProcessing();
+
+      // Show scene after initial frames are rendered
+      frameCount++;
+      if (frameCount === framesToWait) {
+        setLoadingProgress(100);
+        setTimeout(() => {
+          renderer.domElement.style.transition = "opacity 0.8s ease-in-out";
+          renderer.domElement.style.opacity = "1";
+          renderer.domElement.style.pointerEvents = "auto";
+          setIsReady(true);
+        }, 300);
+      }
+    };
     animate();
 
     // Cleanup and resize handler
@@ -381,16 +332,101 @@ export default function ThreeScene() {
     window.addEventListener("resize", handleResize);
 
     return () => {
+      clearInterval(progressInterval);
+      renderer.domElement.removeEventListener("mousemove", onMouseMove);
+      renderer.domElement.removeEventListener("click", onClick);
       window.removeEventListener("resize", handleResize);
-      renderer.domElement.removeEventListener('mousemove', onMouseMove);
-      renderer.domElement.removeEventListener('click', onClick);
       controls.dispose();
       renderer.dispose();
       if (Refcurrent) {
         Refcurrent.removeChild(renderer.domElement);
       }
     };
-  }, [asteroidData]);
+  }, []);
 
-  return <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />;
+  return (
+    <>
+      {!isReady && (
+        <div className="fixed inset-0 bg-gradient-to-b from-black via-gray-900 to-black flex items-center justify-center z-50">
+          <div className="text-center relative">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white rounded-full animate-pulse opacity-60"></div>
+              <div
+                className="absolute top-1/3 right-1/3 w-1 h-1 bg-blue-300 rounded-full animate-pulse opacity-40"
+                style={{ animationDelay: "0.5s" }}
+              ></div>
+              <div
+                className="absolute bottom-1/4 left-1/3 w-0.5 h-0.5 bg-purple-300 rounded-full animate-pulse opacity-50"
+                style={{ animationDelay: "1s" }}
+              ></div>
+              <div
+                className="absolute top-1/2 right-1/4 w-0.5 h-0.5 bg-white rounded-full animate-pulse opacity-70"
+                style={{ animationDelay: "1.5s" }}
+              ></div>
+            </div>
+
+            <div className="relative w-40 h-40 mx-auto mb-8">
+              {/* Outer orbit ring */}
+              <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full"></div>
+
+              {/* Middle orbit ring with slower rotation */}
+              <div
+                className="absolute inset-3 border-2 border-purple-500/30 rounded-full animate-spin"
+                style={{ animationDuration: "4s" }}
+              ></div>
+
+              {/* Inner spinning ring */}
+              <div
+                className="absolute inset-0 border-4 border-transparent border-t-blue-500 border-r-purple-500 rounded-full animate-spin"
+                style={{ animationDuration: "2s" }}
+              ></div>
+
+              {/* Center glow effect */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full animate-pulse shadow-lg shadow-blue-500/50"></div>
+              </div>
+
+              {/* Orbiting planet */}
+              <div
+                className="absolute inset-0 animate-spin"
+                style={{ animationDuration: "3s" }}
+              >
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full shadow-lg shadow-cyan-400/50"></div>
+              </div>
+            </div>
+
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-6 animate-pulse">
+              Loading Solar System
+            </h2>
+
+            <div className="w-80 mx-auto mb-4">
+              <div className="relative h-3 bg-gray-800/50 rounded-full overflow-hidden backdrop-blur-sm border border-gray-700/50">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-300 ease-out relative"
+                  style={{ width: `${loadingProgress}%` }}
+                >
+                  {/* Animated shimmer effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                </div>
+                {/* Glow effect */}
+                <div
+                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 blur-md opacity-50 transition-all duration-300"
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <p className="text-lg font-semibold text-gray-300 mb-2">
+              {Math.round(loadingProgress)}%
+            </p>
+
+            <p className="text-sm text-gray-500 animate-pulse">
+              Initializing celestial bodies...
+            </p>
+          </div>
+        </div>
+      )}
+      <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />
+    </>
+  );
 }

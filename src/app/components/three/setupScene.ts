@@ -14,7 +14,14 @@ export function setupScene(container: HTMLDivElement) {
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
   container.appendChild(renderer.domElement);
 
-  const ResScalling = 2;
+  // --- Detect mobile ---
+  const isMobile =
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
+
+  // --- Set scaling ---
+  const ResScalling = isMobile ? 1 : 2;
+
   renderer.setSize(
     container.clientWidth * ResScalling,
     container.clientHeight * ResScalling,
