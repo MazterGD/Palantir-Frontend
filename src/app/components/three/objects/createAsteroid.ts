@@ -35,6 +35,11 @@ export const createAsteroid = (
     ...ORBIT_PRESETS.subtle, // Spread the subtle preset properties
   });
 
+  // Store original orbit line properties for highlighting
+  (orbitLine as any).originalOpacity = ORBIT_PRESETS.subtle.opacity;
+  (orbitLine as any).originalLineWidth = ORBIT_PRESETS.subtle.lineWidth;
+  (orbitLine as any).originalEmissiveIntensity = ORBIT_PRESETS.subtle.emissiveIntensity;
+
   // Make orbit line emissive
   if (orbitLine.material) {
     (orbitLine.material as any).emissive = new THREE.Color(0xffffff);

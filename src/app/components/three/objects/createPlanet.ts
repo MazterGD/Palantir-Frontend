@@ -198,6 +198,11 @@ export const createPlanet = (
     ...ORBIT_PRESETS.standard,
   });
 
+  // Store original orbit line properties for highlighting
+  (orbitLine as any).originalOpacity = ORBIT_PRESETS.standard.opacity;
+  (orbitLine as any).originalLineWidth = ORBIT_PRESETS.standard.lineWidth;
+  (orbitLine as any).originalEmissiveIntensity = ORBIT_PRESETS.standard.emissiveIntensity;
+
   const mesh = createPlanetMesh(name, diameter * 0.0001, color);
 
   // Create rings for planets that have them - pass axisTilt
