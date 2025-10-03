@@ -214,8 +214,13 @@ export default function ThreeScene() {
 
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 10;
-    controls.maxDistance = cameraDistance * 2;
+    controls.minDistance = 10; // Minimum zoom distance
+    
+    // Calculate the maximum distance based on the same scaling factor used for reset view
+    // This ensures consistency between reset view and max zoom distance
+    const recommendedDistance = getRecommendedCameraDistance();
+    const maxDistance = recommendedDistance * CAMERA_SCALE_FACTOR * 1.5; // Allow zooming slightly more than reset distance
+    controls.maxDistance = maxDistance;
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -271,32 +276,33 @@ export default function ThreeScene() {
 
   const handleZoomIn = () => {
     if (controlsRef && cameraRef) {
-      const zoomFactor = 0.8; // Zoom in by 20%
-      const currentDistance = cameraRef.position.distanceTo(controlsRef.target);
-      const newDistance = Math.max(controlsRef.minDistance, currentDistance * zoomFactor);
+      // Decrease slider value by 10 for more precise control
+      const newZoomLevel = Math.max(0, zoomLevel - 10);
       
-      // Create a new position that's closer to the target
-      const direction = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
-      const newPosition = new THREE.Vector3().copy(controlsRef.target).add(direction.multiplyScalar(newDistance));
+      // Update slider first
+      setZoomLevel(newZoomLevel);
       
-      moveCamera(cameraRef, controlsRef, newPosition, controlsRef.target, 500);
+      // Then trigger zoom change with new value
+      handleZoomChange(newZoomLevel);
     }
   };
 
   const handleZoomOut = () => {
     if (controlsRef && cameraRef) {
-      const zoomFactor = 1.25; // Zoom out by 25%
-      const currentDistance = cameraRef.position.distanceTo(controlsRef.target);
-      const newDistance = Math.min(controlsRef.maxDistance, currentDistance * zoomFactor);
+      // Increase slider value by 10 for more precise control
+      const newZoomLevel = Math.min(100, zoomLevel + 10);
       
-      // Create a new position that's further from the target
-      const direction = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
-      const newPosition = new THREE.Vector3().copy(controlsRef.target).add(direction.multiplyScalar(newDistance));
+      // Update slider first
+      setZoomLevel(newZoomLevel);
       
-      moveCamera(cameraRef, controlsRef, newPosition, controlsRef.target, 500);
+      // Then trigger zoom change with new value
+      handleZoomChange(newZoomLevel);
     }
   };
 
+  // Define a consistent scaling factor to use in multiple places
+  const CAMERA_SCALE_FACTOR = 0.065;
+  
   const handleResetView = () => {
     if (controlsRef && cameraRef) {
       // Reset to a view at approximately 40 degrees from the z-axis
@@ -308,9 +314,9 @@ export default function ThreeScene() {
       const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
       
       // Calculate position based on spherical coordinates
-      const x = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
-      const y = cameraDistance * 0.065 * Math.cos(angleFromY);
-      const z = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
+      const x = cameraDistance * CAMERA_SCALE_FACTOR * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
+      const y = cameraDistance * CAMERA_SCALE_FACTOR * Math.cos(angleFromY);
+      const z = cameraDistance * CAMERA_SCALE_FACTOR * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
       
       const newPosition = new THREE.Vector3(x, y, z);
       const originTarget = new THREE.Vector3(0, 0, 0);
@@ -337,22 +343,34 @@ export default function ThreeScene() {
       const minZoomDistance = controlsRef.minDistance;
       const maxZoomDistance = controlsRef.maxDistance;
       
-      // Use logarithmic scale for smoother zoom feel
-      // Map 0-100 to a 0-1 range and then apply log scaling
-      const normalizedValue = value / 100;
-      const logValue = Math.log(normalizedValue * 9 + 1) / Math.log(10); // log10(x*9 + 1) maps 0-1 to 0-1 with logarithmic curve
+      // When slider is at 50 (middle position), we want to be at the reset view distance
+      // Calculate reset view distance (same calculation used in handleResetView)
+      const cameraDistanceForReset = getRecommendedCameraDistance();
+      const resetViewDistance = cameraDistanceForReset * CAMERA_SCALE_FACTOR;
       
-      // Calculate the target distance based on the log-scaled value
-      const targetDistance = minZoomDistance + (maxZoomDistance - minZoomDistance) * logValue;
+      // Use a piecewise function:
+      // - Slider 0-50: Map to minDistance -> resetViewDistance
+      // - Slider 50-100: Map to resetViewDistance -> maxDistance
+      let targetDistance;
+      
+      if (value <= 50) {
+        // Map 0-50 to minDistance-resetViewDistance
+        const normalizedValue = value / 50;
+        targetDistance = minZoomDistance + (resetViewDistance - minZoomDistance) * normalizedValue;
+      } else {
+        // Map 50-100 to resetViewDistance-maxDistance
+        const normalizedValue = (value - 50) / 50;
+        targetDistance = resetViewDistance + (maxZoomDistance - resetViewDistance) * normalizedValue;
+      }
       
       // Get current direction from target
-      const direction = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
+      const directionVector = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
       
       // Create new position at the calculated distance
-      const newPosition = new THREE.Vector3().copy(controlsRef.target).add(direction.multiplyScalar(targetDistance));
+      const updatedPosition = new THREE.Vector3().copy(controlsRef.target).add(directionVector.multiplyScalar(targetDistance));
       
       // Move camera to new position
-      moveCamera(cameraRef, controlsRef, newPosition, controlsRef.target, 500);
+      moveCamera(cameraRef, controlsRef, updatedPosition, controlsRef.target, 500);
     }
   };
 
