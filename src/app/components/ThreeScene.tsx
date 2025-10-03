@@ -1,9 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+
+// Simple debounce function to limit how often slider updates during continuous zoom
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return function(...args: Parameters<T>) {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
@@ -221,6 +234,37 @@ export default function ThreeScene() {
     const recommendedDistance = getRecommendedCameraDistance();
     const maxDistance = recommendedDistance * CAMERA_SCALE_FACTOR * 1.5; // Allow zooming slightly more than reset distance
     controls.maxDistance = maxDistance;
+    
+    // Create a debounced function to update slider to prevent too many updates
+    const updateSliderFromCamera = debounce(() => {
+      // Get current camera distance from target
+      const currentDistance = camera.position.distanceTo(controls.target);
+      
+      // Calculate reset view distance for reference point
+      const resetViewDistance = recommendedDistance * CAMERA_SCALE_FACTOR;
+      
+      // Convert current distance to slider value
+      let newSliderValue: number;
+      
+      if (currentDistance <= resetViewDistance) {
+        // Map distance from minDistance to resetViewDistance to slider 0-50
+        const normalizedDistance = (currentDistance - controls.minDistance) / (resetViewDistance - controls.minDistance);
+        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
+      } else {
+        // Map distance from resetViewDistance to maxDistance to slider 50-100
+        const normalizedDistance = (currentDistance - resetViewDistance) / (maxDistance - resetViewDistance);
+        newSliderValue = Math.max(50, Math.min(100, 50 + normalizedDistance * 50));
+      }
+      
+      // Update slider value without triggering zoom change to avoid loops
+      // Only update if the difference is significant (to avoid minor fluctuations)
+      if (Math.abs(newSliderValue - zoomLevel) > 1) {
+        setZoomLevel(Math.round(newSliderValue));
+      }
+    }, 50); // 50ms debounce delay for smoother updates
+    
+    // Add event listener to update slider when zooming with mouse/touch
+    controls.addEventListener('change', updateSliderFromCamera);
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -266,6 +310,10 @@ export default function ThreeScene() {
       renderer.domElement.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('click', onClick);
       window.removeEventListener("resize", handleResize);
+      
+      // Clean up the event listener for the slider update
+      controls.removeEventListener('change', updateSliderFromCamera);
+      
       controls.dispose();
       renderer.dispose();
       if (Refcurrent) {
