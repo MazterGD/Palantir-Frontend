@@ -68,13 +68,6 @@ export default function ThreeScene() {
     planets.forEach((planet) => {
       // Map sprites to planet
       if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
-      if (planet.labelSprite) interactiveObjects.set(planet.labelSprite, planet);
-      // Map planet mesh to planet
-      planet.mesh.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          interactiveObjects.set(child, planet);
-        }
-      });
     });
 
     // Helper function to highlight planet
