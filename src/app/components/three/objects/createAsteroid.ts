@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { OrbitGenerator, ScaledOrbitGenerator } from "../orbitGenerator";
+import { OrbitGenerator, ScaledOrbitGenerator, ORBIT_PRESETS } from "../orbitGenerator";
 import { AsteroidData } from "@/app/lib/asteroidData";
 import { addObjectLabel } from "../objectLabel";
 import { createLabel } from "../objectTextLables";
@@ -11,7 +11,7 @@ export interface Asteroid {
   diameter: number;
   color: string;
   orbitLine: THREE.Object3D;
-  point: THREE.Points;
+  mesh: THREE.Group;
   haloSprite?: THREE.Sprite;
   labelSprite?: THREE.Sprite;
   setHaloHighlight?: (highlighted: boolean) => void;
@@ -28,52 +28,59 @@ export const createAsteroid = (
   const orbitGenerator = new OrbitGenerator(orbitElements);
   const positionScale = 100;
   
-  // Create orbit line
+  // Create orbit line using subtle preset
   const orbitLine = orbitGenerator.generateOrbitLine({
-  color: color,
-  scale: positionScale,
-  opacity: asteroidData.isPotentiallyHazardous ? 0.7 : 0.5,
-  lineWidth: asteroidData.isPotentiallyHazardous ? 2 : 1,
-  segments: 180,
-});
+    color: "#ffffff", // White color for orbit
+    scale: positionScale,
+    ...ORBIT_PRESETS.subtle, // Spread the subtle preset properties
+  });
+
+  // Make orbit line emissive
+  if (orbitLine.material) {
+    (orbitLine.material as any).emissive = new THREE.Color(0xffffff);
+    (orbitLine.material as any).emissiveIntensity = 0.3;
+  }
   
-  // Create asteroid as point
-  const geometry = new THREE.BufferGeometry();
-  const vertices = new Float32Array([0, 0, 0]);
-  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  
-  const material = new THREE.PointsMaterial({
-  color: color,
-  size: Math.max(diameter * 0.00005, asteroidData.isPotentiallyHazardous ? 4 : 2),
-  sizeAttenuation: true,
-  transparent: true,
-  opacity: asteroidData.isPotentiallyHazardous ? 1.0 : 0.9,
-  map: new THREE.TextureLoader().load('/textures/Sprites/circle.png'),
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-});
-  
-  const point = new THREE.Points(geometry, material);
-  
-  // Create invisible mesh for label attachment
-  const helperMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.1, 4, 4),
-    new THREE.MeshBasicMaterial({ visible: false })
-  );
-  point.add(helperMesh);
-  
-  // Add halo and label to helper mesh
-  const haloResult = addObjectLabel(helperMesh as any, camera, {
+  // Create asteroid as OctahedronGeometry with white emissive material
+  const geometry = new THREE.OctahedronGeometry(0.05, 0);
+  const material = new THREE.MeshPhongMaterial({
     color: color,
-    size: 0.5,
-    opacity: 0.6,
-    minDistance: 50,
-    maxDistance: 5000,
+    shininess: 50,
+    specular: new THREE.Color(0x333333),
+    emissive: new THREE.Color(0xffffff), // White emissive
+    emissiveIntensity: 0.2, // Moderate emissive intensity
+    transparent: true,
+    opacity: 0.9,
   });
   
-  const labelResult = createLabel(helperMesh as any, name, camera, {
-    fontSize: 12,
-    color: "#cccccc",
+  const mesh = new THREE.Mesh(geometry, material);
+  
+  // Create a group for the asteroid
+  const asteroidGroup = new THREE.Group();
+  asteroidGroup.add(mesh);
+  
+  // Load the same texture used by planets for consistency
+  const haloTexture = new THREE.TextureLoader().load("/textures/Sprites/circle.png");
+  
+  // Add white halo to the asteroid mesh
+  const haloResult = addObjectLabel(mesh as any, camera, {
+    texture: haloTexture,
+    color: 0xffffff, // White color for halo
+    size: 0.4,
+    opacity: 0.7, // Slightly more opaque
+    minDistance: 50,
+    maxDistance: 5000,
+    fadeNear: 10,
+    fadeFar: 1500,
+  });
+  
+  // Add label to the asteroid group - ALWAYS VISIBLE
+  const labelResult = createLabel(asteroidGroup as any, name, camera, {
+    fontSize: 16,
+    color: "#ffffff", // White color for label
+    minDistance: 1,    // Always visible even when very close
+    maxDistance: 100000, // Very large max distance to ensure it's always visible
+    opacity: 1.0,      // Full opacity
   });
   
   halos_and_labels.push(haloResult.update);
@@ -86,7 +93,7 @@ export const createAsteroid = (
     diameter: diameter * 0.00001,
     color,
     orbitLine,
-    point,
+    mesh: asteroidGroup,
     haloSprite: haloResult.sprite,
     labelSprite: labelResult.sprite,
     setHaloHighlight: haloResult.setHighlight,

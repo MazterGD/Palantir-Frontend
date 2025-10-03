@@ -274,12 +274,12 @@ export default function ThreeScene() {
       const asteroid = createAsteroid(asteroidData, camera, halos_and_labels);
       
       // Add to scene
-      scene.add(asteroid.point);
+      scene.add(asteroid.mesh);
       scene.add(asteroid.orbitLine);
       
       // Create asteroid celestial body
       const asteroidBody: CelestialBody = {
-        mesh: asteroid.point,
+        mesh: asteroid.mesh,
         orbitGenerator: asteroid.orbitGenerator,
         diameter: asteroid.diameter,
         color: asteroid.color,
@@ -301,7 +301,7 @@ export default function ThreeScene() {
         interactiveObjects.set(asteroid.labelSprite, asteroidBody);
       }
       // Map asteroid point for direct clicking
-      asteroid.point.traverse((child) => {
+      asteroid.mesh.traverse((child) => {
         if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
           interactiveObjects.set(child, asteroidBody);
         }
@@ -330,36 +330,41 @@ export default function ThreeScene() {
 
     // Animation loop
     const animate = () => {
-      requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 
-      // Update time (speed up significantly for visualization of realistic orbits)
-      currentTime += 360 * speedMultiplier;
+  // Update time (speed up significantly for visualization of realistic orbits)
+  currentTime += 360 * speedMultiplier;
 
-      // Update all celestial bodies
-      celestialBodies.forEach((body) => {
-        // Update orbital position
-        const position = body.orbitGenerator.getPositionAtTime(currentTime);
-        body.mesh.position.set(
-          position.position.x,
-          position.position.y,
-          position.position.z,
-        );
+  // Update all celestial bodies
+  celestialBodies.forEach((body) => {
+    // Update orbital position
+    const position = body.orbitGenerator.getPositionAtTime(currentTime);
+    body.mesh.position.set(
+      position.position.x,
+      position.position.y,
+      position.position.z,
+    );
 
-        // Update planetary rotation (only for planets)
-        if (body.rotationSpeed && body.mesh instanceof THREE.Group) {
-          const planetMesh = body.mesh.children[0] as THREE.Mesh;
-          planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
-        }
-      });
+    // Update planetary rotation (only for planets)
+    if (body.rotationSpeed && body.mesh instanceof THREE.Group) {
+      const planetMesh = body.mesh.children[0] as THREE.Mesh;
+      planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
+    }
+    
+    // Update asteroid LOD if applicable
+    if ((body as any).updateLOD) {
+      (body as any).updateLOD(camera.position);
+    }
+  });
 
-      halos_and_labels.forEach((updateHalo) => updateHalo());
+  halos_and_labels.forEach((updateHalo) => updateHalo());
 
-      // Rotate sun
-      updateSun();
+  // Rotate sun
+  updateSun();
 
-      controls.update();
-      renderWithPostProcessing();
-    };
+  controls.update();
+  renderWithPostProcessing();
+};
     animate();
 
     // Cleanup and resize handler
