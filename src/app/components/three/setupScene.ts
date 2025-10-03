@@ -10,6 +10,7 @@ export function setupScene(container: HTMLDivElement) {
     10000,
   );
   camera.position.z = 5;
+  camera.up = new THREE.Vector3(0,0,1);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
   container.appendChild(renderer.domElement);
@@ -31,6 +32,9 @@ export function setupScene(container: HTMLDivElement) {
   renderer.domElement.style.height = container.clientHeight + "px";
 
   renderer.setPixelRatio(window.devicePixelRatio);
+
+      const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
 
   return { scene, camera, renderer };
 }
