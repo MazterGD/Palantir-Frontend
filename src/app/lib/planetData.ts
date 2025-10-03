@@ -163,38 +163,38 @@ export const PLANET_TEXTURES: Record<
   }>
 > = {
   mercury: {
-    color: "/textures/mercury/mercury_color.jpg",
-    bump: "/textures/mercury/mercury_bump.jpg",
+    color: "/textures/Mercury/mercury_color.jpg",
+    bump: "/textures/Mercury/mercury_bump.jpg",
   },
   venus: {
-    color: "/textures/venus/venus_color.jpg",
-    bump: "/textures/venus/venus_bump.jpg",
+    color: "/textures/Venus/venus_color.jpg",
+    bump: "/textures/Venus/venus_bump.jpg",
   },
   earth: {
-    color: "/textures/earth/earth_daymap.png",
-    normal: "/textures/earth/earth_normal.png",
-    specular: "/textures/earth/earth_specular.png",
-    bump: "/textures/earth/earth_bump.png",
-    cloud: "/textures/earth/earth_cloud.png",
+    color: "/textures/Earth/earth_daymap.png",
+    normal: "/textures/Earth/earth_normal.png",
+    specular: "/textures/Earth/earth_specular.png",
+    bump: "/textures/Earth/earth_bump.png",
+    cloud: "/textures/Earth/earth_cloud.png",
   },
   mars: {
-    color: "/textures/mars/mars_color.jpg",
-    normal: "/textures/mars/mars_normal.jpg",
+    color: "/textures/Mars/mars_color.jpg",
+    normal: "/textures/Mars/mars_normal.jpg",
   },
   jupiter: {
-    color: "/textures/jupiter/jupiter_color.jpg",
+    color: "/textures/Jupiter/jupiter_color.jpg",
   },
   saturn: {
-    color: "/textures/saturn/saturn_color.jpg",
+    color: "/textures/Saturn/saturn_color.jpg",
   },
   uranus: {
-    color: "/textures/uranus/uranus_color.jpg",
+    color: "/textures/Uranus/uranus_color.jpg",
   },
   neptune: {
-    color: "/textures/neptune/neptune_color.jpg",
+    color: "/textures/Neptune/neptune_color.jpg",
   },
   pluto: {
-    color: "/textures/pluto/pluto_color.jpg",
-    bump: "/textures/pluto/pluto_bump.jpg",
+    color: "/textures/Pluto/pluto_color.jpg",
+    bump: "/textures/Pluto/pluto_bump.jpg",
   },
 };
