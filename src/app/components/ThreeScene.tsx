@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -17,6 +17,8 @@ import {
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
+import ControlPanel from "./ControlPanel";
+import styles from "./ThreeScene.module.css";
 
 // Extend Planet interface to include orbitGenerator for celestial bodies
 interface CelestialBody extends Planet {
@@ -25,6 +27,9 @@ interface CelestialBody extends Planet {
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const [controlsRef, setControlsRef] = useState<any>(null);
+  const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
+  const [initialCameraPosition, setInitialCameraPosition] = useState<THREE.Vector3 | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -35,7 +40,12 @@ export default function ThreeScene() {
     camera.position.set(0, cameraDistance * 0.065, 0);
     camera.lookAt(0, 0, 0);
     
+    // Store the initial camera position for reset functionality
+    setInitialCameraPosition(camera.position.clone());
+    setCameraRef(camera);
+    
     const controls = setupControls(camera, renderer);
+    setControlsRef(controls);
 
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
@@ -249,5 +259,50 @@ export default function ThreeScene() {
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />;
+  const handleZoomIn = () => {
+    if (controlsRef && cameraRef) {
+      const zoomFactor = 0.8; // Zoom in by 20%
+      const currentDistance = cameraRef.position.distanceTo(controlsRef.target);
+      const newDistance = Math.max(controlsRef.minDistance, currentDistance * zoomFactor);
+      
+      // Create a new position that's closer to the target
+      const direction = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
+      const newPosition = new THREE.Vector3().copy(controlsRef.target).add(direction.multiplyScalar(newDistance));
+      
+      moveCamera(cameraRef, controlsRef, newPosition, controlsRef.target, 500);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (controlsRef && cameraRef) {
+      const zoomFactor = 1.25; // Zoom out by 25%
+      const currentDistance = cameraRef.position.distanceTo(controlsRef.target);
+      const newDistance = Math.min(controlsRef.maxDistance, currentDistance * zoomFactor);
+      
+      // Create a new position that's further from the target
+      const direction = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
+      const newPosition = new THREE.Vector3().copy(controlsRef.target).add(direction.multiplyScalar(newDistance));
+      
+      moveCamera(cameraRef, controlsRef, newPosition, controlsRef.target, 500);
+    }
+  };
+
+  const handleResetView = () => {
+    if (controlsRef && cameraRef && initialCameraPosition) {
+      // Reset to initial view
+      const originTarget = new THREE.Vector3(0, 0, 0);
+      moveCamera(cameraRef, controlsRef, initialCameraPosition, originTarget, 1000);
+    }
+  };
+
+  return (
+    <div className={styles.solarSystemContainer}>
+      <div ref={mountRef} className={styles.canvasContainer} />
+      <ControlPanel 
+        onZoomIn={handleZoomIn} 
+        onZoomOut={handleZoomOut} 
+        onResetView={handleResetView} 
+      />
+    </div>
+  );
 }
