@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
@@ -34,9 +34,17 @@ interface CelestialBody {
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Load asteroid data
   const { asteroid: asteroidData } = useAsteroid('3297389');
+
+  useEffect(() => {
+    // When asteroid data is loaded, hide loading screen
+    if (asteroidData) {
+      setIsLoading(false);
+    }
+  }, [asteroidData]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -392,5 +400,50 @@ export default function ThreeScene() {
     };
   }, [asteroidData]);
 
-  return <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />;
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100vh" }}>
+      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
+      
+      {/* Loading Screen */}
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#000000",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            color: "white",
+            fontSize: "18px",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              width: "50px",
+              height: "50px",
+              border: "5px solid #f3f3f3",
+              borderTop: "5px solid #3498db",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              marginBottom: "20px",
+            }}
+          />
+          <p>Loading asteroid data...</p>
+          
+          <style jsx>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
+    </div>
+  );
 }
