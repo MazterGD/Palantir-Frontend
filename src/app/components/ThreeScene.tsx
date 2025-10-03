@@ -30,6 +30,7 @@ export default function ThreeScene() {
   const [controlsRef, setControlsRef] = useState<any>(null);
   const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
   const [initialCameraPosition, setInitialCameraPosition] = useState<THREE.Vector3 | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -318,6 +319,40 @@ export default function ThreeScene() {
       cameraRef.up.set(0, 0, 1);
       
       moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
+      
+      // Reset the zoom level slider to default
+      setZoomLevel(50);
+    }
+  };
+  
+  const handleZoomChange = (value: number) => {
+    if (controlsRef && cameraRef) {
+      setZoomLevel(value);
+      
+      // Calculate zoom based on slider value (0-100)
+      // Map slider range (0-100) to zoom distance range
+      // Lower value = closer zoom (minimum distance)
+      // Higher value = further zoom (maximum distance)
+      
+      const minZoomDistance = controlsRef.minDistance;
+      const maxZoomDistance = controlsRef.maxDistance;
+      
+      // Use logarithmic scale for smoother zoom feel
+      // Map 0-100 to a 0-1 range and then apply log scaling
+      const normalizedValue = value / 100;
+      const logValue = Math.log(normalizedValue * 9 + 1) / Math.log(10); // log10(x*9 + 1) maps 0-1 to 0-1 with logarithmic curve
+      
+      // Calculate the target distance based on the log-scaled value
+      const targetDistance = minZoomDistance + (maxZoomDistance - minZoomDistance) * logValue;
+      
+      // Get current direction from target
+      const direction = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
+      
+      // Create new position at the calculated distance
+      const newPosition = new THREE.Vector3().copy(controlsRef.target).add(direction.multiplyScalar(targetDistance));
+      
+      // Move camera to new position
+      moveCamera(cameraRef, controlsRef, newPosition, controlsRef.target, 500);
     }
   };
 
@@ -327,7 +362,9 @@ export default function ThreeScene() {
       <ControlPanel 
         onZoomIn={handleZoomIn} 
         onZoomOut={handleZoomOut} 
-        onResetView={handleResetView} 
+        onResetView={handleResetView}
+        zoomLevel={zoomLevel}
+        onZoomChange={handleZoomChange}
       />
     </div>
   );
