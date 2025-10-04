@@ -32,7 +32,7 @@ export default function ThreeScene() {
 
     const { scene, camera, renderer } = setupScene(mountRef.current);
     const cameraDistance = getRecommendedCameraDistance();
-    camera.position.set(0, cameraDistance * 0.065, 0);
+    camera.position.set(0, cameraDistance * 0.065, cameraDistance * 0.045);
     camera.lookAt(0, 0, 0);
     
     const controls = setupControls(camera, renderer);
