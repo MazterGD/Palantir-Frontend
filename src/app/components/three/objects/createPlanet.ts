@@ -23,11 +23,116 @@ export interface Planet {
   labelSprite?: THREE.Sprite;
   setHaloHighlight?: (highlighted: boolean) => void;
   setLabelHighlight?: (highlighted: boolean) => void;
+  rings?: THREE.Group; // NEW: Optional rings group
 }
 
 type HaloUpdate = () => void;
 
 const textureLoader = new THREE.TextureLoader();
+
+// Function to create planet rings
+// NEW: Function to create planet rings
+const createPlanetRings = (
+  planetName: string,
+  planetDiameter: number,
+  axisTilt: number,
+) => {
+  // Define ring properties for different planets
+  const ringConfigs: {
+    [key: string]: {
+      innerRadius: number;
+      outerRadius: number;
+      color?: string;
+      texture?: string;
+    };
+  } = {
+    saturn: {
+      innerRadius: 1.2,
+      outerRadius: 2.3,
+      texture: "/textures/Saturn/saturn_rings.jpg",
+    },
+    uranus: {
+      innerRadius: 1.4,
+      outerRadius: 2.0,
+      texture: "/textures/Uranus/uranus_rings.jpg",
+    },
+    jupiter: {
+      innerRadius: 1.2,
+      outerRadius: 1.8,
+      color: "#d4a574",
+    },
+    neptune: {
+      innerRadius: 1.3,
+      outerRadius: 1.9,
+      color: "#5b9bd1",
+    },
+  };
+
+  const config = ringConfigs[planetName.toLowerCase()];
+  if (!config) return null;
+
+  // Scale rings based on planet diameter
+  const scale = planetDiameter * 0.0001;
+  const innerRadius = config.innerRadius * scale;
+  const outerRadius = config.outerRadius * scale;
+
+  // Create ring geometry
+  const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 256, 1);
+
+  // Fix the UV mapping: radial unwrap
+  const uv = ringGeometry.attributes.uv;
+  for (let i = 0; i < uv.count; i++) {
+    const x = ringGeometry.attributes.position.getX(i);
+    const y = ringGeometry.attributes.position.getY(i);
+
+    // radius from center
+    const r = Math.sqrt(x * x + y * y);
+    // normalized radius (inner → outer maps to 0 → 1)
+    const u = (r - innerRadius) / (outerRadius - innerRadius);
+
+    // angle around the circle (not really needed if texture is just radial gradient)
+    const angle = Math.atan2(y, x);
+    const v = (angle + Math.PI) / (2 * Math.PI); // 0 → 1
+
+    uv.setXY(i, u, v);
+  }
+
+  let ringMaterial: THREE.Material;
+
+  // Use the texture from config if available, otherwise use color
+  if (config.texture) {
+    const ringTexture = textureLoader.load(config.texture);
+    ringTexture.wrapS = THREE.ClampToEdgeWrapping;
+    ringTexture.wrapT = THREE.ClampToEdgeWrapping;
+    ringTexture.minFilter = THREE.LinearFilter;
+
+    ringMaterial = new THREE.MeshPhongMaterial({
+      map: ringTexture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+    });
+  } else {
+    // Use colored material as fallback for planets without specific ring textures
+    ringMaterial = new THREE.MeshPhongMaterial({
+      color: config.color || 0xffffff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6,
+    });
+  }
+
+  const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+
+  // Rotate rings 90° around Z-axis to put them in XZ plane (perpendicular to Y-axis)
+  ringMesh.rotation.z = Math.PI / 2;
+
+  // Create a group for the rings
+  const ringsGroup = new THREE.Group();
+  ringsGroup.add(ringMesh);
+
+  return ringsGroup;
+};
 
 const createPlanetMesh = (
   planetName: string,
@@ -53,7 +158,7 @@ const createPlanetMesh = (
   const material = new THREE.MeshPhongMaterial(materialOptions);
   const mesh = new THREE.Mesh(geometry, material);
 
-  // Optional: add a separate transparent cloud layer
+  // add a separate transparent cloud layer
   if (texConfig.cloud) {
     const cloudGeometry = new THREE.SphereGeometry(
       (diameter / 2) * 1.01,
@@ -93,23 +198,31 @@ export const createPlanet = (
     ...ORBIT_PRESETS.standard,
   });
 
+  // Store original orbit line properties for highlighting
+  (orbitLine as any).originalOpacity = ORBIT_PRESETS.standard.opacity;
+  (orbitLine as any).originalLineWidth = ORBIT_PRESETS.standard.lineWidth;
+  (orbitLine as any).originalEmissiveIntensity = ORBIT_PRESETS.standard.emissiveIntensity;
+
   const mesh = createPlanetMesh(name, diameter * 0.0001, color);
 
-  const texturePath = "/textures/Sprites/circle.png"
+  // Create rings for planets that have them - pass axisTilt
+  const rings = createPlanetRings(name, diameter, axisTilt);
 
-    let map: THREE.Texture | undefined;
-    if (texturePath) {
-      map = new THREE.TextureLoader().load(texturePath);
-    }
-  
+  const texturePath = "/textures/Sprites/circle.png";
+
+  let map: THREE.Texture | undefined;
+  if (texturePath) {
+    map = new THREE.TextureLoader().load(texturePath);
+  }
+
   const haloResult = addObjectLabel(mesh, camera, {
-  texture: map,
-  color: planetData.color,
-});
-const labelResult = createLabel(mesh, planetName, camera);
+    texture: map,
+    color: planetData.color,
+  });
+  const labelResult = createLabel(mesh, planetName, camera);
 
-halos_and_labels.push(haloResult.update);
-halos_and_labels.push(labelResult.update);
+  halos_and_labels.push(haloResult.update);
+  halos_and_labels.push(labelResult.update);
 
   // Rotate mesh so its Y-axis (rotation axis) is perpendicular to orbital plane
   mesh.rotation.x = Math.PI / 2; // 90 degrees
@@ -118,7 +231,13 @@ halos_and_labels.push(labelResult.update);
   const planetGroup = new THREE.Group();
   planetGroup.add(mesh);
 
+  // Add rings to the planet group if they exist
+  if (rings) {
+    planetGroup.add(rings);
+  }
+
   // Apply axis tilt to the group, not the mesh
+  // This will tilt both the planet AND the rings together
   planetGroup.rotation.x = THREE.MathUtils.degToRad(axisTilt);
 
   // Calculate rotation speed (radians per day)
@@ -126,23 +245,27 @@ halos_and_labels.push(labelResult.update);
     rotationPeriod !== 0 ? (2 * Math.PI) / (rotationPeriod / 24) : 0;
 
   return {
-  name: planetName,
-  orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
-  diameter: diameter * 0.0001,
-  color,
-  orbitLine,
-  mesh: planetGroup,
-  rotationPeriod,
-  axisTilt,
-  rotationSpeed,
-  haloSprite: haloResult.sprite,
-  labelSprite: labelResult.sprite,
-  setHaloHighlight: haloResult.setHighlight,
-  setLabelHighlight: labelResult.setHighlight,
-};
+    name: planetName,
+    orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
+    diameter: diameter * 0.0001,
+    color,
+    orbitLine,
+    mesh: planetGroup,
+    rotationPeriod,
+    axisTilt,
+    rotationSpeed,
+    haloSprite: haloResult.sprite,
+    labelSprite: labelResult.sprite,
+    setHaloHighlight: haloResult.setHighlight,
+    setLabelHighlight: labelResult.setHighlight,
+    rings: rings, // Include rings in the planet object
+  };
 };
 
-export const createAllPlanets = (camera: THREE.Camera, halos_and_labels: HaloUpdate[]) =>
+export const createAllPlanets = (
+  camera: THREE.Camera,
+  halos_and_labels: HaloUpdate[],
+) =>
   Object.keys(PLANETS)
     .map((name) => createPlanet(name, camera, halos_and_labels))
     .filter(Boolean) as Planet[];

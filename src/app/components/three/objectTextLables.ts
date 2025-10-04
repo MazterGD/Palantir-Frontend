@@ -19,7 +19,8 @@ export function createLabel(
     fontSize?: number;
     offsetY?: number;
     opacity?: number;
-    fontFamily?: string; // New option for Google Font
+    fontFamily?: string;
+    alwaysVisible?: boolean; // NEW: Force label to always be visible
   },
 ): { update: () => void; sprite: THREE.Sprite; setHighlight: (highlighted: boolean) => void } {
   const canvas: HTMLCanvasElement = document.createElement('canvas');
@@ -32,8 +33,9 @@ export function createLabel(
   // Default options
   const color = options?.color ?? '#ffffff';
   const fontSize = options?.fontSize ?? 16;
-  const fontFamily = options?.fontFamily ?? 'League Spartan'; // Default to Orbitron
-const originalColor = new THREE.Color(color);
+  const fontFamily = options?.fontFamily ?? 'League Spartan';
+  const alwaysVisible = options?.alwaysVisible ?? false; // NEW: Default to false
+  const originalColor = new THREE.Color(color);
 
   canvas.width = 256;
   canvas.height = 256;
@@ -78,14 +80,35 @@ const originalColor = new THREE.Color(color);
   const updateResult = addObjectLabel(object, camera, {
     texture,
     size: 10,
+    minDistance: options?.minDistance ?? (alwaysVisible ? 1 : 500), // Override for always visible
+    maxDistance: options?.maxDistance ?? (alwaysVisible ? 100000 : 10000), // Very large max distance
+    opacity: options?.opacity ?? (alwaysVisible ? 1.0 : 0.8), // Full opacity if always visible
   });
 
+  // Override the update function to ensure always visible if specified
+  const originalUpdate = updateResult.update;
+  const customUpdate = () => {
+    if (alwaysVisible) {
+      // Force the sprite to be always visible with full opacity
+      updateResult.sprite.visible = true;
+      updateResult.sprite.material.opacity = options?.opacity ?? 1.0;
+      
+      // Still update scale based on distance
+      const worldPos = updateResult.sprite.getWorldPosition(new THREE.Vector3());
+      const distance = camera.position.distanceTo(worldPos);
+      const spriteScale = (10 * distance) / 35;
+      updateResult.sprite.scale.set(spriteScale, spriteScale, 1);
+    } else {
+      originalUpdate();
+    }
+  };
+
   return { 
-  update: updateResult.update, 
-  sprite: updateResult.sprite,
-  setHighlight: (highlighted: boolean) => {
-    updateResult.setHighlight(highlighted);
-    updateResult.sprite.material.color.setHex(highlighted ? 0xffff00 : originalColor.getHex());
-  }
-};
+    update: customUpdate, 
+    sprite: updateResult.sprite,
+    setHighlight: (highlighted: boolean) => {
+      updateResult.setHighlight(highlighted);
+      updateResult.sprite.material.color.setHex(highlighted ? 0xffff00 : originalColor.getHex());
+    }
+  };
 }

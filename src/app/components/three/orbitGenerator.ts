@@ -4,7 +4,7 @@
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-// import * as THREE from "three";
+import * as THREE from "three";
 
 export interface Point3D {
   x: number;
@@ -38,6 +38,11 @@ export interface OrbitLineOptions {
   lineWidth?: number;
   segments?: number;
   scale?: number;
+}
+
+export interface StateVectors {
+  position: Point3D;
+  velocity: Point3D;
 }
 
 export class OrbitGenerator {
@@ -205,9 +210,9 @@ export class OrbitGenerator {
     const geometry = new LineGeometry();
     geometry.setPositions(positions);
 
-      const isMobile =
-    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
+    const isMobile =
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
 
     const lineW = isMobile ? 1.5 : 3;
 
@@ -218,7 +223,88 @@ export class OrbitGenerator {
       linewidth: lineW,
     });
 
-    return new Line2(geometry, material);
+    const line = new Line2(geometry, material);
+    line.computeLineDistances();
+    
+    return line;
+  }
+
+  getCurrentStateVectors(julianDate: number): StateVectors {
+    const { semiMajorAxis: a, eccentricity: e } = this.elements;
+    const M = this.getMeanAnomalyAtTime(julianDate);
+    const E = this.solveKepler(e, M);
+    
+    const cosE = Math.cos(E);
+    const sinE = Math.sin(E);
+    
+    const r = a * (1 - e * cosE);
+    const x = r * ((cosE - e) / (1 - e * cosE));
+    const y = r * ((Math.sqrt(1 - e * e) * sinE) / (1 - e * cosE));
+    
+    const vx = -Math.sqrt(398600.4418 / (a * (1 - e * e))) * sinE;
+    const vy = Math.sqrt(398600.4418 / (a * (1 - e * e))) * Math.sqrt(1 - e * e) * cosE;
+    
+    const position3D = this.apply3DRotations([{ x, y, z: 0 }])[0];
+    const velocity3D = this.apply3DRotations([{ x: vx, y: vy, z: 0 }])[0];
+    
+    return { position: position3D, velocity: velocity3D };
+  }
+
+  static fromStateVectors(
+    position: Point3D,
+    velocity: Point3D,
+    epoch: number,
+    mu: number = 398600.4418
+  ): OrbitElements {
+    const r = Math.sqrt(position.x ** 2 + position.y ** 2 + position.z ** 2);
+    const v = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
+    
+    const hx = position.y * velocity.z - position.z * velocity.y;
+    const hy = position.z * velocity.x - position.x * velocity.z;
+    const hz = position.x * velocity.y - position.y * velocity.x;
+    const h = Math.sqrt(hx ** 2 + hy ** 2 + hz ** 2);
+    
+    const nx = -hy;
+    const ny = hx;
+    const n = Math.sqrt(nx ** 2 + ny ** 2);
+    
+    const energy = (v ** 2) / 2 - mu / r;
+    const a = -mu / (2 * energy);
+    
+    const ex = ((v ** 2 - mu / r) * position.x - (position.x * velocity.x + position.y * velocity.y + position.z * velocity.z) * velocity.x) / mu;
+    const ey = ((v ** 2 - mu / r) * position.y - (position.x * velocity.x + position.y * velocity.y + position.z * velocity.z) * velocity.y) / mu;
+    const ez = ((v ** 2 - mu / r) * position.z - (position.x * velocity.x + position.y * velocity.y + position.z * velocity.z) * velocity.z) / mu;
+    const e = Math.sqrt(ex ** 2 + ey ** 2 + ez ** 2);
+    
+    const i = Math.acos(hz / h) * (180 / Math.PI);
+    
+    let ascendingNode = 0;
+    if (n !== 0) {
+      ascendingNode = Math.acos(nx / n) * (180 / Math.PI);
+      if (ny < 0) ascendingNode = 360 - ascendingNode;
+    }
+    
+    let perihelionArgument = 0;
+    if (n !== 0 && e !== 0) {
+      perihelionArgument = Math.acos((nx * ex + ny * ey) / (n * e)) * (180 / Math.PI);
+      if (ez < 0) perihelionArgument = 360 - perihelionArgument;
+    }
+    
+    const orbitalPeriod = 2 * Math.PI * Math.sqrt((a ** 3) / mu);
+    const meanMotion = 360 / orbitalPeriod;
+    
+    return {
+      semiMajorAxis: a,
+      eccentricity: e,
+      inclination: i,
+      ascendingNode,
+      perihelionArgument,
+      orbitalPeriod,
+      perihelionTime: epoch,
+      meanAnomaly: 0,
+      meanMotion,
+      epoch
+    };
   }
 }
 
@@ -257,5 +343,5 @@ export const ORBIT_PRESETS = {
     segments: 360,
   },
   bright: { opacity: 0.9, emissiveIntensity: 0.6, lineWidth: 3, segments: 360 },
-  subtle: { opacity: 0.4, emissiveIntensity: 0.2, lineWidth: 1, segments: 180 },
+  subtle: { opacity: 0.1, emissiveIntensity: 0.1, lineWidth: 0.5, segments: 180 },
 };
