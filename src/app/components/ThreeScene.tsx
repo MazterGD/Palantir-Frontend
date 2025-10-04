@@ -6,9 +6,11 @@ import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupPostProcessing } from "./three/postProcessing";
+import { ORBIT_PRESETS, ScaledOrbitGenerator } from "./three/orbitGenerator";
 import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
 import { createAsteroids } from "./three/objects/createAsteroid";
+import { moveCamera } from "./three/cameraUtils";
 import { useAsteroidsBulk } from "../hooks/useAsteroidsBulk";
 import {
   getRecommendedCameraDistance,
@@ -35,7 +37,7 @@ interface CelestialBody {
   applyForce?: (
     force: { x: number; y: number; z: number },
     deltaTime: number,
-    currentTime: number
+    currentTime: number,
   ) => void;
 }
 
@@ -60,13 +62,40 @@ export default function ThreeScene() {
   const [deltaTime, setDeltaTime] = useState("1");
   const [uiVersion, setUiVersion] = useState(0);
 
-  const { asteroids: asteroidsData, loading } = useAsteroidsBulk(1, 1500);
+  const {
+    asteroids: asteroidsData,
+    loading,
+    error,
+  } = useAsteroidsBulk(1, 1500);
 
   useEffect(() => {
     if (asteroidsData && sceneInitialized) {
       setIsLoading(false);
     }
   }, [asteroidsData, sceneInitialized]);
+
+  const showOrbitForBody = (body: CelestialBody) => {
+    if (body.showOrbit) {
+      body.showOrbit();
+    } else if (body.orbitLine) {
+      // Fallback: directly show the orbit line
+      body.orbitLine.visible = true;
+
+      // Also ensure it's highlighted
+      if ("material" in body.orbitLine && body.orbitLine.material) {
+        const orbitLine = body.orbitLine as any;
+        orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+        if (orbitLine.material.linewidth !== undefined) {
+          orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+        }
+        if (orbitLine.material.emissiveIntensity !== undefined) {
+          orbitLine.material.emissiveIntensity =
+            ORBIT_PRESETS.bright.emissiveIntensity;
+        }
+        orbitLine.material.needsUpdate = true;
+      }
+    }
+  };
 
   const applyForceToSelectedAsteroid = () => {
     if (!selectedBody || !selectedBody.applyForce) {
@@ -87,29 +116,42 @@ export default function ThreeScene() {
       return;
     }
 
+    // Apply the force and update the orbit
     selectedBody.applyForce(force, dt, currentTimeRef);
 
+    // Update orbit line geometry after applying force
     if (selectedBody.orbitLine && selectedBody.orbitGenerator) {
       const positions: number[] = [];
       const steps = 360;
       for (let i = 0; i <= steps; i++) {
         const t = (i / steps) * Math.PI * 2;
         const pos = selectedBody.orbitGenerator.getPositionAtTime(
-          currentTimeRef + t * 100
+          currentTimeRef + t * 100,
         );
         positions.push(pos.position.x, pos.position.y, pos.position.z);
       }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute(
         "position",
-        new THREE.Float32BufferAttribute(positions, 3)
+        new THREE.Float32BufferAttribute(positions, 3),
       );
-      (selectedBody.orbitLine as THREE.Line).geometry.dispose();
+
+      // Dispose of old geometry and assign new one
+      if ((selectedBody.orbitLine as THREE.Line).geometry) {
+        (selectedBody.orbitLine as THREE.Line).geometry.dispose();
+      }
       (selectedBody.orbitLine as THREE.Line).geometry = geometry;
     }
 
     setUiVersion((v) => v + 1);
-    alert(`Force applied to ${selectedBody.name}`);
+    alert(
+      `Force applied to ${selectedBody.name}. Orbit has been updated.`,
+    );
+  };
+
+  const clearSelection = () => {
+    currentSelectedBody = null;
+    setSelectedBody(null);
   };
 
   useEffect(() => {
@@ -155,7 +197,29 @@ export default function ThreeScene() {
       const planets = createAllPlanets(camera, halosAndLabelsRef);
       planets.forEach((planet) => {
         scene.add(planet.mesh);
-        scene.add(planet.orbitLine);
+        if (planet.orbitLine) {
+          scene.add(planet.orbitLine);
+        }
+
+        // Create showOrbit method for planets (no hideOrbit needed)
+        const showOrbit = () => {
+          if (planet.orbitLine) {
+            planet.orbitLine.visible = true;
+            // Highlight the orbit
+            if ("material" in planet.orbitLine && planet.orbitLine.material) {
+              const orbitLine = planet.orbitLine as any;
+              orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+              if (orbitLine.material.linewidth !== undefined) {
+                orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+              }
+              if (orbitLine.material.emissiveIntensity !== undefined) {
+                orbitLine.material.emissiveIntensity =
+                  ORBIT_PRESETS.bright.emissiveIntensity;
+              }
+              orbitLine.material.needsUpdate = true;
+            }
+          }
+        };
 
         const celestialBody: CelestialBody = {
           mesh: planet.mesh,
@@ -168,6 +232,8 @@ export default function ThreeScene() {
           labelSprite: planet.labelSprite,
           setHaloHighlight: planet.setHaloHighlight,
           setLabelHighlight: planet.setLabelHighlight,
+          orbitLine: planet.orbitLine,
+          showOrbit,
         };
 
         celestialBodiesRef.push(celestialBody);
@@ -185,24 +251,133 @@ export default function ThreeScene() {
           }
         });
 
-        interactiveObjectsRef.set(planet.orbitLine, celestialBody);
+        if (planet.orbitLine) {
+          interactiveObjectsRef.set(planet.orbitLine, celestialBody);
+        }
       });
 
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
+      let hoveredObject: CelestialBody | null = null;
 
-      // ✅ track mouse for raycasting
-      renderer.domElement.addEventListener("mousemove", (event) => {
+      const highlightObject = (object: CelestialBody, highlighted: boolean) => {
+        if (object.setHaloHighlight) {
+          object.setHaloHighlight(highlighted);
+        }
+
+        if (object.setLabelHighlight) {
+          object.setLabelHighlight(highlighted);
+        }
+
+        // Highlight the orbit line on hover (but don't change visibility)
+        if (
+          object.orbitLine &&
+          "material" in object.orbitLine &&
+          !object.name.toLowerCase().includes("asteroid")
+        ) {
+          const orbitLine = object.orbitLine as any;
+          if (orbitLine.material) {
+            if (highlighted) {
+              orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+              if (orbitLine.material.linewidth !== undefined) {
+                orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+              }
+              if (orbitLine.material.emissiveIntensity !== undefined) {
+                orbitLine.material.emissiveIntensity =
+                  ORBIT_PRESETS.bright.emissiveIntensity;
+              }
+            } else {
+              // Only revert to standard if this orbit is not currently selected
+              if (currentSelectedBody !== object) {
+                orbitLine.material.opacity = ORBIT_PRESETS.standard.opacity;
+                if (orbitLine.material.linewidth !== undefined) {
+                  orbitLine.material.linewidth =
+                    ORBIT_PRESETS.standard.lineWidth;
+                }
+                if (orbitLine.material.emissiveIntensity !== undefined) {
+                  orbitLine.material.emissiveIntensity =
+                    ORBIT_PRESETS.standard.emissiveIntensity;
+                }
+              }
+            }
+            orbitLine.material.needsUpdate = true;
+          }
+        }
+
+        if (object.mesh instanceof THREE.Group) {
+          object.mesh.traverse((child: any) => {
+            if (child instanceof THREE.Mesh && child.material) {
+              const materials = Array.isArray(child.material)
+                ? child.material
+                : [child.material];
+
+              materials.forEach((material) => {
+                if (
+                  material instanceof THREE.MeshPhongMaterial ||
+                  material instanceof THREE.MeshStandardMaterial
+                ) {
+                  material.emissive = new THREE.Color(object.color);
+                  material.emissiveIntensity = highlighted ? 0.3 : 0;
+                }
+              });
+            }
+          });
+        }
+
+        if (object.mesh instanceof THREE.Points) {
+          const material = object.mesh.material as THREE.PointsMaterial;
+          if (highlighted) {
+            material.color = new THREE.Color(0xffff00);
+            material.size = 5;
+            material.opacity = 1.0;
+          } else {
+            material.color = new THREE.Color(0x4fc3f7);
+            material.size = 3;
+            material.opacity = 0.8;
+          }
+        }
+      };
+
+      const onMouseMove = (event: MouseEvent) => {
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      });
+
+        raycaster.setFromCamera(mouse, camera);
+
+        const checkObjects = Array.from(interactiveObjectsRef.keys());
+        const intersects = raycaster.intersectObjects(checkObjects, true);
+
+        if (intersects.length > 0) {
+          const intersectedObject = intersects[0].object;
+          let object = interactiveObjectsRef.get(intersectedObject);
+
+          if (!object && intersectedObject.parent) {
+            object = interactiveObjectsRef.get(intersectedObject.parent);
+          }
+
+          if (object && object !== hoveredObject) {
+            if (hoveredObject) {
+              highlightObject(hoveredObject, false);
+            }
+            highlightObject(object, true);
+            hoveredObject = object;
+          }
+          renderer.domElement.style.cursor = "pointer";
+        } else {
+          if (hoveredObject) {
+            highlightObject(hoveredObject, false);
+            hoveredObject = null;
+          }
+          renderer.domElement.style.cursor = "default";
+        }
+      };
 
       const selectBody = (body: CelestialBody) => {
-        if (currentSelectedBody?.hideOrbit) {
-          currentSelectedBody.hideOrbit();
-        }
-        if (body.showOrbit) body.showOrbit();
+        console.log("selectBody called with:", body.name);
+
+        // Show orbit for the selected body (don't hide others)
+        showOrbitForBody(body);
 
         currentSelectedBody = body;
         setSelectedBody(body);
@@ -213,13 +388,20 @@ export default function ThreeScene() {
         const checkObjects = Array.from(interactiveObjectsRef.keys());
         const intersects = raycaster.intersectObjects(checkObjects, true);
 
+        console.log("Click detected, intersects:", intersects.length);
+
         if (intersects.length > 0) {
           const intersectedObject = intersects[0].object;
+          console.log(
+            "Clicked object type:",
+            intersectedObject.constructor.name,
+          );
 
           let object = interactiveObjectsRef.get(intersectedObject);
 
           if (!object) {
-            let current: THREE.Object3D | null = intersectedObject;
+            let current: THREE.Object3D<THREE.Object3DEventMap> | null =
+              intersectedObject;
             while (current && !object) {
               object = interactiveObjectsRef.get(current);
               current = current.parent;
@@ -227,14 +409,46 @@ export default function ThreeScene() {
           }
 
           if (object) {
+            console.log(
+              "Selected object:",
+              object.name,
+              "Type:",
+              object.mesh.constructor.name,
+            );
+            console.log("Orbit line available:", !!object.orbitLine);
+            console.log("showOrbit available:", !!object.showOrbit);
+
+            const objectPosition = new THREE.Vector3();
+            object.mesh.getWorldPosition(objectPosition);
+
+            const isAsteroid = object.name.toLowerCase().includes("asteroid");
+            const viewDistance = object.diameter * (isAsteroid ? 1000 : 10);
+
+            const cameraOffset = new THREE.Vector3(
+              viewDistance,
+              viewDistance * 0.5,
+              viewDistance,
+            );
+            const cameraPosition = objectPosition.clone().add(cameraOffset);
+
+            camera.up.set(0, 0, 1);
+            moveCamera(camera, controls, cameraPosition, objectPosition);
+
             selectBody(object);
+          } else {
+            console.log("No celestial body found for clicked object");
           }
+        } else {
+          // Clicked on empty space - clear selection
+          console.log("Clicked on empty space - clearing selection");
+          clearSelection();
         }
       };
 
+      renderer.domElement.addEventListener("mousemove", onMouseMove);
       renderer.domElement.addEventListener("click", onClick);
-      addLights(scene);
 
+      addLights(scene);
       const { update: renderWithPostProcessing, resize: resizePostProcessing } =
         setupPostProcessing(scene, camera, renderer);
 
@@ -244,6 +458,9 @@ export default function ThreeScene() {
       camera.updateProjectionMatrix();
 
       controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minDistance = 3;
+      controls.maxDistance = cameraDistance * 2;
 
       const animate = () => {
         animationFrameId = requestAnimationFrame(animate);
@@ -256,11 +473,22 @@ export default function ThreeScene() {
           body.mesh.position.set(
             position.position.x,
             position.position.y,
-            position.position.z
+            position.position.z,
           );
+
+          if (body.rotationSpeed && body.mesh instanceof THREE.Group) {
+            const planetMesh = body.mesh.children[0] as THREE.Mesh;
+            planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
+          }
+
+          if (body.updateLOD) {
+            body.updateLOD(camera.position);
+          }
         });
 
+        // CRITICAL: Update all halos and labels every frame
         halosAndLabelsRef.forEach((updateHalo) => updateHalo());
+
         updateSun();
         controls.update();
         renderWithPostProcessing();
@@ -275,7 +503,7 @@ export default function ThreeScene() {
         camera.updateProjectionMatrix();
         renderer.setSize(
           mountRef.current!.clientWidth,
-          mountRef.current!.clientHeight
+          mountRef.current!.clientHeight,
         );
         resizePostProcessing();
       };
@@ -283,8 +511,15 @@ export default function ThreeScene() {
 
       return () => {
         window.removeEventListener("resize", handleResize);
+        renderer.domElement.removeEventListener("mousemove", onMouseMove);
+        renderer.domElement.removeEventListener("click", onClick);
+        controls.dispose();
         renderer.dispose();
+        if (Refcurrent && renderer.domElement.parentNode === Refcurrent) {
+          Refcurrent.removeChild(renderer.domElement);
+        }
         cancelAnimationFrame(animationFrameId);
+
         sceneRef = null;
         cameraRef = null;
         rendererRef = null;
@@ -301,6 +536,15 @@ export default function ThreeScene() {
   }, []);
 
   useEffect(() => {
+    console.log("selectedBody state changed:", selectedBody?.name);
+    console.log("selectedBody orbit methods:", {
+      showOrbit: !!selectedBody?.showOrbit,
+      hideOrbit: !!selectedBody?.hideOrbit,
+      orbitLine: !!selectedBody?.orbitLine,
+    });
+  }, [selectedBody]);
+
+  useEffect(() => {
     if (
       !asteroidsData ||
       asteroidsData.length === 0 ||
@@ -311,19 +555,24 @@ export default function ThreeScene() {
       return;
     }
 
+    console.log(`Creating ${asteroidsData.length} asteroids...`);
+
     try {
       const createdAsteroids = createAsteroids(
         asteroidsData,
         cameraRef,
         halosAndLabelsRef,
-        sceneRef
+        sceneRef,
       );
 
       createdAsteroids.forEach((asteroid) => {
         sceneRef!.add(asteroid.mesh);
 
         if (asteroid.orbitLine) {
-          if (!sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)) {
+          console.log("Asteroid orbit line created for:", asteroid.name);
+          if (
+            !sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)
+          ) {
             sceneRef!.add(asteroid.orbitLine);
           }
         }
@@ -345,14 +594,27 @@ export default function ThreeScene() {
         };
 
         celestialBodiesRef.push(asteroidBody);
-        interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+
+        // Register ALL interactive elements
         if (asteroid.labelSprite) {
           interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
         }
+
+        // Register the mesh itself (important for Points objects)
+        interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+
         if (asteroid.orbitLine) {
           interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
         }
+
+        console.log(
+          `Registered asteroid: ${asteroid.name} with ${asteroid.labelSprite ? "label" : "no label"}, ${asteroid.orbitLine ? "orbit" : "no orbit"}`,
+        );
       });
+
+      console.log(`Successfully created ${createdAsteroids.length} asteroids`);
+      console.log("Total celestial bodies:", celestialBodiesRef.length);
+      console.log("Total interactive objects:", interactiveObjectsRef.size);
     } catch (err) {
       console.error("Error creating asteroids:", err);
     }
@@ -381,9 +643,12 @@ export default function ThreeScene() {
           <h3 style={{ margin: "0 0 10px 0", color: "#4fc3f7" }}>
             Selected: {selectedBody.name}
           </h3>
-
           <div style={{ marginBottom: "10px", fontSize: "12px", opacity: 0.8 }}>
             ID: {selectedBody.id || "N/A"}
+          </div>
+          <div style={{ fontSize: "10px", opacity: 0.6, marginBottom: "10px" }}>
+            Debug: {selectedBody.orbitLine ? "Has orbit line" : "No orbit line"}{" "}
+            |{selectedBody.showOrbit ? " Has showOrbit" : " No showOrbit"}
           </div>
 
           {"applyForce" in selectedBody && (
@@ -392,37 +657,202 @@ export default function ThreeScene() {
                 Apply Force (N):
               </div>
 
-              <label>X:</label>
-              <input
-                type="number"
-                value={forceX}
-                onChange={(e) => setForceX(e.target.value)}
-              />
+              <div style={{ marginBottom: "8px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    marginBottom: "3px",
+                  }}
+                >
+                  X:
+                </label>
+                <input
+                  type="number"
+                  value={forceX}
+                  onChange={(e) => setForceX(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "5px",
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid #4fc3f7",
+                    borderRadius: "4px",
+                    color: "white",
+                  }}
+                />
+              </div>
 
-              <label>Y:</label>
-              <input
-                type="number"
-                value={forceY}
-                onChange={(e) => setForceY(e.target.value)}
-              />
+              <div style={{ marginBottom: "8px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Y:
+                </label>
+                <input
+                  type="number"
+                  value={forceY}
+                  onChange={(e) => setForceY(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "5px",
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid #4fc3f7",
+                    borderRadius: "4px",
+                    color: "white",
+                  }}
+                />
+              </div>
 
-              <label>Z:</label>
-              <input
-                type="number"
-                value={forceZ}
-                onChange={(e) => setForceZ(e.target.value)}
-              />
+              <div style={{ marginBottom: "8px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Z:
+                </label>
+                <input
+                  type="number"
+                  value={forceZ}
+                  onChange={(e) => setForceZ(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "5px",
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid #4fc3f7",
+                    borderRadius: "4px",
+                    color: "white",
+                  }}
+                />
+              </div>
 
-              <label>Delta Time (s):</label>
-              <input
-                type="number"
-                value={deltaTime}
-                onChange={(e) => setDeltaTime(e.target.value)}
-              />
+              <div style={{ marginBottom: "12px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    marginBottom: "3px",
+                  }}
+                >
+                  Delta Time (s):
+                </label>
+                <input
+                  type="number"
+                  value={deltaTime}
+                  onChange={(e) => setDeltaTime(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "5px",
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid #4fc3f7",
+                    borderRadius: "4px",
+                    color: "white",
+                  }}
+                />
+              </div>
 
-              <button onClick={applyForceToSelectedAsteroid}>Apply Force</button>
+              <button
+                onClick={applyForceToSelectedAsteroid}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  backgroundColor: "#4fc3f7",
+                  border: "none",
+                  borderRadius: "4px",
+                  color: "black",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  marginBottom: "8px",
+                }}
+              >
+                Apply Force
+              </button>
+
+              <button
+                onClick={() => showOrbitForBody(selectedBody)}
+                style={{
+                  width: "100%",
+                  padding: "6px",
+                  backgroundColor: "rgba(79, 195, 247, 0.3)",
+                  border: "1px solid #4fc3f7",
+                  borderRadius: "4px",
+                  color: "#4fc3f7",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  marginBottom: "8px",
+                }}
+              >
+                Highlight Orbit
+              </button>
+
+              <button
+                onClick={clearSelection}
+                style={{
+                  width: "100%",
+                  padding: "6px",
+                  backgroundColor: "rgba(255, 100, 100, 0.3)",
+                  border: "1px solid #ff6464",
+                  borderRadius: "4px",
+                  color: "#ff6464",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                }}
+              >
+                Clear Selection
+              </button>
             </div>
           )}
+        </div>
+      )}
+
+      {asteroidsData && sceneInitialized && (
+        <div
+          style={{
+            position: "absolute",
+            top: "10px",
+            left: "10px",
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            color: "white",
+            padding: "10px",
+            borderRadius: "5px",
+            zIndex: 1001,
+            fontSize: "14px",
+          }}
+        >
+          <div>Asteroids Loaded: {asteroidsData.length}</div>
+          <div>Celestial Bodies: {celestialBodiesRef.length}</div>
+          <div style={{ fontSize: "12px", marginTop: "5px", opacity: 0.8 }}>
+            • Click asteroid to select & highlight orbit
+            <br />
+            • Hover to highlight
+            <br />
+            • "Apply Force" updates orbit trajectory
+            <br />• Click empty space to clear selection
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            backgroundColor: "rgba(255, 0, 0, 0.8)",
+            color: "white",
+            padding: "10px",
+            borderRadius: "5px",
+            zIndex: 1001,
+          }}
+        >
+          Error: {error}
         </div>
       )}
 
@@ -436,12 +866,42 @@ export default function ThreeScene() {
             height: "100%",
             backgroundColor: "#000000",
             display: "flex",
+            flexDirection: "column",
             justifyContent: "center",
             alignItems: "center",
             color: "white",
+            fontSize: "18px",
+            zIndex: 1000,
           }}
         >
+          <div
+            style={{
+              width: "50px",
+              height: "50px",
+              border: "5px solid #f3f3f3",
+              borderTop: "5px solid #3498db",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              marginBottom: "20px",
+            }}
+          />
           <p>Loading asteroid data...</p>
+          {asteroidsData && (
+            <p style={{ fontSize: "14px", marginTop: "10px" }}>
+              Loaded {asteroidsData.length} asteroids
+            </p>
+          )}
+
+          <style jsx>{`
+            @keyframes spin {
+              0% {
+                transform: rotate(0deg);
+              }
+              100% {
+                transform: rotate(360deg);
+              }
+            }
+          `}</style>
         </div>
       )}
     </div>

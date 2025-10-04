@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://galanor-backend.onrender.com/asteroid/asteroids?page=${page}&limit=${limit}`
+      `https://4galanor-backend.onrender.com/asteroid/asteroids?page=${page}&limit=${limit}`
     );
 
     console.log('Bulk backend response status:', response.status);
