@@ -9,10 +9,10 @@ export default function DataRow({
 }) {
   return (
     <div className="flex justify-between items-center py-1">
-      <span className="text-purple-300 text-sm">{label}</span>
+      <span className="text-slate-400 text-sm">{label}</span>
       <span className="text-white font-medium">
         {value}{" "}
-        {unit && <span className="text-cyan-400 text-xs ml-1">{unit}</span>}
+        {unit && <span className="text-slate-300 text-xs ml-1">{unit}</span>}
       </span>
     </div>
   );

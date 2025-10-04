@@ -98,7 +98,7 @@ interface UseAsteroidSingleResult {
 
 export function useAsteroidOne(id: string | null): UseAsteroidSingleResult {
   const [asteroid, setAsteroid] = useState<AsteroidType | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
