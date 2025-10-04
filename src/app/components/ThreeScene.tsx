@@ -6,7 +6,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 
 // Simple debounce function to limit how often slider updates during continuous zoom
-function debounce<T extends (...args: any[]) => any>(
+function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -32,6 +32,7 @@ import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
 import ControlPanel from "./ControlPanel";
 import styles from "./ThreeScene.module.css";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 // Extend Planet interface to include orbitGenerator for celestial bodies
 interface CelestialBody extends Planet {
@@ -40,7 +41,7 @@ interface CelestialBody extends Planet {
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [controlsRef, setControlsRef] = useState<any>(null);
+  const [controlsRef, setControlsRef] = useState<OrbitControls | null>(null);
   const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
   const [initialCameraPosition, setInitialCameraPosition] = useState<THREE.Vector3 | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
