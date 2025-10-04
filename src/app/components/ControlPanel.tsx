@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import styles from "./ControlPanel.module.css";
 import "./SliderFill.module.css"; // Import slider fill styles
 
 interface ControlPanelProps {
@@ -30,9 +29,9 @@ export default function ControlPanel({
   return (
     <>
       {/* Main zoom controls on the right middle */}
-      <div className={styles.controlPanel}>
+      <div className="absolute top-1/2 right-5 flex flex-col gap-2 z-10 items-center -translate-y-1/2">
         <button 
-          className={styles.controlButton} 
+          className="w-[50px] h-[50px] rounded-full bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] text-white cursor-pointer flex items-center justify-center transition-all duration-200 ease-in-out shadow-md backdrop-blur-sm hover:bg-[rgba(30,30,60,0.8)] hover:border-[rgba(255,255,255,0.5)] active:translate-y-0" 
           onClick={onZoomIn}
           aria-label="Zoom In"
         >
@@ -42,29 +41,29 @@ export default function ControlPanel({
           </svg>
         </button>
         
-        <div className={styles.sliderContainer}>
+        <div className="relative w-[40px] h-[180px] flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2.5 my-1.5 shadow-md backdrop-blur-sm">
           <input
             type="range"
             min="0"
             max="100"
             value={zoomLevel}
             onChange={handleSliderChange}
-            className={styles.zoomSlider}
+            className="appearance-none w-[180px] h-1 bg-transparent cursor-pointer relative z-20 rotate-90 origin-center m-0 pointer-events-auto slate-500"
             onMouseDown={() => setIsDragging(true)}
             onMouseUp={() => setIsDragging(false)}
             onMouseLeave={() => setIsDragging(false)}
             aria-label="Zoom Level"
           />
-          <div className={styles.sliderTrack}>
+          <div className="absolute left-1/2 top-[15px] bottom-[15px] w-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] -translate-x-1/2 z-10 shadow-inner">
             <div 
-              className={styles.sliderFill} 
+              className="absolute bottom-0 left-0 w-full rounded-sm bg-gradient-to-t from-[rgba(255, 100, 100, 0.5)] to-[rgb(100,150,255)]" 
               data-height={zoomLevel}
             ></div>
           </div>
         </div>
         
         <button 
-          className={styles.controlButton} 
+          className="w-[50px] h-[50px] rounded-full bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] text-white cursor-pointer flex items-center justify-center shadow-md backdrop-blur-sm hover:bg-[rgba(30,30,60,0.8)] hover:border-[rgba(255,255,255,0.5)] active:translate-y-0" 
           onClick={onZoomOut}
           aria-label="Zoom Out"
         >
@@ -76,9 +75,9 @@ export default function ControlPanel({
       </div>
       
       {/* Reset view button at the bottom right */}
-      <div className={styles.resetButtonContainer}>
+      <div className="absolute bottom-5 right-5 z-10">
         <button 
-          className={`${styles.controlButton} ${styles.resetButton}`}
+          className="m-0"
           onClick={onResetView}
           aria-label="Reset View"
         >
