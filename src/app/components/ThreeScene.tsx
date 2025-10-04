@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -14,6 +14,7 @@ import { createSun } from "./three/objects/createSun";
 import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
+  scaleTimeSpeed,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
@@ -23,39 +24,62 @@ interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
 }
 
-// Define time multiplier presets
-interface TimeMultiplier {
-  label: string;
-  value: number; // Seconds per animation frame
-  description: string;
-}
-
-const TIME_MULTIPLIERS: TimeMultiplier[] = [
-  { label: "-1 Month/s", value: -2592000, description: "Past: 1 month per second" },
-  { label: "-1 Week/s", value: -604800, description: "Past: 1 week per second" },
-  { label: "-1 Day/s", value: -86400, description: "Past: 1 day per second" },
-  { label: "-1 Hour/s", value: -3600, description: "Past: 1 hour per second" },
-  { label: "-10 Min/s", value: -600, description: "Past: 10 minutes per second" },
-  { label: "-1 Min/s", value: -60, description: "Past: 1 minute per second" },
-  { label: "Real Time", value: 1, description: "Real time: 1 second per second" },
-  { label: "+1 Min/s", value: 60, description: "Future: 1 minute per second" },
-  { label: "+10 Min/s", value: 600, description: "Future: 10 minutes per second" },
-  { label: "+1 Hour/s", value: 3600, description: "Future: 1 hour per second" },
-  { label: "+1 Day/s", value: 86400, description: "Future: 1 day per second" },
-  { label: "+1 Week/s", value: 604800, description: "Future: 1 week per second" },
-  { label: "+1 Month/s", value: 2592000, description: "Future: 1 month per second" },
-];
-
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [timeMultiplierIndex, setTimeMultiplierIndex] = useState(6); // Default to "Real Time"
-  const lastFrameTimeRef = useRef(Date.now());
-  const timeMultiplierRef = useRef<number>(TIME_MULTIPLIERS[6].value); // Store the actual value
+  const [speedMultiplier, setSpeedMultiplier] = useState(50); // Default to middle value
   
-  // Update the multiplier ref when the index changes
+  // Configuration for time speed scaling
+  const timeSpeedConfig = {
+    baseSpeed: 1,           // Not used in the new scaling system
+    exponentialFactor: 2.5  // Higher exponent provides finer control in center, faster at edges
+  };
+  
+  // Use a ref to access the latest speed multiplier in animation loop
+  const speedMultiplierRef = useRef(speedMultiplier);
+
+  // Function to debounce slider updates for smoother experience
+  const debounce = useCallback((func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
+    };
+  }, []);
+
+  // Handle slider change with debounce for smoother updates
+  const handleSliderChange = useCallback(
+    debounce((value: number) => {
+      setSpeedMultiplier(value);
+    }, 10),
+    []
+  );
+
+  // Calculate the scaled time speed value and minutes per second for display
+  const getScaledTimeSpeed = useCallback((value: number) => {
+    return scaleTimeSpeed(value, timeSpeedConfig.baseSpeed, timeSpeedConfig.exponentialFactor);
+  }, [timeSpeedConfig.baseSpeed, timeSpeedConfig.exponentialFactor]);
+  
+  // Get a CSS class for the time scale indicator based on slider value
+  const getTimeScaleClass = useCallback((value: number) => {
+    const normalizedValue = Math.abs(value - 50) / 50; // 0 to 1, from center to edges
+    
+    if (normalizedValue > 0.9) {
+      return "scale-month"; // Month level
+    } else if (normalizedValue > 0.7) {
+      return "scale-week"; // Week level 
+    } else if (normalizedValue > 0.5) {
+      return "scale-days"; // Days level
+    } else if (normalizedValue > 0.3) {
+      return "scale-day"; // Day level
+    } else {
+      return "scale-hours"; // Hours level
+    }
+  }, []);
+
+  // Update the ref whenever the state changes
   useEffect(() => {
-    timeMultiplierRef.current = TIME_MULTIPLIERS[timeMultiplierIndex].value;
-  }, [timeMultiplierIndex]);
+    speedMultiplierRef.current = speedMultiplier;
+  }, [speedMultiplier]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -71,9 +95,6 @@ export default function ThreeScene() {
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
     let currentTime = 0;
-    
-    // Update the reference time to current time
-    lastFrameTimeRef.current = Date.now();
 
     const { sun, update: updateSun } = createSun(camera);
     scene.add(sun);
@@ -232,17 +253,16 @@ export default function ThreeScene() {
     const animate = () => {
       requestAnimationFrame(animate);
       
-      // Calculate delta time in seconds since last frame
-      const now = Date.now();
-      const deltaSeconds = (now - lastFrameTimeRef.current) / 1000;
-      lastFrameTimeRef.current = now;
+      // Calculate the time advancement based on slider position using scaling utility
+      const timeSpeed = scaleTimeSpeed(
+        speedMultiplierRef.current, 
+        timeSpeedConfig.baseSpeed, 
+        timeSpeedConfig.exponentialFactor
+      );
       
-      // Use the timeMultiplierRef for time advancement
-      // Convert to a Julian date increment (days)
-      const timeAdvance = timeMultiplierRef.current * deltaSeconds / 86400; // Convert seconds to days
-      
-      // Update current time (in days)
-      currentTime += timeAdvance;
+      // Use scaled value for time advancement (handles up to 1 month)
+      const { scaledValue } = timeSpeed;
+      currentTime += scaledValue;
 
       celestialBodies.forEach((body) => {
         const position = body.orbitGenerator.getPositionAtTime(currentTime);
@@ -253,12 +273,13 @@ export default function ThreeScene() {
         );
 
         if (body.rotationSpeed) {
-          // Scale rotation by time multiplier for realistic day/night cycles
-          const rotationAmount = body.rotationSpeed * Math.abs(timeAdvance);
           const planetMesh = body.mesh.children[0] as THREE.Mesh;
+          // Use absolute value for rotation speed to always rotate in the proper direction
+          // Scale by 0.01 to make rotation speed appropriate for day-based time units
+          const rotationAmount = body.rotationSpeed * Math.abs(scaledValue) * 0.01;
           
-          // Apply rotation in the correct direction
-          if (timeAdvance >= 0) {
+          // Determine rotation direction based on time direction
+          if (scaledValue >= 0) {
             planetMesh.rotation.y += rotationAmount;
           } else {
             planetMesh.rotation.y -= rotationAmount;
@@ -304,30 +325,86 @@ export default function ThreeScene() {
       <div ref={mountRef} className="w-full h-full" />
       
       {/* Time travel slider */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center bg-black bg-opacity-50 p-4 rounded-lg">
-        <div className="text-white text-sm mb-2">
-          <strong>Time Speed:</strong> {TIME_MULTIPLIERS[timeMultiplierIndex].label}
-        </div>
-        <div className="text-white text-xs mb-2">
-          {TIME_MULTIPLIERS[timeMultiplierIndex].description}
+      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center bg-black bg-opacity-60 p-4 rounded-lg w-[90%] sm:w-[600px] max-w-[95vw]">
+        <style jsx>{`
+          .time-slider {
+            -webkit-appearance: none;
+            background: linear-gradient(to right, #3b82f6 0%, #3b82f6 10%, #6b7280 50%, #f59e0b 90%, #f59e0b 100%);
+            cursor: pointer;
+          }
+          
+          input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 2px solid #4b5563;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+          }
+          
+          input[type="range"]::-webkit-slider-thumb:hover,
+          input[type="range"]:active::-webkit-slider-thumb {
+            transform: scale(1.2);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+          }
+          
+          input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 2px solid #4b5563;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+          }
+          
+          input[type="range"]::-moz-range-thumb:hover,
+          input[type="range"]:active::-moz-range-thumb {
+            transform: scale(1.2);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+          }
+        `}</style>
+        <div className="text-white text-sm mb-4 flex flex-wrap sm:flex-nowrap items-center justify-between w-full">
+          <strong className="text-lg">Time Speed:</strong> 
+          <span className={`ml-2 font-mono ${speedMultiplier < 50 ? "text-blue-300" : speedMultiplier > 50 ? "text-amber-300" : "text-white"}`}>
+            {speedMultiplier < 50 ? "Past" : speedMultiplier > 50 ? "Future" : "Present"} 
+            <span className="bg-gray-800 px-3 py-1 rounded-md ml-2 font-bold text-lg shadow-inner shadow-white/10">
+              {getScaledTimeSpeed(speedMultiplier).formattedTime}
+            </span>
+          </span>
         </div>
         
-        <div className="flex items-center">
-          <span className="text-white text-xs mr-2">Past</span>
+        <div className="flex items-center w-full">
+          <span className="text-blue-300 text-xs mr-2 font-bold">Past</span>
           <input
             type="range"
             min="0"
-            max={TIME_MULTIPLIERS.length - 1}
-            value={timeMultiplierIndex}
-            onChange={(e) => setTimeMultiplierIndex(parseInt(e.target.value))}
-            className="w-64 h-4"
+            max="100"
+            value={speedMultiplier}
+            onChange={(e) => handleSliderChange(parseInt(e.target.value))}
+            className="w-full h-5 appearance-none bg-gray-800 rounded-lg outline-none time-slider"
             title="Time Travel Slider"
             aria-label="Time Travel Control"
           />
-          <span className="text-white text-xs ml-2">Future</span>
+          <span className="text-amber-300 text-xs ml-2 font-bold">Future</span>
         </div>
-        <div className="text-white text-xs mt-2 opacity-70">
-          Drag to control time flow - planets will move along their orbits accordingly
+        
+        {/* Time scale indicators */}
+        <div className="flex justify-between w-full px-1 mt-3 relative">
+          {/* Removed the individual segments in favor of the gradient background on the slider */}
+          
+          <span className="text-blue-200 text-xs font-semibold">-1 Month</span>
+          <span className="text-blue-200 text-xs">-1 Week</span>
+          <span className="text-white text-xs font-medium">Paused</span>
+          <span className="text-amber-200 text-xs">+1 Week</span>
+          <span className="text-amber-200 text-xs font-semibold">+1 Month</span>
+        </div>
+        
+        <div className="text-white text-xs mt-2 opacity-70 text-center">
+          Drag the slider to adjust simulation speed — values show simulated time per real second
         </div>
       </div>
     </div>

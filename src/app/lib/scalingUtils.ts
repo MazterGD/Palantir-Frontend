@@ -189,3 +189,101 @@ export function getSceneBoundaries(): {
     recommendedViewDistance: neptuneOrbit * 1.5,
   };
 }
+
+/**
+ * Scale time speed based on slider value
+ * 
+ * @param sliderValue - Value from the time speed slider (0-100)
+ * @param baseSpeed - Base speed factor to scale from
+ * @param exponentialFactor - How dramatically speed changes with slider movement
+ * @returns Object with scaled time speed value, minutes per second, and formatted time display
+ */
+export function scaleTimeSpeed(
+  sliderValue: number, 
+  baseSpeed: number = 4, 
+  exponentialFactor: number = 1.5
+): { scaledValue: number; minutesPerSecond: number; formattedTime: string } {
+  // Convert slider value from 0-100 to -1 to 1 range
+  const normalizedValue = (sliderValue - 50) / 50;
+  
+  // Time constants
+  const MINUTES_IN_HOUR = 60;
+  const HOURS_IN_DAY = 24;
+  const DAYS_IN_YEAR = 365.25; // Account for leap years
+  const DAYS_IN_MONTH = 30.44; // Average month length
+  const MINUTES_IN_DAY = MINUTES_IN_HOUR * HOURS_IN_DAY;
+  const MINUTES_IN_MONTH = MINUTES_IN_DAY * DAYS_IN_MONTH;
+  const MINUTES_IN_YEAR = MINUTES_IN_DAY * DAYS_IN_YEAR;
+  
+  // The orbital period of Earth is 1 year (365.25 days)
+  // We want to scale our time so that at max speed, we can see significant orbital movement
+  
+  // Get base time factor in days
+  let daysPerSecond;
+  
+  // Exponential scaling based on slider position:
+  // At center (50): 0 days/sec (paused)
+  // At extremes (0 or 100): Up to +/- 30 days/sec (1 month)
+  if (Math.abs(normalizedValue) > 0.9) {
+    // Near max: 20-30 days per second
+    daysPerSecond = 20 + (Math.abs(normalizedValue) - 0.9) * 100; // Up to 30 days
+  } else if (Math.abs(normalizedValue) > 0.7) {
+    // High: 7-20 days per second
+    daysPerSecond = 7 + (Math.abs(normalizedValue) - 0.7) * 65; // Up to 20 days
+  } else if (Math.abs(normalizedValue) > 0.5) {
+    // Medium-high: 3-7 days per second
+    daysPerSecond = 3 + (Math.abs(normalizedValue) - 0.5) * 20; // Up to 7 days
+  } else if (Math.abs(normalizedValue) > 0.3) {
+    // Medium: 1-3 days per second
+    daysPerSecond = 1 + (Math.abs(normalizedValue) - 0.3) * 10; // Up to 3 days
+  } else if (Math.abs(normalizedValue) > 0.1) {
+    // Low-medium: 0.25-1 day per second
+    daysPerSecond = 0.25 + (Math.abs(normalizedValue) - 0.1) * 3.75; // Up to 1 day
+  } else {
+    // Very low: 0-0.25 days per second (6 hours max)
+    daysPerSecond = Math.abs(normalizedValue) * 2.5; // Up to 0.25 days
+  }
+  
+  // Apply sign based on direction
+  daysPerSecond *= Math.sign(normalizedValue);
+  
+  // Set the scaled value to directly represent days
+  const finalScaledValue = daysPerSecond;
+  
+  // Convert to minutes for display purposes
+  const minutesPerSecond = daysPerSecond * MINUTES_IN_DAY;
+  
+  // Calculate time units for display
+  const absDaysPerSecond = Math.abs(daysPerSecond);
+  const years = Math.floor(absDaysPerSecond / DAYS_IN_YEAR);
+  const months = Math.floor((absDaysPerSecond % DAYS_IN_YEAR) / DAYS_IN_MONTH);
+  const days = Math.floor(absDaysPerSecond % DAYS_IN_MONTH);
+  const hours = Math.floor(((absDaysPerSecond % 1) * HOURS_IN_DAY));
+  
+  // Format the time display string
+  let timeDisplay = '';
+  if (years > 0) {
+    timeDisplay = `${years}y ${months}m/s`;
+  } else if (months > 0) {
+    timeDisplay = `${months}m ${days}d/s`;
+  } else if (days > 0) {
+    timeDisplay = `${days}d ${hours}h/s`;
+  } else if (hours > 0) {
+    timeDisplay = `${hours}h/s`;
+  } else if (absDaysPerSecond > 0) {
+    // For very small values, show minutes
+    const minutesPerDay = Math.floor(absDaysPerSecond * MINUTES_IN_DAY);
+    timeDisplay = `${minutesPerDay}min/s`;
+  } else {
+    timeDisplay = `0/s`;
+  }
+  
+  // Add negative sign if time is flowing backward
+  const displayPrefix = daysPerSecond < 0 ? '-' : '';
+  
+  return {
+    scaledValue: daysPerSecond,
+    minutesPerSecond: minutesPerSecond,
+    formattedTime: `${displayPrefix}${timeDisplay}`
+  };
+}

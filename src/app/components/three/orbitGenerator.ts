@@ -236,9 +236,10 @@ export class ScaledOrbitGenerator {
   }
 
   getPositionAtTime(timeDays: number) {
-    // Use timeDays directly as Julian date
-    // This allows us to work with time increments (positive or negative)
-    const julianDate = timeDays;
+    // Base date is J2000 epoch (2451545.0)
+    // Add accumulated days to get current Julian date
+    const baseDate = 2451545.0;
+    const julianDate = baseDate + timeDays;
     this.lastJulianDate = julianDate;
     
     const orbitPosition = this.orbitGenerator.getPositionAtTime(julianDate);
