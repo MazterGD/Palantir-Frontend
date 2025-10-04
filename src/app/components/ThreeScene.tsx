@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -17,14 +17,35 @@ import {
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
+import ForceSimulationPanel from "./ForceSimulationPanel";
+import { 
+  applyForce, 
+  updatePositionWithVelocity, 
+  resetPlanetToOriginalOrbit 
+} from "../lib/forceSimulation";
+import styled from "styled-components";
 
 // Extend Planet interface to include orbitGenerator for celestial bodies
-interface CelestialBody extends Planet {
+export interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
+  velocity?: THREE.Vector3;
+  isSimulating?: boolean;
+  originalPosition?: THREE.Vector3;
+  originalVelocity?: THREE.Vector3;
 }
+
+const SceneContainer = styled.div`
+  width: 100%;
+  height: 100vh;
+  position: relative;
+`;
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const [simulationActive, setSimulationActive] = useState(false);
+  // Reference to store celestial bodies so we can access them in the UI panel callbacks
+  const celestialBodiesRef = useRef<CelestialBody[]>([]);
+  const currentTimeRef = useRef(0);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -39,7 +60,9 @@ export default function ThreeScene() {
 
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
+    celestialBodiesRef.current = celestialBodies;
     let currentTime = 0;
+    currentTimeRef.current = currentTime;
 
     const speedMultiplier = 0.1;
 
@@ -208,14 +231,30 @@ export default function ThreeScene() {
       requestAnimationFrame(animate);
 
       currentTime += 360 * speedMultiplier;
+      currentTimeRef.current = currentTime;
 
       celestialBodies.forEach((body) => {
-        const position = body.orbitGenerator.getPositionAtTime(currentTime);
-        body.mesh.position.set(
-          position.position.x,
-          position.position.y,
-          position.position.z,
-        );
+        if (body.isSimulating && body.velocity) {
+          // Update position using physics simulation
+          updatePositionWithVelocity(body, body.velocity, 0.1 * speedMultiplier);
+          
+          // Apply slight damping to eventually return to original orbit
+          if (body.velocity.length() > 0.001) {
+            body.velocity.multiplyScalar(0.995);
+          } else {
+            // When velocity is very small, gradually return to original orbit
+            body.isSimulating = false;
+            body.velocity = undefined;
+          }
+        } else {
+          // Use regular orbital motion for non-simulating bodies
+          const position = body.orbitGenerator.getPositionAtTime(currentTime);
+          body.mesh.position.set(
+            position.position.x,
+            position.position.y,
+            position.position.z,
+          );
+        }
 
         if (body.rotationSpeed) {
           const planetMesh = body.mesh.children[0] as THREE.Mesh;
@@ -256,5 +295,54 @@ export default function ThreeScene() {
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />;
+  // Handle applying force to a planet
+  const handleApplyForce = (
+    planetName: string,
+    forceVector: { x: number; y: number; z: number },
+    deltaTime: number,
+    duration: number
+  ) => {
+    const celestialBodies = celestialBodiesRef.current;
+    const targetPlanet = celestialBodies.find(
+      (body) => body.name.toLowerCase() === planetName.toLowerCase()
+    );
+
+    if (targetPlanet) {
+      // Apply force and calculate new velocity
+      const result = applyForce(targetPlanet, forceVector, deltaTime, duration);
+      
+      // Store the original state
+      targetPlanet.originalPosition = result.originalPosition.clone();
+      targetPlanet.originalVelocity = result.originalVelocity.clone();
+      
+      // Set the new velocity
+      targetPlanet.velocity = result.newVelocity;
+      targetPlanet.isSimulating = true;
+      
+      setSimulationActive(true);
+    }
+  };
+
+  // Handle resetting planets to original orbits
+  const handleReset = () => {
+    const celestialBodies = celestialBodiesRef.current;
+    const currentTime = currentTimeRef.current;
+    
+    celestialBodies.forEach((body) => {
+      if (body.isSimulating) {
+        resetPlanetToOriginalOrbit(body, currentTime);
+        body.isSimulating = false;
+        body.velocity = undefined;
+      }
+    });
+    
+    setSimulationActive(false);
+  };
+
+  return (
+    <>
+      <SceneContainer ref={mountRef} />
+      <ForceSimulationPanel onApplyForce={handleApplyForce} onReset={handleReset} />
+    </>
+  );
 }

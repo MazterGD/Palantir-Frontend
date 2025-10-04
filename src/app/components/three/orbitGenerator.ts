@@ -4,7 +4,7 @@
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-// import * as THREE from "three";
+import * as THREE from "three";
 
 export interface Point3D {
   x: number;
@@ -220,6 +220,30 @@ export class OrbitGenerator {
 
     return new Line2(geometry, material);
   }
+  
+  // Velocity calculation method
+  getVelocityAtTime(julianDate: number): Point3D {
+    const { semiMajorAxis: a, eccentricity: e } = this.elements;
+    const mu = 1; // Gravitational parameter (normalized)
+    
+    // Calculate eccentric anomaly
+    const M = this.getMeanAnomalyAtTime(julianDate);
+    const E = this.solveKepler(e, M);
+    
+    // Calculate velocity components in orbital plane
+    const p = a * (1 - e * e);
+    const r = a * (1 - e * Math.cos(E));
+    
+    const v_factor = Math.sqrt(mu / p);
+    const vx = -v_factor * Math.sin(E);
+    const vy = v_factor * Math.sqrt(1 - e * e) * Math.cos(E);
+    const vz = 0;
+    
+    // Apply orbital rotations
+    const rotated = this.apply3DRotations([{ x: vx, y: vy, z: vz }])[0];
+    
+    return rotated;
+  }
 }
 
 // Wrapper class for Three.js compatibility
@@ -245,6 +269,20 @@ export class ScaledOrbitGenerator {
       radius: orbitPosition.radius * this.scale,
       time: orbitPosition.time,
     };
+  }
+  
+  // Get velocity at the current position
+  getVelocityAtPosition(position: THREE.Vector3): THREE.Vector3 {
+    // Approximate velocity by calculating at current time
+    const julianDate = Date.now() / 86400 + 2440587.5;
+    const velocity = this.orbitGenerator.getVelocityAtTime(julianDate);
+    
+    // Scale and return as THREE.Vector3
+    return new THREE.Vector3(
+      velocity.x * this.scale * 0.01,
+      velocity.y * this.scale * 0.01,
+      velocity.z * this.scale * 0.01
+    );
   }
 }
 
