@@ -33,8 +33,5 @@ export function setupScene(container: HTMLDivElement) {
 
   renderer.setPixelRatio(window.devicePixelRatio);
 
-      const axesHelper = new THREE.AxesHelper(5);
-    scene.add(axesHelper);
-
   return { scene, camera, renderer };
 }
