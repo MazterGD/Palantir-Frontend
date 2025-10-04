@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -23,39 +23,8 @@ interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
 }
 
-// Define time multiplier presets
-interface TimeMultiplier {
-  label: string;
-  value: number; // Seconds per animation frame
-  description: string;
-}
-
-const TIME_MULTIPLIERS: TimeMultiplier[] = [
-  { label: "-1 Month/s", value: -2592000, description: "Past: 1 month per second" },
-  { label: "-1 Week/s", value: -604800, description: "Past: 1 week per second" },
-  { label: "-1 Day/s", value: -86400, description: "Past: 1 day per second" },
-  { label: "-1 Hour/s", value: -3600, description: "Past: 1 hour per second" },
-  { label: "-10 Min/s", value: -600, description: "Past: 10 minutes per second" },
-  { label: "-1 Min/s", value: -60, description: "Past: 1 minute per second" },
-  { label: "Real Time", value: 1, description: "Real time: 1 second per second" },
-  { label: "+1 Min/s", value: 60, description: "Future: 1 minute per second" },
-  { label: "+10 Min/s", value: 600, description: "Future: 10 minutes per second" },
-  { label: "+1 Hour/s", value: 3600, description: "Future: 1 hour per second" },
-  { label: "+1 Day/s", value: 86400, description: "Future: 1 day per second" },
-  { label: "+1 Week/s", value: 604800, description: "Future: 1 week per second" },
-  { label: "+1 Month/s", value: 2592000, description: "Future: 1 month per second" },
-];
-
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [timeMultiplierIndex, setTimeMultiplierIndex] = useState(6); // Default to "Real Time"
-  const lastFrameTimeRef = useRef(Date.now());
-  const timeMultiplierRef = useRef<number>(TIME_MULTIPLIERS[6].value); // Store the actual value
-  
-  // Update the multiplier ref when the index changes
-  useEffect(() => {
-    timeMultiplierRef.current = TIME_MULTIPLIERS[timeMultiplierIndex].value;
-  }, [timeMultiplierIndex]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -71,9 +40,8 @@ export default function ThreeScene() {
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
     let currentTime = 0;
-    
-    // Update the reference time to current time
-    lastFrameTimeRef.current = Date.now();
+
+    const speedMultiplier = 0.1;
 
     const { sun, update: updateSun } = createSun(camera);
     scene.add(sun);
@@ -231,18 +199,8 @@ export default function ThreeScene() {
 
     const animate = () => {
       requestAnimationFrame(animate);
-      
-      // Calculate delta time in seconds since last frame
-      const now = Date.now();
-      const deltaSeconds = (now - lastFrameTimeRef.current) / 1000;
-      lastFrameTimeRef.current = now;
-      
-      // Use the timeMultiplierRef for time advancement
-      // Convert to a Julian date increment (days)
-      const timeAdvance = timeMultiplierRef.current * deltaSeconds / 86400; // Convert seconds to days
-      
-      // Update current time (in days)
-      currentTime += timeAdvance;
+
+      currentTime += 360 * speedMultiplier;
 
       celestialBodies.forEach((body) => {
         const position = body.orbitGenerator.getPositionAtTime(currentTime);
@@ -253,16 +211,8 @@ export default function ThreeScene() {
         );
 
         if (body.rotationSpeed) {
-          // Scale rotation by time multiplier for realistic day/night cycles
-          const rotationAmount = body.rotationSpeed * Math.abs(timeAdvance);
           const planetMesh = body.mesh.children[0] as THREE.Mesh;
-          
-          // Apply rotation in the correct direction
-          if (timeAdvance >= 0) {
-            planetMesh.rotation.y += rotationAmount;
-          } else {
-            planetMesh.rotation.y -= rotationAmount;
-          }
+          planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
         }
       });
 
@@ -299,37 +249,5 @@ export default function ThreeScene() {
     };
   }, []);
 
-  return (
-    <div className="relative w-full h-screen">
-      <div ref={mountRef} className="w-full h-full" />
-      
-      {/* Time travel slider */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center bg-black bg-opacity-50 p-4 rounded-lg">
-        <div className="text-white text-sm mb-2">
-          <strong>Time Speed:</strong> {TIME_MULTIPLIERS[timeMultiplierIndex].label}
-        </div>
-        <div className="text-white text-xs mb-2">
-          {TIME_MULTIPLIERS[timeMultiplierIndex].description}
-        </div>
-        
-        <div className="flex items-center">
-          <span className="text-white text-xs mr-2">Past</span>
-          <input
-            type="range"
-            min="0"
-            max={TIME_MULTIPLIERS.length - 1}
-            value={timeMultiplierIndex}
-            onChange={(e) => setTimeMultiplierIndex(parseInt(e.target.value))}
-            className="w-64 h-4"
-            title="Time Travel Slider"
-            aria-label="Time Travel Control"
-          />
-          <span className="text-white text-xs ml-2">Future</span>
-        </div>
-        <div className="text-white text-xs mt-2 opacity-70">
-          Drag to control time flow - planets will move along their orbits accordingly
-        </div>
-      </div>
-    </div>
-  );
+  return <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />;
 }

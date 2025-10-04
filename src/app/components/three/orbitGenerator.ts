@@ -226,21 +226,14 @@ export class OrbitGenerator {
 export class ScaledOrbitGenerator {
   private orbitGenerator: OrbitGenerator;
   private scale: number;
-  private lastJulianDate: number;
 
   constructor(orbitGenerator: OrbitGenerator, scale: number = 100) {
     this.orbitGenerator = orbitGenerator;
     this.scale = scale;
-    // Initialize with J2000 epoch as default
-    this.lastJulianDate = 2451545.0;
   }
 
-  getPositionAtTime(timeDays: number) {
-    // Use timeDays directly as Julian date
-    // This allows us to work with time increments (positive or negative)
-    const julianDate = timeDays;
-    this.lastJulianDate = julianDate;
-    
+  getPositionAtTime(unixTime: number) {
+    const julianDate = unixTime / 86400 + 2440587.5;
     const orbitPosition = this.orbitGenerator.getPositionAtTime(julianDate);
 
     return {
