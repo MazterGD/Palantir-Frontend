@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import "./SliderFill.module.css"; // Import slider fill styles
 
 interface ControlPanelProps {
   onZoomIn: () => void;

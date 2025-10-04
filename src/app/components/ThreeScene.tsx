@@ -31,7 +31,6 @@ import {
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
 import ControlPanel from "./ControlPanel";
-import styles from "./ThreeScene.module.css";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 // Extend Planet interface to include orbitGenerator for celestial bodies
@@ -424,8 +423,8 @@ export default function ThreeScene() {
   };
 
   return (
-    <div className={styles.solarSystemContainer}>
-      <div ref={mountRef} className={styles.canvasContainer} />
+    <div className="relative w-full h-screen">
+      <div ref={mountRef} className="w-full h-full" />
       <ControlPanel 
         onZoomIn={handleZoomIn} 
         onZoomOut={handleZoomOut} 
