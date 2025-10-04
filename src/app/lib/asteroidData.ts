@@ -1,3 +1,4 @@
+// lib/asteroidData.ts
 import { OrbitElements } from "../components/three/orbitGenerator";
 
 export interface AsteroidAPIResponse {
@@ -28,21 +29,48 @@ export interface AsteroidData extends OrbitElements {
   isPotentiallyHazardous: boolean;
 }
 
+export interface AsteroidsBulkAPIResponse {
+  asteroids: AsteroidAPIResponse['asteroid'][];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AsteroidsFilterAPIResponse {
+  asteroids: AsteroidAPIResponse['asteroid'][];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export function transformAsteroidData(apiResponse: AsteroidAPIResponse): AsteroidData {
   const data = apiResponse.asteroid;
+  
+  // Validate required fields
+  if (!data.semi_major_axis || !data.eccentricity || !data.orbital_period) {
+    throw new Error('Missing required orbital data');
+  }
   
   // Calculate mean motion (degrees per day) from orbital period (days)
   const meanMotion = 360 / data.orbital_period;
   
-  // Average the min and max diameter estimates
-  const diameter = (data.estimated_diameter_max + data.estimated_diameter_min) / 2;
+  // Average the min and max diameter estimates, provide fallback
+  const diameter = data.estimated_diameter_max && data.estimated_diameter_min 
+    ? (data.estimated_diameter_max + data.estimated_diameter_min) / 2
+    : 1; // Default diameter if missing
   
   // Convert Modified Julian Date to Julian Date (MJD + 2400000.5)
   const julianEpoch = data.epoch_osculation + 2400000.5;
   
   return {
     id: data.id,
-    name: data.name,
+    name: data.name || `Asteroid ${data.id}`,
     semiMajorAxis: data.semi_major_axis,
     eccentricity: data.eccentricity,
     inclination: data.inclination,
@@ -52,9 +80,9 @@ export function transformAsteroidData(apiResponse: AsteroidAPIResponse): Asteroi
     meanMotion: meanMotion,
     orbitalPeriod: data.orbital_period,
     epoch: julianEpoch,
-    perihelionTime: julianEpoch, // Approximate, can be calculated more precisely if needed
+    perihelionTime: julianEpoch,
     diameter: diameter,
-    color: data.is_potentially_hazardous_asteroid ? "#ff6b6b" : "#808080", // Red for hazardous, gray for normal
+    color: data.is_potentially_hazardous_asteroid ? "#ff6b6b" : "#808080",
     isPotentiallyHazardous: data.is_potentially_hazardous_asteroid,
   };
 }

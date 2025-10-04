@@ -1,7 +1,6 @@
 import * as THREE from "three";
-import { OrbitGenerator, ScaledOrbitGenerator, ORBIT_PRESETS } from "../orbitGenerator";
+import { OrbitGenerator, ScaledOrbitGenerator, ORBIT_PRESETS, Point3D } from "../orbitGenerator";
 import { AsteroidData } from "@/app/lib/asteroidData";
-import { addObjectLabel } from "../objectLabel";
 import { createLabel } from "../objectTextLables";
 
 export interface Asteroid {
@@ -10,107 +9,201 @@ export interface Asteroid {
   orbitGenerator: ScaledOrbitGenerator;
   diameter: number;
   color: string;
-  orbitLine: THREE.Object3D;
-  mesh: THREE.Group;
-  haloSprite?: THREE.Sprite;
+  mesh: THREE.Points;
+  orbitLine?: THREE.Line | THREE.Object3D;
   labelSprite?: THREE.Sprite;
-  setHaloHighlight?: (highlighted: boolean) => void;
   setLabelHighlight?: (highlighted: boolean) => void;
+  updateLOD?: (cameraPosition: THREE.Vector3) => void;
+  showOrbit?: () => void;
+  hideOrbit?: () => void;
+  applyForce?: (force: Point3D, deltaTime: number, currentTime: number) => void;
 }
 
 export const createAsteroid = (
   asteroidData: AsteroidData,
   camera: THREE.Camera,
-  halos_and_labels: (() => void)[]
+  halos_and_labels: (() => void)[],
+  scene: THREE.Scene
 ): Asteroid => {
   const { id, name, diameter, color, ...orbitElements } = asteroidData;
   
   const orbitGenerator = new OrbitGenerator(orbitElements);
   const positionScale = 100;
   
-  // Create orbit line using subtle preset
+  // Create orbit line and add to scene immediately
   const orbitLine = orbitGenerator.generateOrbitLine({
-    color: "#ffffff", // White color for orbit
+    color: "#4fc3f7", // Light blue orbit
     scale: positionScale,
-    ...ORBIT_PRESETS.subtle, // Spread the subtle preset properties
+    ...ORBIT_PRESETS.subtle,
   });
+  orbitLine.visible = false; // Hidden by default
+  scene.add(orbitLine); // Add to scene immediately
 
-  // Store original orbit line properties for highlighting
-  (orbitLine as any).originalOpacity = ORBIT_PRESETS.subtle.opacity;
-  (orbitLine as any).originalLineWidth = ORBIT_PRESETS.subtle.lineWidth;
-  (orbitLine as any).originalEmissiveIntensity = ORBIT_PRESETS.subtle.emissiveIntensity;
-
-  // Make orbit line emissive
-  if (orbitLine.material) {
-    (orbitLine.material as any).emissive = new THREE.Color(0xffffff);
-    (orbitLine.material as any).emissiveIntensity = 0.3;
-  }
+  // Create asteroid as Points with a single vertex
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array([0, 0, 0]); // Single point at origin
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   
-  // Create asteroid as OctahedronGeometry with white emissive material
-  const geometry = new THREE.OctahedronGeometry(0.05, 0);
-  const material = new THREE.MeshPhongMaterial({
-    color: color,
-    shininess: 50,
-    specular: new THREE.Color(0x333333),
-    emissive: new THREE.Color(0xffffff), // White emissive
-    emissiveIntensity: 0.2, // Moderate emissive intensity
+  // Create points material that maintains size regardless of distance - LIGHT BLUE
+  const material = new THREE.PointsMaterial({
+    color: new THREE.Color(0x4fc3f7), // Light blue color
+    size: 3, // Fixed size in pixels
+    sizeAttenuation: false, // This makes the size constant regardless of distance
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending, // Makes points glow nicely
+    depthWrite: false, // Helps with rendering order
   });
   
-  const mesh = new THREE.Mesh(geometry, material);
+  const points = new THREE.Points(geometry, material);
   
-  // Create a group for the asteroid
-  const asteroidGroup = new THREE.Group();
-  asteroidGroup.add(mesh);
-  
-  // Load the same texture used by planets for consistency
-  const haloTexture = new THREE.TextureLoader().load("/textures/Sprites/circle.png");
-  
-  // Add white halo to the asteroid mesh
-  const haloResult = addObjectLabel(mesh as any, camera, {
-    texture: haloTexture,
-    color: 0xffffff, // White color for halo
-    size: 0.4,
-    opacity: 0.7, // Slightly more opaque
-    minDistance: 50,
-    maxDistance: 5000,
-    fadeNear: 10,
-    fadeFar: 1500,
-  });
-  
-  // Add label to the asteroid group - ALWAYS VISIBLE
-  const labelResult = createLabel(asteroidGroup as any, name, camera, {
-    fontSize: 16,
-    color: "#ffffff", // White color for label
-    minDistance: 1,    // Always visible even when very close
-    maxDistance: 100000, // Very large max distance to ensure it's always visible
-    opacity: 1.0,      // Full opacity
-  });
-  
-  halos_and_labels.push(haloResult.update);
-  halos_and_labels.push(labelResult.update);
-  
-  return {
+  // Create label but don't add it to the update array yet - we'll handle it in LOD
+  let labelSprite: THREE.Sprite | undefined;
+  let setLabelHighlight: ((highlighted: boolean) => void) | undefined;
+
+  // LOD update function to handle label visibility based on distance
+  const updateLOD = (cameraPosition: THREE.Vector3) => {
+    const asteroidPosition = new THREE.Vector3();
+    points.getWorldPosition(asteroidPosition);
+    const distance = cameraPosition.distanceTo(asteroidPosition);
+
+    // Show label only when zoomed in (close to asteroid)
+    const labelVisible = distance < 100;
+
+    if (labelVisible) {
+      // Create label if it doesn't exist and we're close enough
+      if (!labelSprite) {
+        const labelResult = createLabel(points as any, name, camera, {
+          fontSize: 12,
+          color: "#4fc3f7", // Light blue label
+          minDistance: 1,
+          maxDistance: 150,
+          opacity: 0.9,
+          alwaysVisible: false,
+        });
+        
+        labelSprite = labelResult.sprite;
+        setLabelHighlight = labelResult.setHighlight;
+        
+        // Add to update array only when created
+        halos_and_labels.push(labelResult.update);
+      }
+      
+      // Ensure label is visible
+      if (labelSprite) {
+        labelSprite.visible = true;
+      }
+    } else {
+      // Hide label when far away
+      if (labelSprite) {
+        labelSprite.visible = false;
+      }
+    }
+
+    // Adjust point appearance based on distance for better visual feedback
+    if (distance < 50) {
+      // Close up: slightly larger and more opaque
+      material.size = 4;
+      material.opacity = 1.0;
+    } else if (distance < 200) {
+      // Medium distance: normal size
+      material.size = 3;
+      material.opacity = 0.9;
+    } else {
+      // Far away: slightly smaller but still visible
+      material.size = 5;
+      material.opacity = 0.7;
+    }
+  };
+
+  // Function to show orbit - IMPROVED
+  const showOrbit = () => {
+    console.log('Showing orbit for asteroid:', name);
+    if (orbitLine) {
+      orbitLine.visible = true;
+      // Force material update to ensure it renders
+      if (orbitLine.material) {
+        orbitLine.material.needsUpdate = true;
+        orbitLine.material.opacity = ORBIT_PRESETS.standard.opacity;
+      }
+    }
+  };
+
+  // Function to hide orbit - IMPROVED
+  const hideOrbit = () => {
+    console.log('Hiding orbit for asteroid:', name);
+    if (orbitLine) {
+      orbitLine.visible = false;
+    }
+  };
+
+  const applyForce = (force: Point3D, deltaTime: number, currentTime: number) => {
+    const mass = (diameter * 1000) ** 3 * Math.PI * 2000 / 6;
+    
+    const julianDate = currentTime / 86400 + 2440587.5;
+    const stateVectors = orbitGenerator.getCurrentStateVectors(julianDate);
+    
+    const acceleration = {
+      x: force.x / mass,
+      y: force.y / mass,
+      z: force.z / mass
+    };
+    
+    const newVelocity = {
+      x: stateVectors.velocity.x + acceleration.x * deltaTime,
+      y: stateVectors.velocity.y + acceleration.y * deltaTime,
+      z: stateVectors.velocity.z + acceleration.z * deltaTime
+    };
+    
+    const newElements = OrbitGenerator.fromStateVectors(
+      stateVectors.position,
+      newVelocity,
+      julianDate
+    );
+    
+    const newOrbitGenerator = new OrbitGenerator(newElements);
+    const newScaledGenerator = new ScaledOrbitGenerator(newOrbitGenerator, positionScale);
+    
+    Object.assign(asteroid.orbitGenerator, newScaledGenerator);
+    
+    if (orbitLine) {
+      scene.remove(orbitLine);
+      const newOrbitLine = newOrbitGenerator.generateOrbitLine({
+        color: "#4fc3f7",
+        scale: positionScale,
+        ...ORBIT_PRESETS.bright,
+      });
+      newOrbitLine.visible = orbitLine.visible;
+      scene.add(newOrbitLine);
+      asteroid.orbitLine = newOrbitLine;
+    }
+  };
+
+  const asteroid: Asteroid = {
     id,
     name,
     orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
     diameter: diameter * 0.00001,
-    color,
+    color: "#4fc3f7",
+    mesh: points,
     orbitLine,
-    mesh: asteroidGroup,
-    haloSprite: haloResult.sprite,
-    labelSprite: labelResult.sprite,
-    setHaloHighlight: haloResult.setHighlight,
-    setLabelHighlight: labelResult.setHighlight,
+    labelSprite,
+    setLabelHighlight,
+    updateLOD,
+    showOrbit,
+    hideOrbit,
+    applyForce
   };
+
+  return asteroid;
 };
 
 // Create multiple asteroids from array
 export const createAsteroids = (
   asteroidsData: AsteroidData[],
   camera: THREE.Camera,
-  halos_and_labels: (() => void)[]
+  halos_and_labels: (() => void)[],
+  scene: THREE.Scene
 ): Asteroid[] => {
-  return asteroidsData.map(data => createAsteroid(data, camera, halos_and_labels));
+  return asteroidsData.map(data => createAsteroid(data, camera, halos_and_labels, scene));
 };
