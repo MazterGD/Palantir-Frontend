@@ -14,7 +14,7 @@ export interface RealisticScaleFactors {
 }
 
 export const REALISTIC_SCALE: RealisticScaleFactors = {
-  kmPerRenderUnit: 1000000, // 1,000,000 km = 1 render unit (updated)
+  kmPerRenderUnit: 100000, // 100,000 km = 1 render unit (updated)
   minRenderUnits: 0.005, // Minimal render-unit size applied when conversion yields smaller
 };
 

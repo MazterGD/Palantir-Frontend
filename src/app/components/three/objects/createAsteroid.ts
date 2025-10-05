@@ -81,8 +81,8 @@ export const createAsteroid = (
         const labelResult = createLabel(points as any, name, camera, {
           fontSize: 20,
           color: "#4fc3f7", // Light blue label
-          minDistance: 1,
-          maxDistance: 50,
+          minDistance: 0.01,
+          maxDistance: 1,
           opacity: 1.0,
         });
 

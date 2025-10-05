@@ -57,7 +57,7 @@ export default function ThreeScene() {
   const [isLoading, setIsLoading] = useState(true);
   const [sceneInitialized, setSceneInitialized] = useState(false);
   const [selectedBody, setSelectedBody] = useState<CelestialBody | null>(null);
-  const [forceX, setForceX] = useState("1000");
+  const [forceX, setForceX] = useState("10");
   const [forceY, setForceY] = useState("0");
   const [forceZ, setForceZ] = useState("0");
   const [deltaTime, setDeltaTime] = useState("1");
@@ -668,7 +668,7 @@ export default function ThreeScene() {
         >
           <AsteroidVisualizer
             id={selectedAsteroidId}
-            onClose={handleCloseVisualizer}
+            onCloseHandler={handleCloseVisualizer}
           />
         </div>
       )}

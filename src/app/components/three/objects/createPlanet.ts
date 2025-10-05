@@ -220,17 +220,17 @@ export const createPlanet = (
     texture: map,
     color: planetData.color,
     size: SPRITE_BASE_SIZE,
-    minDistance: 1,
+    minDistance: 500,
     maxDistance: 100000,
     opacity: 1,
-    fadeNear: 50,
+    fadeNear: 1000,
     fadeFar: 1500000,
   });
 
   const labelResult = createLabel(mesh, planetName, camera, {
     fontSize: 20,
-    minDistance: 1,
-    maxDistance: 1500000,
+    minDistance: 300,
+    maxDistance: 150000,
     opacity: 1.0,
   });
 

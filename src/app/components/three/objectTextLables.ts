@@ -89,7 +89,10 @@ export function createLabel(
   const updateResult = addObjectLabel(object, camera, {
     texture,
     size: 10,
-  });
+    minDistance: options?.minDistance,
+    maxDistance: options?.maxDistance,
+    opacity: options?.opacity,
+});
 
   return {
     update: updateResult.update,
