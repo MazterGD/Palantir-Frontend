@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Suspense } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { FiLayers, FiPlus, FiMinus } from "react-icons/fi";
@@ -270,268 +271,274 @@ export default function MapView() {
   }
 
   return (
-    <div className="w-full h-screen relative">
-      {/* Controls */}
-      <div className="absolute top-10 left-10 flex flex-col gap-2 z-10">
-        {/* Zoom Controls */}
-        <button
-          onClick={() => map.current?.zoomIn()}
-          className="bg-slate-500/60 backdrop-blur-xs  w-10 h-10 px-3 py-1 rounded-sm shadow hover:bg-slate-500/90"
-        >
-          <FiPlus className="text-white-500 hover:text-white-900" />
-        </button>
-        <button
-          onClick={() => map.current?.zoomOut()}
-          className="bg-slate-500/60 backdrop-blur-xs  w-10 h-10 p-3 py-1 rounded-sm shadow hover:bg-slate-500/90"
-        >
-          <FiMinus className="text-white-500 hover:text-white-900" />
-        </button>
+    <Suspense fallback={<div>Loading...</div>}>
+      <div className="w-full h-screen relative">
+        {/* Controls */}
+        <div className="absolute top-10 left-10 flex flex-col gap-2 z-10">
+          {/* Zoom Controls */}
+          <button
+            onClick={() => map.current?.zoomIn()}
+            className="bg-slate-500/60 backdrop-blur-xs  w-10 h-10 px-3 py-1 rounded-sm shadow hover:bg-slate-500/90"
+          >
+            <FiPlus className="text-white-500 hover:text-white-900" />
+          </button>
+          <button
+            onClick={() => map.current?.zoomOut()}
+            className="bg-slate-500/60 backdrop-blur-xs  w-10 h-10 p-3 py-1 rounded-sm shadow hover:bg-slate-500/90"
+          >
+            <FiMinus className="text-white-500 hover:text-white-900" />
+          </button>
 
-        {/* Layers Toggle */}
-        <button
-          onClick={() => setShowLayers(!showLayers)}
-          className="bg-slate-500/60 backdrop-blur-xs  w-10 h-10 px-3 py-1 rounded-sm shadow hover:bg-slate-500/90"
-        >
-          <FiLayers />
-        </button>
+          {/* Layers Toggle */}
+          <button
+            onClick={() => setShowLayers(!showLayers)}
+            className="bg-slate-500/60 backdrop-blur-xs  w-10 h-10 px-3 py-1 rounded-sm shadow hover:bg-slate-500/90"
+          >
+            <FiLayers />
+          </button>
 
-        {showLayers && (
-          <div className="bg-slate-500/60 backdrop-blur-xs  px-4 py-2 rounded-sm shadow">
-            {Object.entries(layersState).map(([key, value]) => (
-              <label
-                key={key}
-                className={`flex items-center gap-2 ${leagueSpartan.className}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={value}
-                  onChange={() =>
-                    setLayersState((prev) => ({
-                      ...prev,
-                      [key]: !prev[key as keyof typeof prev],
-                    }))
-                  }
-                />
-                {key}
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-      <div
-        className={`absolute top-10 right-10 z-10 ${leagueSpartan.className}`}
-      >
-        <div className="h-[90vh] overflow-scroll scroll-smooth flex flex-col gap-2 hide-scrollbar">
-          <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
-            <h2 className="text-2xl font-bold  mb-4">Asteroid Info</h2>
-            <form className="grid grid-cols-2 gap-4">
-              {/* Name */}
-              <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Name</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
-              {/* Neo ID */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Neo ID</label>
-                <input
-                  type="number"
-                  value={formData.id}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      id: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
-              {/* Diameter */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Diameter (m)
-                </label>
-                <input
-                  type="number"
-                  value={formData.diameter}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      diameter: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
-              {/* Density */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Density (kg/m³)
-                </label>
-                <input
-                  type="number"
-                  value={formData.density}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      density: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
-              {/* Trajectory Angle */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Trajectory Angle (°)
-                </label>
-                <input
-                  type="number"
-                  value={formData.angle}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      angle: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
-              {/* Projectile Velocity */}
-              <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">
-                  Projectile Velocity (km/s)
-                </label>
-                <input
-                  type="number"
-                  value={formData.velocity}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      velocity: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-              {/* Latitude */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Impact Location (Lat)
-                </label>
-                <input
-                  type="number"
-                  value={formData.latitude}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      latitude: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
-              {/* Longititude */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Impact Location (long)
-                </label>
-                <input
-                  type="number"
-                  value={formData.longitude}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      longitude: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Target Type
-                </label>
-                <select
-                  value={formData.trgt_type}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      trgt_type: e.target.value as "w" | "s" | "i",
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
+          {showLayers && (
+            <div className="bg-slate-500/60 backdrop-blur-xs  px-4 py-2 rounded-sm shadow">
+              {Object.entries(layersState).map(([key, value]) => (
+                <label
+                  key={key}
+                  className={`flex items-center gap-2 ${leagueSpartan.className}`}
                 >
-                  <option value="w" className="text-gray-900">
-                    Water
-                  </option>
-                  <option value="s" className="text-gray-900">
-                    Sedimentary
-                  </option>
-                  <option value="i" className="text-gray-900">
-                    Igneous
-                  </option>
-                </select>
-              </div>
+                  <input
+                    type="checkbox"
+                    checked={value}
+                    onChange={() =>
+                      setLayersState((prev) => ({
+                        ...prev,
+                        [key]: !prev[key as keyof typeof prev],
+                      }))
+                    }
+                  />
+                  {key}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div
+          className={`absolute top-10 right-10 z-10 ${leagueSpartan.className}`}
+        >
+          <div className="h-[90vh] overflow-scroll scroll-smooth flex flex-col gap-2 hide-scrollbar">
+            <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
+              <h2 className="text-2xl font-bold  mb-4">Asteroid Info</h2>
+              <form className="grid grid-cols-2 gap-4">
+                {/* Name */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Depth</label>
-                <input
-                  type="number"
-                  disabled={formData.trgt_type != "w"}
-                  value={formData.depth}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      depth: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
+                {/* Neo ID */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Neo ID
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.id}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        id: parseInt(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
 
-              {/* Submit button full width */}
-              <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="w-full bg-blue-400 text-white py-2 rounded-sm hover:bg-blue-500"
-                >
-                  Update
-                </button>
-              </div>
-            </form>
-          </div>
-          <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
-            {energyParams && <ImpactTable data={energyParams} />}
+                {/* Diameter */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Diameter (m)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.diameter}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        diameter: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+
+                {/* Density */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Density (kg/m³)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.density}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        density: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+
+                {/* Trajectory Angle */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Trajectory Angle (°)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.angle}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        angle: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+
+                {/* Projectile Velocity */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-1">
+                    Projectile Velocity (km/s)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.velocity}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        velocity: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+                {/* Latitude */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Impact Location (Lat)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.latitude}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        latitude: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+
+                {/* Longititude */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Impact Location (long)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.longitude}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        longitude: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Target Type
+                  </label>
+                  <select
+                    value={formData.trgt_type}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        trgt_type: e.target.value as "w" | "s" | "i",
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  >
+                    <option value="w" className="text-gray-900">
+                      Water
+                    </option>
+                    <option value="s" className="text-gray-900">
+                      Sedimentary
+                    </option>
+                    <option value="i" className="text-gray-900">
+                      Igneous
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Depth
+                  </label>
+                  <input
+                    type="number"
+                    disabled={formData.trgt_type != "w"}
+                    value={formData.depth}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        depth: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
+                    required
+                  />
+                </div>
+
+                {/* Submit button full width */}
+                <div className="col-span-2">
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="w-full bg-blue-400 text-white py-2 rounded-sm hover:bg-blue-500"
+                  >
+                    Update
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
+              {energyParams && <ImpactTable data={energyParams} />}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Map */}
-      <div ref={mapContainer} className="w-screen h-screen" />
-    </div>
+        {/* Map */}
+        <div ref={mapContainer} className="w-screen h-screen" />
+      </div>
+    </Suspense>
   );
 }
