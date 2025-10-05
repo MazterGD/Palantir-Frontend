@@ -10,6 +10,7 @@ export function setupScene(container: HTMLDivElement) {
     10000,
   );
   camera.position.z = 5;
+  camera.up = new THREE.Vector3(0,-0.23,0.97);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
   container.appendChild(renderer.domElement);
