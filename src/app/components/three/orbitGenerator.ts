@@ -394,8 +394,8 @@ export const ORBIT_PRESETS = {
   },
   bright: { opacity: 0.9, emissiveIntensity: 0.6, lineWidth: 3, segments: 360 },
   subtle: {
-    opacity: 0.1,
-    emissiveIntensity: 0.1,
+    opacity: 0.5,
+    emissiveIntensity: 0.6,
     lineWidth: 0.5,
     segments: 180,
   },
