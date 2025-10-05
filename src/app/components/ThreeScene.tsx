@@ -28,36 +28,7 @@ import { RiResetRightLine } from "react-icons/ri";
 import { IoIosPause } from "react-icons/io";
 import { FaPlay } from "react-icons/fa";
 import { League_Spartan } from "next/font/google";
-
-class AsteroidOrbitManager {
-  static currentAsteroid: CelestialBody | null = null;
-
-  /** Show orbit for a clicked asteroid (and hide previous one) */
-  static showOrbit(asteroid: CelestialBody) {
-    // Hide previous orbit if exists and it's not the same asteroid
-    if (this.currentAsteroid && this.currentAsteroid !== asteroid) {
-      this.currentAsteroid.hideOrbit?.();
-    }
-
-    asteroid.showOrbit?.();
-    this.currentAsteroid = asteroid;
-  }
-
-  /** Clear the current asteroid’s orbit */
-  static clearOrbit() {
-    if (this.currentAsteroid) {
-      this.currentAsteroid.hideOrbit?.();
-      this.currentAsteroid = null;
-    }
-  }
-
-  /** Called when the same asteroid gets a new orbit (after applyForce) */
-  static replaceOrbit(asteroid: CelestialBody) {
-    if (this.currentAsteroid === asteroid) {
-      asteroid.showOrbit?.();
-    }
-  }
-}
+import { AsteroidOrbitManager } from "./three/orbitManager";
 
 const leagueSpartan = League_Spartan({
   subsets: ["latin"],
@@ -97,6 +68,7 @@ export interface CelestialBody {
     deltaTime: number,
     currentTime: number,
   ) => void;
+  resetOrbit?: () => void;
 }
 
 let sceneRef: THREE.Scene | null = null;
@@ -105,7 +77,7 @@ let celestialBodiesRef: CelestialBody[] = [];
 const interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
 let halosAndLabelsRef: (() => void)[] = [];
 let currentSelectedBody: CelestialBody | null = null;
-let currentSelectedAsteroid: CelestialBody | null = null;
+let currentFocusedBody: CelestialBody | null = null;
 let rendererRef: THREE.WebGLRenderer | null = null;
 let controlsRef: OrbitControls | null = null;
 
@@ -298,18 +270,51 @@ export default function ThreeScene() {
     // Apply the force - the asteroid will handle its orbit update internally
     selectedBody.applyForce(force, dt, currentUnixTime);
 
-    // Optionally show a success message
     console.log(
       `Force applied to ${selectedBody.name}. Orbit has been updated.`,
     );
   };
 
+  const selectBody = (body: CelestialBody) => {
+    const isAsteroid = body.id && "applyForce" in body;
+
+    if (isAsteroid) {
+      // Use the centralized manager
+      AsteroidOrbitManager.showOrbit(body);
+      setSelectedAsteroidId(body.id!);
+      setShowAsteroidVisualizer(true);
+    } else {
+      // Clear any asteroid orbit when selecting a planet
+      AsteroidOrbitManager.clearOrbit();
+      showOrbitForBody(body);
+      setShowAsteroidVisualizer(false);
+      setSelectedAsteroidId(null);
+    }
+
+    currentSelectedBody = body;
+    currentFocusedBody = body;
+    setSelectedBody(body);
+    
+    // Update minimum distance for the focused body
+    if (controlsRef) {
+      const bodyRadius = body.diameter / 2;
+      controlsRef.minDistance = Math.max(0.1, bodyRadius * 1.5);
+    }
+  };
+
   const clearSelection = () => {
     AsteroidOrbitManager.clearOrbit();
     currentSelectedBody = null;
+    currentFocusedBody = null;
     setSelectedBody(null);
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
+    
+    // Reset minimum distance back to sun's surface
+    if (controlsRef) {
+      const sceneBounds = getSceneBoundaries();
+      controlsRef.minDistance = sceneBounds.innerBoundary;
+    }
   };
 
   const handleCloseVisualizer = () => {
@@ -317,7 +322,14 @@ export default function ThreeScene() {
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
     currentSelectedBody = null;
+    currentFocusedBody = null;
     setSelectedBody(null);
+    
+    // Reset minimum distance back to sun's surface
+    if (controlsRef) {
+      const sceneBounds = getSceneBoundaries();
+      controlsRef.minDistance = sceneBounds.innerBoundary;
+    }
   };
 
   useEffect(() => {
@@ -335,6 +347,9 @@ export default function ThreeScene() {
     cameraRef = camera;
     rendererRef = renderer;
 
+    // Initialize the orbit manager with scene and halos reference
+    AsteroidOrbitManager.initialize(scene, halosAndLabelsRef);
+
     const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
 
@@ -350,7 +365,7 @@ export default function ThreeScene() {
     interactiveObjectsRef.clear();
     halosAndLabelsRef = [];
     currentSelectedBody = null;
-    currentSelectedAsteroid = null;
+    currentFocusedBody = null;
 
     addStarsBackground(scene);
     currentTimeRef.current = 0;
@@ -405,7 +420,11 @@ export default function ThreeScene() {
       }
     });
 
+    // Initialize raycaster with proper threshold for Points
     const raycaster = new THREE.Raycaster();
+    raycaster.params.Points.threshold = 10; // IMPORTANT: Makes asteroids clickable
+    raycaster.params.Line.threshold = 3;
+    
     const mouse = new THREE.Vector2();
     let hoveredObject: CelestialBody | null = null;
 
@@ -469,153 +488,93 @@ export default function ThreeScene() {
         const material = object.mesh.material as THREE.PointsMaterial;
         if (highlighted) {
           material.color = new THREE.Color(0xffff00);
-          material.size = 5;
+          material.size = 10;
           material.opacity = 1.0;
         } else {
           material.color = new THREE.Color(0x4fc3f7);
-          material.size = 3;
+          material.size = 8;
           material.opacity = 0.8;
         }
       }
     };
 
-    // Helper function to check if an object has valid geometry
-const hasValidGeometry = (obj: THREE.Object3D): boolean => {
-  if (!obj) return false;
-  
-  // Check for specific Three.js types that have geometry
-  if (obj instanceof THREE.Mesh || 
-      obj instanceof THREE.Points || 
-      obj instanceof THREE.Line ||
-      obj instanceof THREE.LineSegments ||
-      obj instanceof THREE.Sprite) {
-    
-    // For Sprites, they don't need geometry check
-    if (obj instanceof THREE.Sprite) return true;
-    
-    // For objects with geometry, check if it's valid
-    const typedObj = obj as THREE.Mesh | THREE.Points | THREE.Line;
-    if (typedObj.geometry) {
-      const geom = typedObj.geometry;
-      // Check if geometry has the required position attribute
-      return !!(geom.attributes && geom.attributes.position);
-    }
-  }
-  
-  return false;
-};
+    const onMouseMove = (event: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-const onMouseMove = (event: MouseEvent) => {
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Get all interactive objects - no filtering needed
+      const checkObjects = Array.from(interactiveObjectsRef.keys());
+      const intersects = raycaster.intersectObjects(checkObjects, true);
 
-  raycaster.setFromCamera(mouse, camera);
-  
-  // Get all valid objects for raycasting
-  const checkObjects = Array.from(interactiveObjectsRef.keys()).filter(hasValidGeometry);
-  
-  try {
-    const intersects = raycaster.intersectObjects(checkObjects, true);
+      if (intersects.length > 0) {
+        const intersectedObject = intersects[0].object;
+        let object = interactiveObjectsRef.get(intersectedObject);
 
-    if (intersects.length > 0) {
-      const intersectedObject = intersects[0].object;
-      let object = interactiveObjectsRef.get(intersectedObject);
+        if (!object && intersectedObject.parent) {
+          object = interactiveObjectsRef.get(intersectedObject.parent);
+        }
 
-      if (!object && intersectedObject.parent) {
-        object = interactiveObjectsRef.get(intersectedObject.parent);
-      }
-
-      if (object && object !== hoveredObject) {
+        if (object && object !== hoveredObject) {
+          if (hoveredObject) {
+            highlightObject(hoveredObject, false);
+          }
+          highlightObject(object, true);
+          hoveredObject = object;
+        }
+        renderer.domElement.style.cursor = "pointer";
+      } else {
         if (hoveredObject) {
           highlightObject(hoveredObject, false);
+          hoveredObject = null;
         }
-        highlightObject(object, true);
-        hoveredObject = object;
+        renderer.domElement.style.cursor = "default";
       }
-      renderer.domElement.style.cursor = "pointer";
-    } else {
-      if (hoveredObject) {
-        highlightObject(hoveredObject, false);
-        hoveredObject = null;
-      }
-      renderer.domElement.style.cursor = "default";
-    }
-  } catch (error) {
-    console.warn("Raycaster error:", error);
-    // Reset cursor on error
-    renderer.domElement.style.cursor = "default";
-  }
-};
+    };
 
-const selectBody = (body: CelestialBody) => {
-  const isAsteroid = body.id && "applyForce" in body;
+    const onClick = (event: MouseEvent) => {
+      raycaster.setFromCamera(mouse, camera);
+      
+      const checkObjects = Array.from(interactiveObjectsRef.keys());
+      const intersects = raycaster.intersectObjects(checkObjects, true);
 
-  if (isAsteroid) {
-    // Use the centralized manager
-    AsteroidOrbitManager.showOrbit(body);
-    setSelectedAsteroidId(body.id!);
-    setShowAsteroidVisualizer(true);
-  } else {
-    // Clear any asteroid orbit when selecting a planet
-    AsteroidOrbitManager.clearOrbit();
-    showOrbitForBody(body);
-    setShowAsteroidVisualizer(false);
-    setSelectedAsteroidId(null);
-  }
+      if (intersects.length > 0) {
+        const intersectedObject = intersects[0].object;
+        let object = interactiveObjectsRef.get(intersectedObject);
 
-  currentSelectedBody = body;
-  setSelectedBody(body);
-};
-
-const onClick = (event: MouseEvent) => {
-  raycaster.setFromCamera(mouse, camera);
-  
-  // Get all valid objects for raycasting
-  const checkObjects = Array.from(interactiveObjectsRef.keys()).filter(hasValidGeometry);
-  
-  try {
-    const intersects = raycaster.intersectObjects(checkObjects, true);
-
-    if (intersects.length > 0) {
-      const intersectedObject = intersects[0].object;
-      let object = interactiveObjectsRef.get(intersectedObject);
-
-      if (!object) {
-        let current: THREE.Object3D<THREE.Object3DEventMap> | null =
-          intersectedObject;
-        while (current && !object) {
-          object = interactiveObjectsRef.get(current);
-          current = current.parent;
+        if (!object) {
+          let current: THREE.Object3D<THREE.Object3DEventMap> | null = intersectedObject;
+          while (current && !object) {
+            object = interactiveObjectsRef.get(current);
+            current = current.parent;
+          }
         }
+
+        if (object) {
+          const objectPosition = new THREE.Vector3();
+          object.mesh.getWorldPosition(objectPosition);
+
+          const isAsteroid = object.id && "applyForce" in object;
+          const viewDistance = object.diameter * (isAsteroid ? 10000 : 2);
+
+          const cameraOffset = new THREE.Vector3(
+            viewDistance,
+            viewDistance * 0.5,
+            viewDistance,
+          );
+          const cameraPosition = objectPosition.clone().add(cameraOffset);
+
+          camera.up.set(0, 0, 1);
+          moveCamera(camera, controls, cameraPosition, objectPosition);
+
+          selectBody(object);
+        }
+      } else {
+        clearSelection();
       }
-
-      if (object) {
-        const objectPosition = new THREE.Vector3();
-        object.mesh.getWorldPosition(objectPosition);
-
-        const isAsteroid = object.id && "applyForce" in object;
-        const viewDistance = object.diameter * (isAsteroid ? 10000 : 2);
-
-        const cameraOffset = new THREE.Vector3(
-          viewDistance,
-          viewDistance * 0.5,
-          viewDistance,
-        );
-        const cameraPosition = objectPosition.clone().add(cameraOffset);
-
-        camera.up.set(0, 0, 1);
-        moveCamera(camera, controls, cameraPosition, objectPosition);
-
-        selectBody(object);
-      }
-    } else {
-      clearSelection();
-    }
-  } catch (error) {
-    console.warn("Click handler error:", error);
-  }
-};
+    };
 
     renderer.domElement.addEventListener("mousemove", onMouseMove);
     renderer.domElement.addEventListener("click", onClick);
@@ -632,7 +591,7 @@ const onClick = (event: MouseEvent) => {
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.minDistance = sceneBounds.innerBoundary;
-    const maxDistance = cameraDistance * 1.5; // Use the properly scaled distance directly
+    const maxDistance = cameraDistance * 1.5;
     controls.maxDistance = maxDistance;
 
     const updateSliderFromCamera = debounce(() => {
@@ -745,7 +704,7 @@ const onClick = (event: MouseEvent) => {
       interactiveObjectsRef.clear();
       halosAndLabelsRef = [];
       currentSelectedBody = null;
-      currentSelectedAsteroid = null;
+      currentFocusedBody = null;
     };
   }, []);
 
@@ -760,6 +719,8 @@ const onClick = (event: MouseEvent) => {
       return;
     }
 
+    console.log("Creating asteroids:", asteroidsData.length);
+
     const createdAsteroids = createAsteroids(
       asteroidsData,
       cameraRef,
@@ -767,13 +728,8 @@ const onClick = (event: MouseEvent) => {
       sceneRef!,
     );
 
-    createdAsteroids.forEach((asteroid) => {
+    createdAsteroids.forEach((asteroid, index) => {
       sceneRef!.add(asteroid.mesh);
-
-      // Don't add orbit line here - it will be added when shown
-      // if (asteroid.orbitLine) {
-      //   sceneRef!.add(asteroid.orbitLine);
-      // }
 
       const asteroidBody: CelestialBody = {
         id: asteroid.id,
@@ -793,16 +749,28 @@ const onClick = (event: MouseEvent) => {
 
       celestialBodiesRef.push(asteroidBody);
 
+      // Add ONLY the mesh and label to interactive objects
+      interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+      
       if (asteroid.labelSprite) {
         interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
       }
-      interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
-
-      // Don't add orbit line to interactive objects to avoid raycasting issues
-      // if (asteroid.orbitLine) {
-      //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
-      // }
+      
+      // DO NOT add orbit line to interactiveObjectsRef - this causes the error!
+      
+      // Debug log for first asteroid
+      if (index === 0) {
+        console.log("First asteroid added:", {
+          name: asteroid.name,
+          mesh: asteroid.mesh,
+          isPoints: asteroid.mesh instanceof THREE.Points,
+          hasGeometry: !!(asteroid.mesh as any).geometry,
+          interactiveMapSize: interactiveObjectsRef.size
+        });
+      }
     });
+    
+    console.log("Total interactive objects:", interactiveObjectsRef.size);
   }, [asteroidsData, sceneInitialized]);
 
   const handleZoomIn = () => {

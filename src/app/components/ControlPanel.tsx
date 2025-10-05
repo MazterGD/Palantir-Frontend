@@ -19,10 +19,33 @@ export default function ControlPanel({
 }: ControlPanelProps) {
   const [isDragging, setIsDragging] = useState(false);
 
+  // Logarithmic scale constants
+  const MIN_LOG = Math.log(1); // log(1) = 0
+  const MAX_LOG = Math.log(1001); // log(1001) for 0-1000 range
+  
+  // Convert linear slider value (0-1000) to logarithmic position for display
+  const linearToLog = (value: number): number => {
+    // Add 1 to avoid log(0), then normalize
+    const logValue = Math.log(value + 1);
+    return ((logValue - MIN_LOG) / (MAX_LOG - MIN_LOG)) * 1000;
+  };
+
+  // Convert logarithmic slider position to linear value
+  const logToLinear = (logPosition: number): number => {
+    // Normalize position back to log range
+    const normalizedLog = (logPosition / 1000) * (MAX_LOG - MIN_LOG) + MIN_LOG;
+    return Math.round(Math.exp(normalizedLog) - 1);
+  };
+
   // Handle slider value change
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onZoomChange(Number(e.target.value));
+    const logPosition = Number(e.target.value);
+    const linearValue = logToLinear(logPosition);
+    onZoomChange(linearValue);
   };
+  
+  // Get logarithmic position for the current zoom level
+  const logPosition = linearToLog(zoomLevel);
 
   return (
     <>
@@ -48,22 +71,21 @@ export default function ControlPanel({
           <input
             type="range"
             min="0"
-            max="100"
-            value={zoomLevel}
+            max="1000"
+            value={logPosition}
             onChange={handleSliderChange}
             className="appearance-none w-[180px] h-1 bg-transparent cursor-pointer relative z-20 rotate-90 origin-center m-0 pointer-events-auto bg-slate-500"
             onMouseDown={() => setIsDragging(true)}
             onMouseUp={() => setIsDragging(false)}
             onMouseLeave={() => setIsDragging(false)}
             aria-label="Zoom Level"
-            style={{
-              accentColor: "white",
-            }}
           />
           <div className="absolute left-1/2 top-[15px] bottom-[15px] w-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] -translate-x-1/2 z-10 shadow-inner">
             <div
-              className="absolute bottom-0 left-0 w-full rounded-sm bg-gradient-to-t from-[rgba(255, 100, 100, 0.5)] to-[rgb(100,150,255)]"
-              data-height={zoomLevel}
+              className="absolute bottom-0 left-0 w-full rounded-sm bg-[rgba(255, 100, 100, 0.5)]"
+              style={{
+                height: `${Math.min(100, (logPosition / 1000) * 100)}%`
+              }}
             ></div>
           </div>
         </div>
