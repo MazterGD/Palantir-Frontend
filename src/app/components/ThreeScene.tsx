@@ -25,10 +25,83 @@ interface CelestialBody extends Planet {
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [speedMultiplier, setSpeedMultiplier] = useState(50); // Default to middle value
+  const [speedMultiplier, setSpeedMultiplier] = useState(21); // Default to real-time (index 21 in speedScale)
+  const [isPaused, setIsPaused] = useState(false);
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [selectedDateTime, setSelectedDateTime] = useState<string>("");
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   
-  // Use a ref to access the latest speed multiplier in animation loop
+// Define speed scale options (balanced before and after the event)
+const speedScale = [
+  // Past speeds (negative values) - days
+  { label: "-30days", value: -30, daysPerSecond: -30 },
+  { label: "-28days", value: -28, daysPerSecond: -28 },
+  { label: "-21days", value: -21, daysPerSecond: -21 },
+  { label: "-14days", value: -14, daysPerSecond: -14 },
+  { label: "-7days", value: -7, daysPerSecond: -7 },
+  { label: "-5days", value: -5, daysPerSecond: -5 },
+  { label: "-3days", value: -3, daysPerSecond: -3 },
+  { label: "-2days", value: -2, daysPerSecond: -2 },
+  { label: "-1day", value: -1, daysPerSecond: -1 },
+
+  // Past speeds - hours
+  { label: "-24h", value: -1440, daysPerSecond: -1 },
+  { label: "-12h", value: -720, daysPerSecond: -1 / 2 },
+  { label: "-6h", value: -360, daysPerSecond: -1 / 4 },
+  { label: "-3h", value: -180, daysPerSecond: -1 / 8 },
+  { label: "-1h", value: -60, daysPerSecond: -1 / 24 },
+
+  // Past speeds - minutes
+  { label: "-45min", value: -45, daysPerSecond: -45 / 1440 },
+  { label: "-30min", value: -30, daysPerSecond: -30 / 1440 },
+  { label: "-15min", value: -15, daysPerSecond: -15 / 1440 },
+  { label: "-10min", value: -10, daysPerSecond: -10 / 1440 },
+  { label: "-5min", value: -5, daysPerSecond: -5 / 1440 },
+  { label: "-2min", value: -2, daysPerSecond: -2 / 1440 },
+  { label: "-1min", value: -1, daysPerSecond: -1 / 1440 },
+
+  // Real-time
+  { label: "Real-time", value: 0, daysPerSecond: 1 / 86400 }, // 1 second per day
+
+  // Future speeds - minutes
+  { label: "+1min", value: 1, daysPerSecond: 1 / 1440 },
+  { label: "+2min", value: 2, daysPerSecond: 1 / 720 },
+  { label: "+5min", value: 5, daysPerSecond: 1 / 288 },
+  { label: "+10min", value: 10, daysPerSecond: 1 / 144 },
+  { label: "+15min", value: 15, daysPerSecond: 1 / 96 },
+  { label: "+30min", value: 30, daysPerSecond: 1 / 48 },
+  { label: "+45min", value: 45, daysPerSecond: 1 / 32 },
+
+  // Future speeds - hours
+  { label: "+1h", value: 60, daysPerSecond: 1 / 24 },
+  { label: "+2h", value: 120, daysPerSecond: 1 / 12 },
+  { label: "+3h", value: 180, daysPerSecond: 1 / 8 },
+  { label: "+4h", value: 240, daysPerSecond: 1 / 6 },
+  { label: "+6h", value: 360, daysPerSecond: 1 / 4 },
+  { label: "+12h", value: 720, daysPerSecond: 1 / 2 },
+  { label: "+24h", value: 1440, daysPerSecond: 1 },
+
+  // Future speeds - days
+  { label: "+1day", value: 1, daysPerSecond: 1 },
+  { label: "+2days", value: 2, daysPerSecond: 2 },
+  { label: "+3days", value: 3, daysPerSecond: 3 },
+  { label: "+5days", value: 5, daysPerSecond: 5 },
+  { label: "+7days", value: 7, daysPerSecond: 7 },
+  { label: "+14days", value: 14, daysPerSecond: 14 },
+  { label: "+21days", value: 21, daysPerSecond: 21 },
+  { label: "+28days", value: 28, daysPerSecond: 28 },
+  { label: "+30days", value: 30, daysPerSecond: 30 },
+];
+ 
+  // Find current speed option
+  const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21]; // Default to real-time
+  
+  // Use refs to access the latest values in animation loop
   const speedMultiplierRef = useRef(speedMultiplier);
+  const isPausedRef = useRef(isPaused);
+  const currentTimeRef = useRef(0);
+  const celestialBodiesRef = useRef<CelestialBody[]>([]);
+  const startDateRef = useRef(new Date());
 
   // Handle slider change with debounce for smoother updates
   const handleSliderChange = useCallback(
@@ -38,15 +111,101 @@ export default function ThreeScene() {
     []
   );
 
-  // Calculate the scaled time speed value and minutes per second for display
-  const getScaledTimeSpeed = useCallback((value: number) => {
-    return scaleTimeSpeed(value);
+  // Get current speed display
+  const getCurrentSpeedDisplay = useCallback(() => {
+    return currentSpeedOption.label;
+  }, [currentSpeedOption]);
+  
+  // Format date for display
+  const formatSimulationDate = useCallback((date: Date) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    
+    return `${month} ${day}, ${year} ${hours}:${minutes}:${seconds}`;
   }, []);
 
-  // Update the ref whenever the state changes
+  // Update the refs whenever the states change
   useEffect(() => {
     speedMultiplierRef.current = speedMultiplier;
   }, [speedMultiplier]);
+  
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+  
+  // Initialize dates on client side to prevent hydration mismatch
+  useEffect(() => {
+    const now = new Date();
+    setCurrentDate(now);
+    setSelectedDateTime(now.toISOString().slice(0, 16));
+  }, []);
+  
+  // Update date display based on simulation time
+  useEffect(() => {
+    if (!currentDate) return; // Don't start updating until date is initialized
+    
+    const interval = setInterval(() => {
+      if (!isPausedRef.current) {
+        const days = currentTimeRef.current;
+        const newDate = new Date(startDateRef.current.getTime() + days * 24 * 60 * 60 * 1000);
+        setCurrentDate(newDate);
+      }
+    }, 100); // Update 10 times per second for smooth display
+    
+    return () => clearInterval(interval);
+  }, [currentDate]);
+  
+  // Toggle pause state
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => !prev);
+  }, []);
+  
+  // Reset time and positions
+  const resetTime = useCallback(() => {
+    currentTimeRef.current = 0;
+    setSpeedMultiplier(21); // Reset to real-time (index 21)
+    setIsPaused(false); // Unpause if paused
+    const now = new Date();
+    startDateRef.current = now;
+    setCurrentDate(now);
+    
+    // Reset all celestial body positions
+    celestialBodiesRef.current.forEach((body) => {
+      const position = body.orbitGenerator.getPositionAtTime(0);
+      body.mesh.position.set(
+        position.position.x,
+        position.position.y,
+        position.position.z,
+      );
+    });
+  }, []);
+  
+  // Set simulation to specific date/time
+  const setSimulationDateTime = useCallback(() => {
+    const selectedDate = new Date(selectedDateTime);
+    const now = new Date();
+    const timeDiff = (selectedDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24); // Convert to days
+    
+    currentTimeRef.current = timeDiff;
+    startDateRef.current = now;
+    setCurrentDate(selectedDate);
+    setSpeedMultiplier(21); // Reset to real-time when jumping to new date
+    
+    // Update all celestial body positions to the selected time
+    celestialBodiesRef.current.forEach((body) => {
+      const position = body.orbitGenerator.getPositionAtTime(timeDiff);
+      body.mesh.position.set(
+        position.position.x,
+        position.position.y,
+        position.position.z,
+      );
+    });
+  }, [selectedDateTime]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -61,7 +220,7 @@ export default function ThreeScene() {
 
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
-    let currentTime = 0;
+    currentTimeRef.current = 0;
 
     const { sun, update: updateSun } = createSun(camera);
     scene.add(sun);
@@ -77,6 +236,9 @@ export default function ThreeScene() {
         orbitGenerator: planet.orbitGenerator,
       });
     });
+    
+    // Update ref after all planets are added
+    celestialBodiesRef.current = celestialBodies;
 
     // Raycaster setup for interactions
     const raycaster = new THREE.Raycaster();
@@ -220,35 +382,44 @@ export default function ThreeScene() {
     const animate = () => {
       requestAnimationFrame(animate);
       
-      // Calculate the time advancement based on slider position using scaling utility
-      const timeSpeed = scaleTimeSpeed(speedMultiplierRef.current);
-      
-      // Use scaled value for time advancement (handles up to 1 month)
-      const { scaledValue } = timeSpeed;
-      currentTime += scaledValue;
-
-      celestialBodies.forEach((body) => {
-        const position = body.orbitGenerator.getPositionAtTime(currentTime);
-        body.mesh.position.set(
-          position.position.x,
-          position.position.y,
-          position.position.z,
-        );
-
-        if (body.rotationSpeed) {
-          const planetMesh = body.mesh.children[0] as THREE.Mesh;
-          // Use absolute value for rotation speed to always rotate in the proper direction
-          // Scale by 0.01 to make rotation speed appropriate for day-based time units
-          const rotationAmount = body.rotationSpeed * Math.abs(scaledValue) * 0.01;
-          
-          // Determine rotation direction based on time direction
-          if (scaledValue >= 0) {
-            planetMesh.rotation.y += rotationAmount;
-          } else {
-            planetMesh.rotation.y -= rotationAmount;
-          }
+      // Only update time if not paused
+      if (!isPausedRef.current) {
+        // Get current speed option using index
+        const currentSpeed = speedScale[speedMultiplierRef.current];
+        const daysPerSecond = currentSpeed ? currentSpeed.daysPerSecond : 1/86400; // Default to real-time
+        
+        // Use daysPerSecond for time advancement (assuming 60fps)
+        currentTimeRef.current += daysPerSecond / 60; // Convert days-per-second to days-per-frame
+        
+        // Debug: Log time progression every 60 frames (once per second at 60fps)
+        if (Math.random() < 0.016) { // ~1 in 60 chance
+          const speedLabel = currentSpeed ? currentSpeed.label : "Real-time";
+          console.log(`Time: ${currentTimeRef.current.toFixed(2)} days, Speed: ${speedLabel}, Days/sec: ${daysPerSecond.toFixed(6)}`);
         }
-      });
+
+        celestialBodies.forEach((body) => {
+          const position = body.orbitGenerator.getPositionAtTime(currentTimeRef.current);
+          body.mesh.position.set(
+            position.position.x,
+            position.position.y,
+            position.position.z,
+          );
+
+          if (body.rotationSpeed) {
+            const planetMesh = body.mesh.children[0] as THREE.Mesh;
+            // Use absolute value for rotation speed to always rotate in the proper direction
+            // Scale by 0.01 to make rotation speed appropriate for day-based time units
+            const rotationAmount = body.rotationSpeed * Math.abs(daysPerSecond) * 0.01;
+            
+            // Determine rotation direction based on time direction
+            if (daysPerSecond >= 0) {
+              planetMesh.rotation.y += rotationAmount;
+            } else {
+              planetMesh.rotation.y -= rotationAmount;
+            }
+          }
+        });
+      }
 
       halos_and_labels.forEach((updateHalo) => updateHalo());
 
@@ -292,7 +463,7 @@ export default function ThreeScene() {
         <style jsx>{`
           .time-slider {
             -webkit-appearance: none;
-            background: linear-gradient(to right, #3b82f6 0%, #3b82f6 10%, #6b7280 50%, #f59e0b 90%, #f59e0b 100%);
+            background: linear-gradient(to right, #3b82f6 0%, #3b82f6 10%, #10b981 50%, #f59e0b 90%, #f59e0b 100%);
             cursor: pointer;
           }
           
@@ -329,46 +500,108 @@ export default function ThreeScene() {
             transform: scale(1.2);
             box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
           }
+          
+          .pause-button {
+            color: white;
+          }
+          
+          .pause-button-paused {
+            background-color: #10b981;
+          }
+          
+          .pause-button-playing {
+            background-color: #ef4444;
+          }
         `}</style>
-        <div className="text-white text-sm mb-4 flex flex-wrap sm:flex-nowrap items-center justify-between w-full">
-          <strong className="text-lg">Time Speed:</strong> 
-          <span className={`ml-2 font-mono ${speedMultiplier < 50 ? "text-blue-300" : speedMultiplier > 50 ? "text-amber-300" : "text-white"}`}>
-            {speedMultiplier < 50 ? "Past" : speedMultiplier > 50 ? "Future" : "Present"} 
+        <div className="text-white text-sm mb-4 flex flex-wrap sm:flex-nowrap items-center justify-between w-full gap-3">
+          <div className="flex flex-col">
+            <span 
+              className="text-cyan-400 font-bold text-lg cursor-pointer hover:text-cyan-300 transition-colors duration-200"
+              onClick={() => setShowDateTimePicker(true)}
+              title="Click to jump to specific date and time"
+            >
+              {currentDate ? formatSimulationDate(currentDate) : "Loading..."}
+            </span>
+          </div>
+          <span className={`font-mono ${isPaused ? 'text-gray-400' : currentSpeedOption.daysPerSecond < 0 ? "text-blue-300" : currentSpeedOption.daysPerSecond > 0 ? "text-amber-300" : "text-green-300"}`}>
+            {isPaused ? "Paused" : (currentSpeedOption.daysPerSecond < 0 ? "Past ◀" : currentSpeedOption.daysPerSecond > 0 ? "Future ▶" : "Real-time")} 
             <span className="bg-gray-800 px-3 py-1 rounded-md ml-2 font-bold text-lg shadow-inner shadow-white/10">
-              {getScaledTimeSpeed(speedMultiplier).formattedTime}
+              {isPaused ? "--" : getCurrentSpeedDisplay()}
             </span>
           </span>
         </div>
         
-        <div className="flex items-center w-full">
-          <span className="text-blue-300 text-xs mr-2 font-bold">Past</span>
+        <div className="flex items-center w-full mb-4">
+          <span className="text-blue-300 text-xs mr-2 font-bold">Past ◀</span>
           <input
             type="range"
             min="0"
-            max="100"
+            max={speedScale.length - 1}
             value={speedMultiplier}
             onChange={(e) => handleSliderChange(parseInt(e.target.value))}
             className="w-full h-5 appearance-none bg-gray-800 rounded-lg outline-none time-slider"
-            title="Time Travel Slider"
-            aria-label="Time Travel Control"
+            title="Time Speed Slider"
+            aria-label="Time Speed Control"
           />
-          <span className="text-amber-300 text-xs ml-2 font-bold">Future</span>
+          <span className="text-amber-300 text-xs ml-2 font-bold">Future ▶</span>
         </div>
         
-        {/* Time scale indicators */}
-        <div className="flex justify-between w-full px-1 mt-3 relative">
-          {/* Removed the individual segments in favor of the gradient background on the slider */}
-          
-          <span className="text-blue-200 text-xs font-semibold">-1 Month</span>
-          <span className="text-blue-200 text-xs">-1 Week</span>
-          <span className="text-white text-xs font-medium">Paused</span>
-          <span className="text-amber-200 text-xs">+1 Week</span>
-          <span className="text-amber-200 text-xs font-semibold">+1 Month</span>
+        <div className="flex items-center justify-center gap-3 w-full">
+          <button
+            onClick={togglePause}
+            className={`px-6 py-2 rounded-lg font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg pause-button ${isPaused ? 'pause-button-paused' : 'pause-button-playing'}`}
+            title={isPaused ? 'Resume' : 'Pause'}
+          >
+            {isPaused ? '▶ Play' : '⏸ Pause'}
+          </button>
+          <button
+            onClick={resetTime}
+            className="px-6 py-2 rounded-lg font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg bg-purple-600 hover:bg-purple-700 text-white"
+            title="Reset to current time and positions"
+          >
+            🔄 Reset
+          </button>
         </div>
         
-        <div className="text-white text-xs mt-2 opacity-70 text-center">
-          Drag the slider to adjust simulation speed — values show simulated time per real second
-        </div>
+        {/* Date/Time Picker Modal */}
+        {showDateTimePicker && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-600 max-w-md w-full mx-4">
+              <h3 className="text-white text-lg font-bold mb-4 text-center">Jump to Date & Time</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">Select Date and Time:</label>
+                  <input
+                    type="datetime-local"
+                    value={selectedDateTime}
+                    onChange={(e) => setSelectedDateTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:border-cyan-400 focus:outline-none"
+                    title="Select date and time to jump to"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowDateTimePicker(false)}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSimulationDateTime();
+                      setShowDateTimePicker(false);
+                    }}
+                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md font-medium transition-colors duration-200"
+                  >
+                    🚀 Jump
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
       </div>
     </div>
   );

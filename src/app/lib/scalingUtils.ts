@@ -201,8 +201,8 @@ export function getSceneBoundaries(): {
 export function scaleTimeSpeed(
   sliderValue: number
 ): { scaledValue: number; minutesPerSecond: number; formattedTime: string } {
-  // Convert slider value from 0-100 to -1 to 1 range
-  const normalizedValue = (sliderValue - 50) / 50;
+  // Map slider: 0=backward (past), 50=real-time (1:1), 100=very fast forward (future)
+  // We'll use exponential scaling from the center
   
   // Time constants
   const MINUTES_IN_HOUR = 60;
@@ -211,37 +211,61 @@ export function scaleTimeSpeed(
   const DAYS_IN_MONTH = 30.44; // Average month length
   const MINUTES_IN_DAY = MINUTES_IN_HOUR * HOURS_IN_DAY;
   
-  // The orbital period of Earth is 1 year (365.25 days)
-  // We want to scale our time so that at max speed, we can see significant orbital movement
+  // Real-time is 1 day per day (converted to days per second in the simulation)
+  // At 60 FPS, that's about 1/60/60/24 days per frame
+  // But we'll work in days per second for simplicity
+  const REAL_TIME_DAYS_PER_SECOND = 1 / (24 * 60 * 60); // ~0.0000115741 days/sec
   
-  // Get base time factor in days
   let daysPerSecond;
   
-  // Exponential scaling based on slider position:
-  // At center (50): 0 days/sec (paused)
-  // At extremes (0 or 100): Up to +/- 30 days/sec (1 month)
-  if (Math.abs(normalizedValue) > 0.9) {
-    // Near max: 20-30 days per second
-    daysPerSecond = 20 + (Math.abs(normalizedValue) - 0.9) * 100; // Up to 30 days
-  } else if (Math.abs(normalizedValue) > 0.7) {
-    // High: 7-20 days per second
-    daysPerSecond = 7 + (Math.abs(normalizedValue) - 0.7) * 65; // Up to 20 days
-  } else if (Math.abs(normalizedValue) > 0.5) {
-    // Medium-high: 3-7 days per second
-    daysPerSecond = 3 + (Math.abs(normalizedValue) - 0.5) * 20; // Up to 7 days
-  } else if (Math.abs(normalizedValue) > 0.3) {
-    // Medium: 1-3 days per second
-    daysPerSecond = 1 + (Math.abs(normalizedValue) - 0.3) * 10; // Up to 3 days
-  } else if (Math.abs(normalizedValue) > 0.1) {
-    // Low-medium: 0.25-1 day per second
-    daysPerSecond = 0.25 + (Math.abs(normalizedValue) - 0.1) * 3.75; // Up to 1 day
+  if (sliderValue === 50) {
+    // Exactly real-time
+    daysPerSecond = REAL_TIME_DAYS_PER_SECOND;
+  } else if (sliderValue < 50) {
+    // Going backward in time (PAST) - negative values (0 to 50)
+    // Map 0 = fast backward (-30 days/sec), 50 = real-time
+    const normalizedValue = sliderValue / 50; // 0 to 1
+    
+    if (normalizedValue < 0.2) {
+      // Extremely fast backward: -30 to -1 days/sec
+      const factor = normalizedValue / 0.2;
+      daysPerSecond = -(30 - factor * 29); // -30 to -1 days/sec
+    } else if (normalizedValue < 0.5) {
+      // Very fast backward: -1 day/sec to -1000x real-time
+      const factor = (normalizedValue - 0.2) / 0.3;
+      daysPerSecond = -(1 - factor * (1 - REAL_TIME_DAYS_PER_SECOND * 1000));
+    } else if (normalizedValue < 0.8) {
+      // Fast backward: -1000x to -100x real-time
+      const factor = (normalizedValue - 0.5) / 0.3;
+      daysPerSecond = -REAL_TIME_DAYS_PER_SECOND * (1000 - factor * 900);
+    } else {
+      // Slightly backward: -100x to -1x real-time
+      const factor = (normalizedValue - 0.8) / 0.2;
+      daysPerSecond = -REAL_TIME_DAYS_PER_SECOND * (100 - factor * 99);
+    }
   } else {
-    // Very low: 0-0.25 days per second (6 hours max)
-    daysPerSecond = Math.abs(normalizedValue) * 2.5; // Up to 0.25 days
+    // Going forward in time (FUTURE) - positive values (50 to 100)
+    // Map 50 = real-time, 100 = extremely fast forward
+    const normalizedValue = (sliderValue - 50) / 50; // 0 to 1
+    
+    if (normalizedValue < 0.2) {
+      // Slightly faster: 1x to 100x real-time
+      const factor = normalizedValue / 0.2;
+      daysPerSecond = REAL_TIME_DAYS_PER_SECOND * (1 + factor * 99);
+    } else if (normalizedValue < 0.5) {
+      // Fast: 100x to 1000x (can see hours pass quickly)
+      const factor = (normalizedValue - 0.2) / 0.3;
+      daysPerSecond = REAL_TIME_DAYS_PER_SECOND * (100 + factor * 900);
+    } else if (normalizedValue < 0.8) {
+      // Very fast: 1000x to 86400x (1 day per second)
+      const factor = (normalizedValue - 0.5) / 0.3;
+      daysPerSecond = REAL_TIME_DAYS_PER_SECOND * (1000 + factor * 85400);
+    } else {
+      // Extremely fast: 1 day/sec to 30 days/sec (1 month/sec)
+      const factor = (normalizedValue - 0.8) / 0.2;
+      daysPerSecond = 1 + factor * 29; // 1 to 30 days per second
+    }
   }
-  
-  // Apply sign based on direction
-  daysPerSecond *= Math.sign(normalizedValue);
   
   // Convert to minutes for display purposes
   const minutesPerSecond = daysPerSecond * MINUTES_IN_DAY;
