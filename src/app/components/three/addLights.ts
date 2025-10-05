@@ -3,7 +3,7 @@ import * as THREE from "three";
 export function addLights(scene: THREE.Scene) {
   const ambientLight = new THREE.AmbientLight(
     new THREE.Color(0.13, 0.13, 0.13),
-    0.5,
+    7,
   );
   scene.add(ambientLight);
 
