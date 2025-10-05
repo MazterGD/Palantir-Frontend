@@ -45,7 +45,6 @@ export default function MapView() {
   const neoId = searchParams.get("id") || "";
   const diameter = searchParams.get("diameter") || "";
   const density = searchParams.get("density") || "";
-  const energy = searchParams.get("energy") || "";
   const angle = searchParams.get("angle") || "";
   const velocity = searchParams.get("velocity") || "";
   const longitude = searchParams.get("long") || "";
@@ -58,7 +57,6 @@ export default function MapView() {
     id: parseInt(neoId),
     diameter: Number(diameter),
     density: Number(density),
-    energy: Number(energy),
     angle: Number(angle),
     velocity: Number(velocity),
     longitude: Number(longitude),
@@ -79,145 +77,6 @@ export default function MapView() {
     seafloorEnergy: 0, // J
     imFreq: 0,
   });
-
-  const [craterParams, setCraterParams] = useState<CraterResults>({
-    crTsDiam: 0,
-    crTsDepth: 0,
-    crDiam: 0,
-    crDepth: 0,
-    crVol: 0,
-    crVolMelt: 0,
-  });
-
-  function getTMParamsCalc(){
-    return calculateAtmosphericEntry({
-      pjDens: formData.density, // projectile density (kg/m^3)
-      pjDiam: formData.diameter, // projectile diameter (m)
-      pjVel: formData.velocity, // projectile velocity (km/s)
-      pjAngle: formData.angle, // impact angle (degrees)
-      rhoSurface: 1.225, // kg/m^3, air density at sea level
-      dragC: 1.0, // dimensionless, typical drag coefficient for a blunt object
-      scaleHeight: 8500, // m, atmospheric scale height (approximate)
-      G: 9.81, // m/s^2, gravitational acceleration
-      fp: 1.0, // dimensionless shape factor, usually 1 for spheres
-    });
-  }
-  
-  function getCraterParameters(){
-    const aTMParamsCalc = getTMParamsCalc()
-
-    const energyParamsCalc = calcAsteroidEnergy({
-      pjDiam: formData.diameter,
-      pjDens: formData.density,
-      pjAngle: formData.angle,
-      pjVel: aTMParamsCalc.imVel,
-      tgDepth: formData.depth,
-    });
-    setEnergyParams(energyParamsCalc);
-    const craterParamsCalc  =     calculateCrater({
-        pjDens: formData.density, // density (kg/m³)
-        pjDiam: formData.diameter, // diameter (m)
-        pjVel: formData.velocity, // velocity at entry (km/s)
-        pjAngle: formData.angle, // angle (deg)
-        abAltBreak: aTMParamsCalc.abAltBreak, // breakup altitude (m)
-        tgType: formData.trgt_type, // target type
-        tgDens: 2700, // target density (kg/m³)
-        tgDepth: formData.depth, // water depth (m)
-        crMass: energyParamsCalc.mass, // mass (kg)
-        imVel: aTMParamsCalc.imVel, // impact velocity (km/s)
-      });
-    setCraterParams(craterParamsCalc);
-    return craterParamsCalc;
-  };
-
-  // For creating the crater circle
-  function createCircle(
-    map: maplibregl.Map,
-    center: [number, number],
-    radius: number,
-  ){
-    const options = { steps: 64, units: "kilometers" as const };
-    const circle = turf.circle(center, radius, options);
-
-    // Add GeoJSON source
-    if (!map.getSource("location-radius")) {
-      map.addSource("location-radius", {
-        type: "geojson",
-        data: circle,
-      });
-    } else {
-      // update existing source if circle already exists
-      (map.getSource("location-radius") as maplibregl.GeoJSONSource).setData(
-        circle,
-      );
-    }
-
-    // Fill layer
-    if (!map.getLayer("location-radius")) {
-      map.addLayer({
-        id: "location-radius",
-        type: "fill",
-        source: "location-radius",
-        paint: {
-          "fill-color": "#aa7e58ff",
-          "fill-opacity": 0.5,
-        },
-      });
-    }
-
-    // Outline layer
-    if (!map.getLayer("location-radius-outline")) {
-      map.addLayer({
-        id: "location-radius-outline",
-        type: "line",
-        source: "location-radius",
-        paint: {
-          "line-color": "#b2743dff",
-          "line-width": 3,
-        },
-      });
-    }
-  };
-  
-  // Function to toggle layer visibility
-  function toggleLayer(layerId: string, visible: boolean){
-    if (!map.current) return;
-    if (map.current.getLayer(layerId)) {
-      map.current.setLayoutProperty(
-        layerId,
-        "visibility",
-        visible ? "visible" : "none",
-      );
-    }
-  };
-
-  function handleSubmit(){
-    console.log("handle sumit pressed")
-    if (!map.current || !mapContainer.current) return;
-
-    const crater_params = getCraterParameters();
-    console.log(crater_params)
-    const circleRadius = crater_params.crDiam ? crater_params.crDiam / 1000 : 0;
-
-    console.log("Drawing crater");
-
-    // Remove existing layers and source if they exist
-    if (map.current.getLayer("location-radius")) {
-      map.current.removeLayer("location-radius");
-    }
-    if (map.current.getLayer("location-radius-outline")) {
-      map.current.removeLayer("location-radius-outline");
-    }
-    if (map.current.getSource("location-radius")) {
-      map.current.removeSource("location-radius");
-    }
-
-    createCircle(
-      map.current!,
-      [Number(formData.longitude), Number(formData.latitude)],
-      circleRadius,
-    );
-  }
 
   // Watch for changes in layersState
   useEffect(() => {
@@ -259,7 +118,7 @@ export default function MapView() {
     map.current = new maplibregl.Map({
       container: mapContainer.current,
       style: "/styles/custom_map.json",
-      center: [79.900756, 6.795024], // UOM coordinates
+      center: [formData.longitude, formData.latitude], // UOM coordinates
       zoom: 13.0,
       maxZoom: 15.5,
       minZoom: 1.5,
@@ -279,6 +138,136 @@ export default function MapView() {
       map.current?.remove();
     };
   }, []);
+
+  function getTMParamsCalc() {
+    return calculateAtmosphericEntry({
+      pjDens: formData.density, // projectile density (kg/m^3)
+      pjDiam: formData.diameter, // projectile diameter (m)
+      pjVel: formData.velocity, // projectile velocity (km/s)
+      pjAngle: formData.angle, // impact angle (degrees)
+      rhoSurface: 1.225, // kg/m^3, air density at sea level
+      dragC: 1.0, // dimensionless, typical drag coefficient for a blunt object
+      scaleHeight: 8500, // m, atmospheric scale height (approximate)
+      G: 9.81, // m/s^2, gravitational acceleration
+      fp: 1.0, // dimensionless shape factor, usually 1 for spheres
+    });
+  }
+
+  function getCraterParameters() {
+    const aTMParamsCalc = getTMParamsCalc();
+
+    const energyParamsCalc = calcAsteroidEnergy({
+      pjDiam: formData.diameter,
+      pjDens: formData.density,
+      pjAngle: formData.angle,
+      pjVel: aTMParamsCalc.imVel,
+      tgDepth: formData.depth,
+    });
+    setEnergyParams(energyParamsCalc);
+    const craterParamsCalc = calculateCrater({
+      pjDens: formData.density, // density (kg/m³)
+      pjDiam: formData.diameter, // diameter (m)
+      pjVel: formData.velocity, // velocity at entry (km/s)
+      pjAngle: formData.angle, // angle (deg)
+      abAltBreak: aTMParamsCalc.abAltBreak, // breakup altitude (m)
+      tgType: formData.trgt_type, // target type
+      tgDens: 2700, // target density (kg/m³)
+      tgDepth: formData.depth, // water depth (m)
+      crMass: energyParamsCalc.mass, // mass (kg)
+      imVel: aTMParamsCalc.imVel, // impact velocity (km/s)
+    });
+
+    return craterParamsCalc;
+  }
+
+  // For creating the crater circle
+  function createCircle(
+    map: maplibregl.Map,
+    center: [number, number],
+    radius: number,
+  ) {
+    const options = { steps: 64, units: "kilometers" as const };
+    const circle = turf.circle(center, radius, options);
+
+    // Add GeoJSON source
+    if (!map.getSource("location-radius")) {
+      map.addSource("location-radius", {
+        type: "geojson",
+        data: circle,
+      });
+    } else {
+      // update existing source if circle already exists
+      (map.getSource("location-radius") as maplibregl.GeoJSONSource).setData(
+        circle,
+      );
+    }
+
+    // Fill layer
+    if (!map.getLayer("location-radius")) {
+      map.addLayer({
+        id: "location-radius",
+        type: "fill",
+        source: "location-radius",
+        paint: {
+          "fill-color": "#aa7e58ff",
+          "fill-opacity": 0.5,
+        },
+      });
+    }
+
+    // Outline layer
+    if (!map.getLayer("location-radius-outline")) {
+      map.addLayer({
+        id: "location-radius-outline",
+        type: "line",
+        source: "location-radius",
+        paint: {
+          "line-color": "#b2743dff",
+          "line-width": 3,
+        },
+      });
+    }
+  }
+
+  // Function to toggle layer visibility
+  function toggleLayer(layerId: string, visible: boolean) {
+    if (!map.current) return;
+    if (map.current.getLayer(layerId)) {
+      map.current.setLayoutProperty(
+        layerId,
+        "visibility",
+        visible ? "visible" : "none",
+      );
+    }
+  }
+
+  function handleSubmit() {
+    console.log("handle sumit pressed");
+    if (!map.current || !mapContainer.current) return;
+
+    const crater_params = getCraterParameters();
+    console.log(crater_params);
+    const circleRadius = crater_params.crDiam ? crater_params.crDiam / 1000 : 0;
+
+    console.log("Drawing crater");
+
+    // Remove existing layers and source if they exist
+    if (map.current.getLayer("location-radius")) {
+      map.current.removeLayer("location-radius");
+    }
+    if (map.current.getLayer("location-radius-outline")) {
+      map.current.removeLayer("location-radius-outline");
+    }
+    if (map.current.getSource("location-radius")) {
+      map.current.removeSource("location-radius");
+    }
+
+    createCircle(
+      map.current!,
+      [Number(formData.longitude), Number(formData.latitude)],
+      circleRadius,
+    );
+  }
 
   return (
     <div className="w-full h-screen relative">
