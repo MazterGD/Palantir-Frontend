@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
@@ -17,6 +16,8 @@ import {
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
+import SearchUI from "./SearchUI";
+import { useAsteroidSelection } from "../lib/useAsteroidSelection";
 
 // Extend Planet interface to include orbitGenerator for celestial bodies
 interface CelestialBody extends Planet {
@@ -25,6 +26,46 @@ interface CelestialBody extends Planet {
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
+  const [celestialBodiesMap, setCelestialBodiesMap] = useState<Map<string, CelestialBody>>(new Map());
+  const [showSearchUI, setShowSearchUI] = useState(false);
+  
+  // Store references to the Three.js objects
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<any>(null);
+
+  // Add effect to handle spacebar key to open search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Open search UI when spacebar is pressed and not in an input field
+      if (e.key === " " && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        setShowSearchUI(true);
+      }
+      
+      // Close on escape
+      if (e.key === "Escape") {
+        setShowSearchUI(false);
+      }
+    };
+    
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+  
+  // Handle clicks outside the search panel to close it
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showSearchUI && 
+          searchContainerRef.current && 
+          !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchUI(false);
+      }
+    };
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSearchUI]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -35,7 +76,13 @@ export default function ThreeScene() {
     camera.position.set(0, cameraDistance * 0.065, 0);
     camera.lookAt(0, 0, 0);
     
+    // Store camera reference
+    cameraRef.current = camera;
+    
     const controls = setupControls(camera, renderer);
+    
+    // Store controls reference
+    controlsRef.current = controls;
 
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
@@ -52,11 +99,18 @@ export default function ThreeScene() {
       scene.add(planet.mesh);
       scene.add(planet.orbitLine);
 
-      celestialBodies.push({
+      const celestialBody = {
         ...planet,
         orbitGenerator: planet.orbitGenerator,
-      });
+      };
+      celestialBodies.push(celestialBody);
+      
+      // Add to the map using planet.id for search functionality
+      celestialBodiesMap.set(planet.id, celestialBody);
     });
+    
+    // Update the state with all celestial bodies
+    setCelestialBodiesMap(new Map(celestialBodiesMap));
 
     // Raycaster setup for interactions
     const raycaster = new THREE.Raycaster();
@@ -204,6 +258,8 @@ export default function ThreeScene() {
     controls.minDistance = 10;
     controls.maxDistance = cameraDistance * 2;
 
+    // We're using useRef to store Three.js objects instead of DOM element properties
+    
     const animate = () => {
       requestAnimationFrame(animate);
 
@@ -256,5 +312,71 @@ export default function ThreeScene() {
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />;
+  // Use the asteroid selection hook
+  const { handleCelestialBodySelection } = useAsteroidSelection({
+    camera: cameraRef.current,
+    controls: controlsRef.current,
+    celestialBodiesMap,
+  });
+
+  // Handler for when a celestial body is selected in the search UI
+  const handleSelectCelestialBody = async (bodyId: string, type: string) => {
+    setShowSearchUI(false);
+    await handleCelestialBodySelection(bodyId, type);
+  };
+
+  // Toggle search UI visibility
+  const toggleSearchUI = () => {
+    setShowSearchUI(prevState => !prevState);
+  };
+  
+  // Focus the search input when the search UI is shown
+  useEffect(() => {
+    if (showSearchUI) {
+      const timeoutId = setTimeout(() => {
+        const searchInput = document.querySelector('.search-input') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }, 10);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [showSearchUI]);
+
+  return (
+    <>
+      <div ref={mountRef} className="w-full h-screen" />
+      
+      {/* Search Button */}
+      <button 
+        onClick={toggleSearchUI}
+        className="fixed top-4 right-4 bg-slate-900/75 backdrop-blur border-none rounded-full w-10 h-10 flex items-center justify-center cursor-pointer z-[100] shadow-[0_2px_10px_rgba(0,0,0,0.2)] hover:bg-slate-900/90 transition-colors"
+        aria-label="Open search"
+      >
+        <svg 
+          width="20" 
+          height="20" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          className="text-white"
+        >
+          <path 
+            d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      
+      {showSearchUI && (
+        <div ref={searchContainerRef}>
+          <SearchUI onSelectBody={handleSelectCelestialBody} />
+        </div>
+      )}
+    </>
+  );
 }

@@ -10,6 +10,7 @@ import { addObjectLabel } from "../objectLabel";
 import { createLabel } from "../objectTextLables";
 
 export interface Planet {
+  id: string;     // Added id property
   name: string;
   orbitGenerator: ScaledOrbitGenerator;
   diameter: number;
@@ -126,6 +127,7 @@ halos_and_labels.push(labelResult.update);
     rotationPeriod !== 0 ? (2 * Math.PI) / (rotationPeriod / 24) : 0;
 
   return {
+  id: name,  // Added id as lowercase planetName to use for searching
   name: planetName,
   orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
   diameter: diameter * 0.0001,
