@@ -750,24 +750,20 @@ export default function ThreeScene() {
       celestialBodiesRef.push(asteroidBody);
 
       // Add ONLY the mesh and label to interactive objects
+//       interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+      
+//       if (asteroid.labelSprite) {
+//         interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
+//       }
+      
+
+      // if (asteroid.labelSprite) {
+      //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
+      // }
       interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
-      
-      if (asteroid.labelSprite) {
-        interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
-      }
-      
-      // DO NOT add orbit line to interactiveObjectsRef - this causes the error!
-      
-      // Debug log for first asteroid
-      if (index === 0) {
-        console.log("First asteroid added:", {
-          name: asteroid.name,
-          mesh: asteroid.mesh,
-          isPoints: asteroid.mesh instanceof THREE.Points,
-          hasGeometry: !!(asteroid.mesh as any).geometry,
-          interactiveMapSize: interactiveObjectsRef.size
-        });
-      }
+      // if (asteroid.orbitLine) {
+      //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
+      // }
     });
     
     console.log("Total interactive objects:", interactiveObjectsRef.size);

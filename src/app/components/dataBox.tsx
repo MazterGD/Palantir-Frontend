@@ -6,6 +6,8 @@ import DataRow from "./ui/dataRow";
 import LoadingAnimation from "./ui/asteroidLoading";
 import { useAsteroidOne } from "../hooks/useAsteroidOne";
 import FetchFailed from "./ui/fetchFailed";
+import { useRouter } from "next/navigation";
+import { GiAsteroid } from "react-icons/gi";
 
 interface AsteroidVisualizerProps {
   id: string;
@@ -16,35 +18,21 @@ export default function AsteroidVisualizer({
   id,
   onCloseHandler,
 }: AsteroidVisualizerProps) {
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState("overview");
+  const [location, setLocation] = useState<{
+    long: number;
+    lat: number;
+  }>({ long: 79.900756, lat: 6.795024 });
   const {
     asteroid: asteroidData,
     loading,
     error: errorData,
   } = useAsteroidOne(id);
 
-  function handleSeeImpact() {
-    console.log("See impact is clicked");
-  }
-
-  // Calculate impact data (simplified for demonstration)
-  const impactData = asteroidData
-    ? {
-        mass: 6.336e15, // kg
-        kineticEnergy: 4.405e22, // J
-        energyMegatons: 1.052e7, // Mt TNT
-        impactEnergy: 4.405e22, // J
-        impactMegatons: 1.052e7, // Mt TNT
-        linearMomentum: 2.362e19, // kg·m/s
-        angularMomentum: 1.505e26, // kg·m²/s
-        seafloorVelocity: 3.728, // km/s
-        seafloorEnergy: 4.405e22, // J
-        imFreq: 1e-7, // years^-1
-      }
-    : null;
-
   // Helper to format dates
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr:any) => {
     if (!dateStr) return "N/A";
     const date = new Date(dateStr);
     return date.toLocaleDateString("en-US", {
@@ -55,7 +43,7 @@ export default function AsteroidVisualizer({
   };
 
   // Helper to format epoch date
-  const formatEpochDate = (epoch) => {
+  const formatEpochDate = (epoch:any) => {
     if (!epoch) return "N/A";
     const date = new Date(epoch * 1000);
     return date.toLocaleDateString("en-US", {
@@ -68,7 +56,7 @@ export default function AsteroidVisualizer({
   };
 
   return (
-    <div className="top-4 left-4 w-full max-w-sm h-[85vh] bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-700/90 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-600/40 overflow-hidden relative transition-all duration-500">
+    <div className="top-4 left-4 w-full max-w-xs h-[85vh] bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-700/90 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-600/40 overflow-hidden relative transition-all duration-500">
       {loading ? (
         <LoadingAnimation />
       ) : asteroidData != null ? (
@@ -107,41 +95,28 @@ export default function AsteroidVisualizer({
             </p>
             <div className="mt-5 flex gap-3">
               <span
-                className={`px-4 py-1 rounded-full flex items-center text-xs font-semibold tracking-wide ${
+                className={`px-2 py-2 rounded-full flex items-center text-xs tracking-wide ${
                   asteroidData.is_potentially_hazardous_asteroid
                     ? "bg-red-600/50 text-red-100 border border-red-500/60 shadow-white/50]"
                     : "bg-green-600/50 text-green-100 border border-green-500/60 shadow-white/50"
-                } transition-all duration-200 hover:scale-105`}
+                } transition-all duration-200 `}
               >
                 {asteroidData.is_potentially_hazardous_asteroid
                   ? "HAZARDOUS"
                   : "SAFE"}
               </span>
-              <span className="px-4 py-1 rounded-full flex items-center text-xs font-semibold tracking-wide bg-slate-600/50 text-slate-100 border border-slate-500/60 hover:bg-slate-500/60 hover:scale-105 transition-all duration-200">
+              <span className="px-4 py-1 rounded-full flex items-center text-xs  tracking-wide bg-slate-600/50 text-slate-100 border border-slate-500/60 hover:bg-slate-500/60 transition-all duration-200">
                 {asteroidData.orbital_data.orbit_class.orbit_class_type}
               </span>
-              <div className="flex-1 flex justify-end">
-                <button
-                  onClick={handleSeeImpact}
-                  className="px-6 py-1 rounded-full flex items-center text-sm font-semibold bg-gradient-to-r from-slate-500 to-slate-600 text-white border border-slate-400/60 hover:from-slate-600 hover:to-slate-700 hover:border-slate-300/70 transition-all duration-300 gap-2 cursor-pointer shadow-white/30 hover:shadow-white/80"
-                  title="View calculated impact parameters"
-                  aria-label="View impact data"
+
+              <div className="px-6 py-1 rounded-full bg-gradient-to-r from-slate-500 to-slate-600 text-white border border-slate-400/60 hover:from-slate-600 hover:to-slate-700 hover:border-slate-300/70 transition-all duration-300 gap-2 cursor-pointer shadow-white/30 hover:shadow-white/80">
+                <a
+                  href={`hit_map?name=${asteroidData?.name}&id=${asteroidData?.id}&diameter=${asteroidData?.estimated_diameter.meters.estimated_diameter_max}&density=${4000}&energy=${0}&angle=${1}&velocity=${10}&long=${location?.long}&lat=${location?.lat}&depth=${0}&trgt_type=${""}`}
+                  className="flex items-center gap-2 py-1"
                 >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                  See Impact
-                </button>
+                  <GiAsteroid />
+                  <p className="text-xs">See Impact</p>
+                </a>
               </div>
             </div>
           </div>
@@ -150,7 +125,7 @@ export default function AsteroidVisualizer({
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-4 text-sm font-semibold tracking-wide transition-all duration-300 ${
+                className={`flex-1 py-2 text-sm tracking-wide transition-all duration-300 ${
                   activeTab === tab
                     ? "text-slate-200 border-b-2 border-slate-400 bg-slate-800/20 shadow-white/50"
                     : "text-slate-400 hover:text-slate-100 hover:bg-slate-700/10"
@@ -161,7 +136,7 @@ export default function AsteroidVisualizer({
             ))}
           </div>
 
-          <div className="p-6 overflow-y-auto h-[calc(85vh-240px)] custom-scrollbar">
+          <div className="p-6 overflow-y-auto h-[calc(85vh-240px)] custom-scrollbar hide-scrollbar">
             {activeTab === "overview" && (
               <div className="space-y-6">
                 <DataCard title="Physical Properties">
@@ -187,7 +162,7 @@ export default function AsteroidVisualizer({
                 </DataCard>
 
                 <DataCard title="Orbit Classification">
-                  <p className="text-slate-300 text-sm leading-relaxed mb-3">
+                  <p className="text-slate-300 text-xs leading-relaxed mb-3">
                     {
                       asteroidData.orbital_data.orbit_class
                         .orbit_class_description
@@ -253,7 +228,7 @@ export default function AsteroidVisualizer({
                     className="bg-gradient-to-br from-slate-800/30 to-slate-700/30 rounded-xl p-5 border border-slate-600/30 hover:border-slate-500/50 transition-all duration-300 shadow-white/50"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-slate-200 font-semibold">
+                      <span className="text-slate-200">
                         {formatDate(approach.close_approach_date)}
                       </span>
                       <span className="px-3 py-1 bg-slate-600/50 text-slate-200 text-xs rounded-full border border-slate-500/40">
@@ -261,7 +236,7 @@ export default function AsteroidVisualizer({
                       </span>
                     </div>
 
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-2 text-xs">
                       <DataRow
                         label="Miss Distance (AU)"
                         value={approach.miss_distance.astronomical.toFixed(4)}

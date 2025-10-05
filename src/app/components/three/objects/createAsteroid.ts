@@ -9,6 +9,7 @@ import { AsteroidData } from "@/app/lib/asteroidData";
 import { createLabel } from "../objectTextLables";
 import { kmToRenderUnits } from "@/app/lib/scalingUtils";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { addObjectLabel } from "../objectLabel";
 
 export interface Asteroid {
   id: string;
@@ -64,8 +65,27 @@ export const createAsteroid = (
 
   const points = new THREE.Points(geometry, material);
 
-  // Create initial orbit line (hidden)
-  let orbitLineResult = scaledGenerator.generateOrbitLine(camera, points, {
+    const texturePath = "/textures/Sprites/circle.png";
+    let map: THREE.Texture | undefined;
+    if (texturePath) {
+      map = new THREE.TextureLoader().load(texturePath);
+    }
+  
+    const SPRITE_BASE_SIZE = 1;
+  
+    const haloResult = addObjectLabel(points as any, camera, {
+      texture: map,
+      size: SPRITE_BASE_SIZE,
+      minDistance: 10,
+      maxDistance: 200,
+      opacity: 1,
+      fadeNear: 10 * 0.9,
+      fadeFar: 100,
+    });
+
+    halos_and_labels.push(haloResult.update);
+
+  const orbitLineResult = scaledGenerator.generateOrbitLine(camera, points, {
     color: "#ffffff",
     ...ORBIT_PRESETS.subtle,
     minDistance: 0.01,
