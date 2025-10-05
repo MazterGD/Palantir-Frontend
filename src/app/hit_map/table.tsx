@@ -3,7 +3,7 @@
 import { AsteroidImpactResult } from "./types";
 
 const ImpactTable = ({ data }: { data: AsteroidImpactResult }) => {
-  function formatNumber(value, type) {
+  function formatNumber(value:number, type:string) {
     if (value === 0) return { value: "0", unit: getBaseUnit(type) };
 
     if (type === "imFreq") {
@@ -102,7 +102,7 @@ const ImpactTable = ({ data }: { data: AsteroidImpactResult }) => {
     return { value: formattedValue, unit };
   }
 
-  function getBaseUnit(type) {
+  function getBaseUnit(type:string) {
     switch (type) {
       case "mass":
         return "kg";
