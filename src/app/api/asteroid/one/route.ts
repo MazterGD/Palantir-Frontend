@@ -28,7 +28,6 @@ export async function GET(request: Request) {
     }
 
     const asteroid = await response.json();
-    console.log(asteroid);
     console.log("Filter API response received, data id:", asteroid.id);
 
     // The API now returns the asteroid object directly, not wrapped in data.data[0]
@@ -99,10 +98,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(transformedData);
   } catch (error) {
-    console.error("Error in filtered asteroids API route:", error);
+    console.error("Error in asteroid API route:", error);
     return NextResponse.json(
       {
-        error: "Failed to fetch filtered asteroids data",
+        error: "Failed to fetch asteroid data",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },

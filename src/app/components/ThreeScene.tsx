@@ -18,8 +18,9 @@ import {
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import AsteroidVisualizer from "./dataBox";
+import SelectedBodyPanel from "./selectBodyPanel";
 
-interface CelestialBody {
+export interface CelestialBody {
   id?: string;
   mesh: THREE.Group | THREE.Points;
   orbitGenerator: any;
@@ -45,7 +46,7 @@ interface CelestialBody {
 let sceneRef: THREE.Scene | null = null;
 let cameraRef: THREE.PerspectiveCamera | null = null;
 let celestialBodiesRef: CelestialBody[] = [];
-let interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
+const interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
 let halosAndLabelsRef: (() => void)[] = [];
 let currentSelectedBody: CelestialBody | null = null;
 let currentTimeRef = 0;
@@ -732,187 +733,20 @@ export default function ThreeScene() {
       )}
 
       {selectedBody && (
-        <div
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            backgroundColor: "rgba(0, 0, 0, 0.95)",
-            color: "white",
-            padding: "15px",
-            borderRadius: "8px",
-            zIndex: 1001,
-            fontSize: "14px",
-            minWidth: "300px",
-            border: "2px solid #4fc3f7",
-          }}
-        >
-          <h3 style={{ margin: "0 0 10px 0", color: "#4fc3f7" }}>
-            Selected: {selectedBody.name}
-          </h3>
-          <div style={{ marginBottom: "10px", fontSize: "12px", opacity: 0.8 }}>
-            ID: {selectedBody.id || "N/A"}
-          </div>
-
-          {"applyForce" in selectedBody && (
-            <div style={{ marginTop: "15px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
-                Apply Force (N):
-              </div>
-
-              <div style={{ marginBottom: "8px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    marginBottom: "3px",
-                  }}
-                >
-                  X:
-                </label>
-                <input
-                  type="number"
-                  value={forceX}
-                  onChange={(e) => setForceX(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "5px",
-                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid #4fc3f7",
-                    borderRadius: "4px",
-                    color: "white",
-                  }}
-                />
-              </div>
-
-              <div style={{ marginBottom: "8px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    marginBottom: "3px",
-                  }}
-                >
-                  Y:
-                </label>
-                <input
-                  type="number"
-                  value={forceY}
-                  onChange={(e) => setForceY(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "5px",
-                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid #4fc3f7",
-                    borderRadius: "4px",
-                    color: "white",
-                  }}
-                />
-              </div>
-
-              <div style={{ marginBottom: "8px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    marginBottom: "3px",
-                  }}
-                >
-                  Z:
-                </label>
-                <input
-                  type="number"
-                  value={forceZ}
-                  onChange={(e) => setForceZ(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "5px",
-                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid #4fc3f7",
-                    borderRadius: "4px",
-                    color: "white",
-                  }}
-                />
-              </div>
-
-              <div style={{ marginBottom: "12px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    marginBottom: "3px",
-                  }}
-                >
-                  Delta Time (s):
-                </label>
-                <input
-                  type="number"
-                  value={deltaTime}
-                  onChange={(e) => setDeltaTime(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "5px",
-                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid #4fc3f7",
-                    borderRadius: "4px",
-                    color: "white",
-                  }}
-                />
-              </div>
-
-              <button
-                onClick={applyForceToSelectedAsteroid}
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  backgroundColor: "#4fc3f7",
-                  border: "none",
-                  borderRadius: "4px",
-                  color: "black",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  marginBottom: "8px",
-                }}
-              >
-                Apply Force
-              </button>
-
-              <button
-                onClick={() => showOrbitForBody(selectedBody)}
-                style={{
-                  width: "100%",
-                  padding: "6px",
-                  backgroundColor: "rgba(79, 195, 247, 0.3)",
-                  border: "1px solid #4fc3f7",
-                  borderRadius: "4px",
-                  color: "#4fc3f7",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  marginBottom: "8px",
-                }}
-              >
-                Highlight Orbit
-              </button>
-
-              <button
-                onClick={clearSelection}
-                style={{
-                  width: "100%",
-                  padding: "6px",
-                  backgroundColor: "rgba(255, 100, 100, 0.3)",
-                  border: "1px solid #ff6464",
-                  borderRadius: "4px",
-                  color: "#ff6464",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                }}
-              >
-                Clear Selection
-              </button>
-            </div>
-          )}
-        </div>
+        <SelectedBodyPanel
+          selectedBody={selectedBody}
+          forceX={forceX}
+          forceY={forceY}
+          forceZ={forceZ}
+          deltaTime={deltaTime}
+          setForceX={setForceX}
+          setForceY={setForceY}
+          setForceZ={setForceZ}
+          setDeltaTime={setDeltaTime}
+          applyForceToSelectedAsteroid={applyForceToSelectedAsteroid}
+          showOrbitForBody={showOrbitForBody}
+          clearSelection={clearSelection}
+        />
       )}
 
       {error && (

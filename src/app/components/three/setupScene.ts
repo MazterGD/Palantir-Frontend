@@ -20,7 +20,7 @@ export function setupScene(container: HTMLDivElement) {
     (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
 
   // --- Set scaling ---
-  const ResScalling = isMobile ? 1 : 2;
+  const ResScalling = isMobile ? 1 : 1;
 
   renderer.setSize(
     container.clientWidth * ResScalling,

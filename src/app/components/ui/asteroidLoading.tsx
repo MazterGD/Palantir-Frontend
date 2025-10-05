@@ -1,7 +1,7 @@
 export default function LoadingAnimation() {
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <div className="w-full max-w-md h-[80vh] bg-gradient-to-br from-slate-900/40 via-slate-800/30 to-slate-700/40 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-500/30 overflow-hidden relative flex items-center justify-center">
+      <div className="w-full max-w-md h-full bg-gradient-to-br from-slate-900/40 via-slate-800/30 to-slate-700/40 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-500/30 overflow-hidden relative flex items-center justify-center">
         <div className="absolute inset-0">
           {[...Array(30)].map((_, i) => (
             <div

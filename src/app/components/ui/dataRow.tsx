@@ -4,7 +4,7 @@ export default function DataRow({
   unit,
 }: {
   label: string;
-  value: string | number;
+  value: string | number | React.ReactNode;
   unit?: string;
 }) {
   return (
