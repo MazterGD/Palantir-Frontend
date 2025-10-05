@@ -1,7 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+
+// Simple debounce function to limit how often slider updates during continuous zoom
+function debounce<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+
+  return function(...args: Parameters<T>) {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
@@ -15,6 +30,9 @@ import {
   getSceneBoundaries,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
+import { moveCamera } from "./three/cameraUtils";
+import ControlPanel from "./ControlPanel";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 interface CelestialBody {
   id?: string;
@@ -51,66 +69,10 @@ let controlsRef: any = null;
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [sceneInitialized, setSceneInitialized] = useState(false);
-  const [selectedBody, setSelectedBody] = useState<CelestialBody | null>(null);
-  const [forceX, setForceX] = useState("1000");
-  const [forceY, setForceY] = useState("0");
-  const [forceZ, setForceZ] = useState("0");
-  const [deltaTime, setDeltaTime] = useState("1");
-  const [uiVersion, setUiVersion] = useState(0);
-
-  const { asteroids: asteroidsData, loading } = useAsteroidsBulk(1, 1500);
-
-  useEffect(() => {
-    if (asteroidsData && sceneInitialized) {
-      setIsLoading(false);
-    }
-  }, [asteroidsData, sceneInitialized]);
-
-  const applyForceToSelectedAsteroid = () => {
-    if (!selectedBody || !selectedBody.applyForce) {
-      alert("No asteroid selected or force function not available");
-      return;
-    }
-
-    const force = {
-      x: parseFloat(forceX),
-      y: parseFloat(forceY),
-      z: parseFloat(forceZ),
-    };
-
-    const dt = parseFloat(deltaTime);
-
-    if (isNaN(force.x) || isNaN(force.y) || isNaN(force.z) || isNaN(dt)) {
-      alert("Please enter valid numbers for force and time");
-      return;
-    }
-
-    selectedBody.applyForce(force, dt, currentTimeRef);
-
-    if (selectedBody.orbitLine && selectedBody.orbitGenerator) {
-      const positions: number[] = [];
-      const steps = 360;
-      for (let i = 0; i <= steps; i++) {
-        const t = (i / steps) * Math.PI * 2;
-        const pos = selectedBody.orbitGenerator.getPositionAtTime(
-          currentTimeRef + t * 100
-        );
-        positions.push(pos.position.x, pos.position.y, pos.position.z);
-      }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(positions, 3)
-      );
-      (selectedBody.orbitLine as THREE.Line).geometry.dispose();
-      (selectedBody.orbitLine as THREE.Line).geometry = geometry;
-    }
-
-    setUiVersion((v) => v + 1);
-    alert(`Force applied to ${selectedBody.name}`);
-  };
+  const [controlsRef, setControlsRef] = useState<OrbitControls | null>(null);
+  const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
+  const [initialCameraPosition, setInitialCameraPosition] = useState<THREE.Vector3 | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -120,13 +82,26 @@ export default function ThreeScene() {
     let renderer: THREE.WebGLRenderer;
     let controls: any;
 
-    const initScene = () => {
-      sceneRef = null;
-      cameraRef = null;
-      celestialBodiesRef = [];
-      interactiveObjectsRef.clear();
-      halosAndLabelsRef = [];
-      currentSelectedBody = null;
+    const { scene, camera, renderer } = setupScene(mountRef.current);
+    const cameraDistance = getRecommendedCameraDistance();
+
+    // Set camera at approximately 40 degrees from the z-axis
+    const angleFromY = 50 * (Math.PI / 180); // Convert to radians (90 - 40 = 50)
+    const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
+
+    // Calculate position based on spherical coordinates
+    const x = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
+    const y = cameraDistance * 0.065 * Math.cos(angleFromY);
+    const z = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
+
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+    camera.up.set(0, 0, 1); // Ensure z-up orientation
+
+    setCameraRef(camera);
+
+    const controls = setupControls(camera, renderer);
+    setControlsRef(controls);
 
       const setup = setupScene(mountRef.current!);
       const scene = setup.scene;
@@ -149,34 +124,46 @@ export default function ThreeScene() {
       let currentTime = 0;
       const speedMultiplier = 0.1;
 
-      const { sun, update: updateSun } = createSun(camera);
-      scene.add(sun);
+    // Create mapping of interactive objects to planets
+    const interactiveObjects: Map<THREE.Object3D, CelestialBody> = new Map();
+    planets.forEach((planet) => {
+      // Map sprites to planet
+      if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
+    });
 
-      const planets = createAllPlanets(camera, halosAndLabelsRef);
-      planets.forEach((planet) => {
-        scene.add(planet.mesh);
-        scene.add(planet.orbitLine);
+    // Helper function to highlight planet
+    const highlightPlanet = (planet: CelestialBody, highlighted: boolean) => {
+      // Highlight halo
+      if (planet.setHaloHighlight) {
+        planet.setHaloHighlight(highlighted);
+      }
 
-        const celestialBody: CelestialBody = {
-          mesh: planet.mesh,
-          orbitGenerator: planet.orbitGenerator,
-          rotationSpeed: planet.rotationSpeed,
-          diameter: planet.diameter,
-          color: planet.color,
-          name: planet.name,
-          haloSprite: planet.haloSprite,
-          labelSprite: planet.labelSprite,
-          setHaloHighlight: planet.setHaloHighlight,
-          setLabelHighlight: planet.setLabelHighlight,
-        };
+      // Highlight label
+      if (planet.setLabelHighlight) {
+        planet.setLabelHighlight(highlighted);
+      }
 
-        celestialBodiesRef.push(celestialBody);
+      // Highlight orbit line
+      if (planet.orbitLine && planet.orbitLine.material) {
+        const lineMaterial = planet.orbitLine.material as LineMaterial;
+        lineMaterial.opacity = highlighted ? 1.0 : 0.7;
+        lineMaterial.linewidth = highlighted ? 5 : 3;
+      }
 
-        if (planet.haloSprite) {
-          interactiveObjectsRef.set(planet.haloSprite, celestialBody);
-        }
-        if (planet.labelSprite) {
-          interactiveObjectsRef.set(planet.labelSprite, celestialBody);
+      // Highlight planet mesh
+      planet.mesh.traverse((child: THREE.Object3D) => {
+        if (child instanceof THREE.Mesh) {
+          const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+
+          materials.forEach((material) => {
+            if (material instanceof THREE.MeshPhongMaterial ||
+                material instanceof THREE.MeshStandardMaterial) {
+              material.emissive = new THREE.Color(planet.color);
+              material.emissiveIntensity = highlighted ? 0.3 : 0;
+            }
+          });
         }
 
         planet.mesh.traverse((child) => {
@@ -185,7 +172,109 @@ export default function ThreeScene() {
           }
         });
 
-        interactiveObjectsRef.set(planet.orbitLine, celestialBody);
+    // Click handler
+    const onClick = (event: MouseEvent) => {
+      raycaster.setFromCamera(mouse, camera);
+      const checkObjects = Array.from(interactiveObjects.keys());
+      const intersects = raycaster.intersectObjects(checkObjects, true);
+
+      if (intersects.length > 0) {
+        const intersectedObject = intersects[0].object;
+        let planet = interactiveObjects.get(intersectedObject);
+
+        if (!planet && intersectedObject.parent) {
+          planet = interactiveObjects.get(intersectedObject.parent);
+        }
+
+        if (planet) {
+          const planetPosition = new THREE.Vector3();
+          planet.mesh.getWorldPosition(planetPosition);
+
+          // Camera offset (from above and slightly back)
+          const viewDistance = planet.diameter * 1;
+          const cameraOffset = new THREE.Vector3(viewDistance, 0, viewDistance); // stays in XZ plane
+          const cameraPosition = planetPosition.clone().add(cameraOffset);
+
+          // Force "up" to always be +Z (parallel to orbital plane)
+          camera.up.set(0, 0, 1);
+
+          // Smoothly animate camera
+          moveCamera(camera, controls, cameraPosition, planetPosition);
+        }
+      }
+    };
+
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('click', onClick);
+
+    addLights(scene);
+    const { update: renderWithPostProcessing, resize: resizePostProcessing } =
+      setupPostProcessing(scene, camera, renderer);
+
+    const sceneBounds = getSceneBoundaries();
+
+    camera.near = 1;
+    camera.far = sceneBounds.outerBoundary * 2;
+    camera.updateProjectionMatrix();
+
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 10; // Minimum zoom distance
+
+    // Calculate the maximum distance based on the same scaling factor used for reset view
+    // This ensures consistency between reset view and max zoom distance
+    const recommendedDistance = getRecommendedCameraDistance();
+    const maxDistance = recommendedDistance * CAMERA_SCALE_FACTOR * 1.5; // Allow zooming slightly more than reset distance
+    controls.maxDistance = maxDistance;
+
+    // Create a debounced function to update slider to prevent too many updates
+    const updateSliderFromCamera = debounce(() => {
+      // Get current camera distance from target
+      const currentDistance = camera.position.distanceTo(controls.target);
+
+      // Calculate reset view distance for reference point
+      const resetViewDistance = recommendedDistance * CAMERA_SCALE_FACTOR;
+
+      // Convert current distance to slider value
+      let newSliderValue: number;
+
+      if (currentDistance <= resetViewDistance) {
+        // Map distance from minDistance to resetViewDistance to slider 0-50
+        const normalizedDistance = (currentDistance - controls.minDistance) / (resetViewDistance - controls.minDistance);
+        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
+      } else {
+        // Map distance from resetViewDistance to maxDistance to slider 50-100
+        const normalizedDistance = (currentDistance - resetViewDistance) / (maxDistance - resetViewDistance);
+        newSliderValue = Math.max(50, Math.min(100, 50 + normalizedDistance * 50));
+      }
+
+      // Update slider value without triggering zoom change to avoid loops
+      // Only update if the difference is significant (to avoid minor fluctuations)
+      if (Math.abs(newSliderValue - zoomLevel) > 1) {
+        setZoomLevel(Math.round(newSliderValue));
+      }
+    }, 50); // 50ms debounce delay for smoother updates
+
+    // Add event listener to update slider when zooming with mouse/touch
+    controls.addEventListener('change', updateSliderFromCamera);
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+
+      currentTime += 360 * speedMultiplier;
+
+      celestialBodies.forEach((body) => {
+        const position = body.orbitGenerator.getPositionAtTime(currentTime);
+        body.mesh.position.set(
+          position.position.x,
+          position.position.y,
+          position.position.z,
+        );
+
+        if (body.rotationSpeed) {
+          const planetMesh = body.mesh.children[0] as THREE.Mesh;
+          planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
+        }
       });
 
       const raycaster = new THREE.Raycaster();
@@ -243,207 +332,135 @@ export default function ThreeScene() {
       camera.far = sceneBounds.outerBoundary * 2;
       camera.updateProjectionMatrix();
 
-      controls.enableDamping = true;
+    return () => {
+      renderer.domElement.removeEventListener('mousemove', onMouseMove);
+      renderer.domElement.removeEventListener('click', onClick);
+      window.removeEventListener("resize", handleResize);
 
-      const animate = () => {
-        animationFrameId = requestAnimationFrame(animate);
+      // Clean up the event listener for the slider update
+      controls.removeEventListener('change', updateSliderFromCamera);
 
-        currentTime += 360 * speedMultiplier;
-        currentTimeRef = currentTime;
-
-        celestialBodiesRef.forEach((body) => {
-          const position = body.orbitGenerator.getPositionAtTime(currentTime);
-          body.mesh.position.set(
-            position.position.x,
-            position.position.y,
-            position.position.z
-          );
-        });
-
-        halosAndLabelsRef.forEach((updateHalo) => updateHalo());
-        updateSun();
-        controls.update();
-        renderWithPostProcessing();
-      };
-
-      animate();
-      setSceneInitialized(true);
-
-      const handleResize = () => {
-        camera.aspect =
-          mountRef.current!.clientWidth / mountRef.current!.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(
-          mountRef.current!.clientWidth,
-          mountRef.current!.clientHeight
-        );
-        resizePostProcessing();
-      };
-      window.addEventListener("resize", handleResize);
-
-      return () => {
-        window.removeEventListener("resize", handleResize);
-        renderer.dispose();
-        cancelAnimationFrame(animationFrameId);
-        sceneRef = null;
-        cameraRef = null;
-        rendererRef = null;
-        controlsRef = null;
-        celestialBodiesRef = [];
-        interactiveObjectsRef.clear();
-        halosAndLabelsRef = [];
-        currentSelectedBody = null;
-      };
+      controls.dispose();
+      renderer.dispose();
+      if (Refcurrent) {
+        Refcurrent.removeChild(renderer.domElement);
+      }
     };
 
     const cleanup = initScene();
     return cleanup;
   }, []);
 
-  useEffect(() => {
-    if (
-      !asteroidsData ||
-      asteroidsData.length === 0 ||
-      !sceneInitialized ||
-      !sceneRef ||
-      !cameraRef
-    ) {
-      return;
+  const handleZoomIn = () => {
+    if (controlsRef && cameraRef) {
+      // Decrease slider value by 10 for more precise control
+      const newZoomLevel = Math.max(0, zoomLevel - 10);
+
+      // Update slider first
+      setZoomLevel(newZoomLevel);
+
+      // Then trigger zoom change with new value
+      handleZoomChange(newZoomLevel);
     }
+  };
 
-    try {
-      const createdAsteroids = createAsteroids(
-        asteroidsData,
-        cameraRef,
-        halosAndLabelsRef,
-        sceneRef
-      );
+  const handleZoomOut = () => {
+    if (controlsRef && cameraRef) {
+      // Increase slider value by 10 for more precise control
+      const newZoomLevel = Math.min(100, zoomLevel + 10);
 
-      createdAsteroids.forEach((asteroid) => {
-        sceneRef!.add(asteroid.mesh);
+      // Update slider first
+      setZoomLevel(newZoomLevel);
 
-        if (asteroid.orbitLine) {
-          if (!sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)) {
-            sceneRef!.add(asteroid.orbitLine);
-          }
-        }
-
-        const asteroidBody: CelestialBody = {
-          id: asteroid.id,
-          mesh: asteroid.mesh,
-          orbitGenerator: asteroid.orbitGenerator,
-          diameter: asteroid.diameter,
-          color: asteroid.color,
-          name: asteroid.name,
-          orbitLine: asteroid.orbitLine,
-          labelSprite: asteroid.labelSprite,
-          setLabelHighlight: asteroid.setLabelHighlight,
-          updateLOD: asteroid.updateLOD,
-          showOrbit: asteroid.showOrbit,
-          hideOrbit: asteroid.hideOrbit,
-          applyForce: asteroid.applyForce,
-        };
-
-        celestialBodiesRef.push(asteroidBody);
-        interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
-        if (asteroid.labelSprite) {
-          interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
-        }
-        if (asteroid.orbitLine) {
-          interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
-        }
-      });
-    } catch (err) {
-      console.error("Error creating asteroids:", err);
+      // Then trigger zoom change with new value
+      handleZoomChange(newZoomLevel);
     }
-  }, [asteroidsData, sceneInitialized]);
+  };
+
+  // Define a consistent scaling factor to use in multiple places
+  const CAMERA_SCALE_FACTOR = 0.065;
+
+  const handleResetView = () => {
+    if (controlsRef && cameraRef) {
+      // Reset to a view at approximately 40 degrees from the z-axis
+      const cameraDistance = getRecommendedCameraDistance();
+
+      // Calculate position using spherical coordinates
+      // 40 degrees from z-axis means 50 degrees from y-axis in this coordinate system
+      const angleFromY = 50 * (Math.PI / 180); // Convert to radians
+      const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
+
+      // Calculate position based on spherical coordinates
+      const x = cameraDistance * CAMERA_SCALE_FACTOR * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
+      const y = cameraDistance * CAMERA_SCALE_FACTOR * Math.cos(angleFromY);
+      const z = cameraDistance * CAMERA_SCALE_FACTOR * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
+
+      const newPosition = new THREE.Vector3(x, y, z);
+      const originTarget = new THREE.Vector3(0, 0, 0);
+
+      // Reset camera up vector to ensure proper orientation
+      cameraRef.up.set(0, 0, 1);
+
+      moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
+
+      // Reset the zoom level slider to default
+      setZoomLevel(50);
+    }
+  };
+
+  const handleZoomChange = (value: number) => {
+    if (controlsRef && cameraRef) {
+      setZoomLevel(value);
+
+      // Calculate zoom based on slider value (0-100)
+      // Map slider range (0-100) to zoom distance range
+      // Lower value = closer zoom (minimum distance)
+      // Higher value = further zoom (maximum distance)
+
+      const minZoomDistance = controlsRef.minDistance;
+      const maxZoomDistance = controlsRef.maxDistance;
+
+      // When slider is at 50 (middle position), we want to be at the reset view distance
+      // Calculate reset view distance (same calculation used in handleResetView)
+      const cameraDistanceForReset = getRecommendedCameraDistance();
+      const resetViewDistance = cameraDistanceForReset * CAMERA_SCALE_FACTOR;
+
+      // Use a piecewise function:
+      // - Slider 0-50: Map to minDistance -> resetViewDistance
+      // - Slider 50-100: Map to resetViewDistance -> maxDistance
+      let targetDistance;
+
+      if (value <= 50) {
+        // Map 0-50 to minDistance-resetViewDistance
+        const normalizedValue = value / 50;
+        targetDistance = minZoomDistance + (resetViewDistance - minZoomDistance) * normalizedValue;
+      } else {
+        // Map 50-100 to resetViewDistance-maxDistance
+        const normalizedValue = (value - 50) / 50;
+        targetDistance = resetViewDistance + (maxZoomDistance - resetViewDistance) * normalizedValue;
+      }
+
+      // Get current direction from target
+      const directionVector = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
+
+      // Create new position at the calculated distance
+      const updatedPosition = new THREE.Vector3().copy(controlsRef.target).add(directionVector.multiplyScalar(targetDistance));
+
+      // Move camera to new position
+      moveCamera(cameraRef, controlsRef, updatedPosition, controlsRef.target, 500);
+    }
+  };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100vh" }}>
-      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
-
-      {selectedBody && (
-        <div
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            backgroundColor: "rgba(0, 0, 0, 0.95)",
-            color: "white",
-            padding: "15px",
-            borderRadius: "8px",
-            zIndex: 1001,
-            fontSize: "14px",
-            minWidth: "300px",
-            border: "2px solid #4fc3f7",
-          }}
-        >
-          <h3 style={{ margin: "0 0 10px 0", color: "#4fc3f7" }}>
-            Selected: {selectedBody.name}
-          </h3>
-
-          <div style={{ marginBottom: "10px", fontSize: "12px", opacity: 0.8 }}>
-            ID: {selectedBody.id || "N/A"}
-          </div>
-
-          {"applyForce" in selectedBody && (
-            <div style={{ marginTop: "15px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
-                Apply Force (N):
-              </div>
-
-              <label>X:</label>
-              <input
-                type="number"
-                value={forceX}
-                onChange={(e) => setForceX(e.target.value)}
-              />
-
-              <label>Y:</label>
-              <input
-                type="number"
-                value={forceY}
-                onChange={(e) => setForceY(e.target.value)}
-              />
-
-              <label>Z:</label>
-              <input
-                type="number"
-                value={forceZ}
-                onChange={(e) => setForceZ(e.target.value)}
-              />
-
-              <label>Delta Time (s):</label>
-              <input
-                type="number"
-                value={deltaTime}
-                onChange={(e) => setDeltaTime(e.target.value)}
-              />
-
-              <button onClick={applyForceToSelectedAsteroid}>Apply Force</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {(loading || isLoading) && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            backgroundColor: "#000000",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            color: "white",
-          }}
-        >
-          <p>Loading asteroid data...</p>
-        </div>
-      )}
+    <div className="relative w-full h-screen">
+      <div ref={mountRef} className="w-full h-full" />
+      <ControlPanel
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetView={handleResetView}
+        zoomLevel={zoomLevel}
+        onZoomChange={handleZoomChange}
+      />
     </div>
   );
 }
