@@ -66,6 +66,7 @@ export default function MapView() {
     depth: Number(depth),
     trgt_type: trgt_type as "w" | "s" | "i", // "w" | "s" | "i";
   });
+
   const [energyParams, setEnergyParams] = useState<AsteroidImpactResult>({
     mass: 0, // kg
     kineticEnergy: 0, // J
@@ -79,12 +80,6 @@ export default function MapView() {
     imFreq: 0,
   });
 
-  const [aTMParams, setAtmParams] = useState<AtmosphericEntryResults>({
-    abAltBreak: 0, // altitude of breakup (m)
-    abAltBurst: 0, // altitude of atmospheric burst (m)
-    imVel: 0, // impact velocity at surface (km/s)
-  });
-
   const [craterParams, setCraterParams] = useState<CraterResults>({
     crTsDiam: 0,
     crTsDepth: 0,
@@ -94,8 +89,8 @@ export default function MapView() {
     crVolMelt: 0,
   });
 
-  const handleSubmit = () => {
-    const aTMParamsCalc = calculateAtmosphericEntry({
+  function getTMParamsCalc(){
+    return calculateAtmosphericEntry({
       pjDens: formData.density, // projectile density (kg/m^3)
       pjDiam: formData.diameter, // projectile diameter (m)
       pjVel: formData.velocity, // projectile velocity (km/s)
@@ -106,6 +101,10 @@ export default function MapView() {
       G: 9.81, // m/s^2, gravitational acceleration
       fp: 1.0, // dimensionless shape factor, usually 1 for spheres
     });
+  }
+  
+  function getCraterParameters(){
+    const aTMParamsCalc = getTMParamsCalc()
 
     const energyParamsCalc = calcAsteroidEnergy({
       pjDiam: formData.diameter,
@@ -115,27 +114,28 @@ export default function MapView() {
       tgDepth: formData.depth,
     });
     setEnergyParams(energyParamsCalc);
-    setCraterParams(
-      calculateCrater({
+    const craterParamsCalc  =     calculateCrater({
         pjDens: formData.density, // density (kg/m³)
         pjDiam: formData.diameter, // diameter (m)
         pjVel: formData.velocity, // velocity at entry (km/s)
         pjAngle: formData.angle, // angle (deg)
-        abAltBreak: aTMParams.abAltBreak, // breakup altitude (m)
+        abAltBreak: aTMParamsCalc.abAltBreak, // breakup altitude (m)
         tgType: formData.trgt_type, // target type
         tgDens: 2700, // target density (kg/m³)
         tgDepth: formData.depth, // water depth (m)
-        crMass: energyParams.mass, // mass (kg)
-        imVel: aTMParams.imVel, // impact velocity (km/s)
-      }),
-    );
+        crMass: energyParamsCalc.mass, // mass (kg)
+        imVel: aTMParamsCalc.imVel, // impact velocity (km/s)
+      });
+    setCraterParams(craterParamsCalc);
+    return craterParamsCalc;
   };
 
-  const create_circle = (
+  // For creating the crater circle
+  function createCircle(
     map: maplibregl.Map,
     center: [number, number],
     radius: number,
-  ): void => {
+  ){
     const options = { steps: 64, units: "kilometers" as const };
     const circle = turf.circle(center, radius, options);
 
@@ -159,7 +159,7 @@ export default function MapView() {
         type: "fill",
         source: "location-radius",
         paint: {
-          "fill-color": "#8CCFFF",
+          "fill-color": "#aa7e58ff",
           "fill-opacity": 0.5,
         },
       });
@@ -172,44 +172,15 @@ export default function MapView() {
         type: "line",
         source: "location-radius",
         paint: {
-          "line-color": "#60a5fa",
+          "line-color": "#b2743dff",
           "line-width": 3,
         },
       });
     }
   };
-
-  useEffect(() => {
-    if (map.current || !mapContainer.current) return; // initialize map only once
-
-    handleSubmit();
-
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: "/styles/custom_map.json",
-      center: [79.900756, 6.795024], // UOM coordinates
-      zoom: 13.0,
-      maxZoom: 15.5,
-      minZoom: 1.5,
-    });
-
-    const circleRadius = craterParams.crDiam ? craterParams.crDiam / 1 : 0;
-
-    map.current.on("load", () => {
-      create_circle(
-        map.current!,
-        [formData.longitude, formData.latitude],
-        circleRadius,
-      );
-    });
-
-    return () => {
-      map.current?.remove();
-    };
-  }, []);
-
+  
   // Function to toggle layer visibility
-  const toggleLayer = (layerId: string, visible: boolean) => {
+  function toggleLayer(layerId: string, visible: boolean){
     if (!map.current) return;
     if (map.current.getLayer(layerId)) {
       map.current.setLayoutProperty(
@@ -219,6 +190,34 @@ export default function MapView() {
       );
     }
   };
+
+  function handleSubmit(){
+    console.log("handle sumit pressed")
+    if (!map.current || !mapContainer.current) return;
+
+    const crater_params = getCraterParameters();
+    console.log(crater_params)
+    const circleRadius = crater_params.crDiam ? crater_params.crDiam / 1000 : 0;
+
+    console.log("Drawing crater");
+
+    // Remove existing layers and source if they exist
+    if (map.current.getLayer("location-radius")) {
+      map.current.removeLayer("location-radius");
+    }
+    if (map.current.getLayer("location-radius-outline")) {
+      map.current.removeLayer("location-radius-outline");
+    }
+    if (map.current.getSource("location-radius")) {
+      map.current.removeSource("location-radius");
+    }
+
+    createCircle(
+      map.current!,
+      [Number(formData.longitude), Number(formData.latitude)],
+      circleRadius,
+    );
+  }
 
   // Watch for changes in layersState
   useEffect(() => {
@@ -250,6 +249,36 @@ export default function MapView() {
     toggleLayer("aeroway-taxiway", layersState.Airport);
     toggleLayer("airport", layersState.Airport);
   }, [layersState]);
+
+  // Initialize Map at the begining
+  useEffect(() => {
+    if (map.current || !mapContainer.current) return; // initialize map only once
+
+    const crater_params = getCraterParameters();
+
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: "/styles/custom_map.json",
+      center: [79.900756, 6.795024], // UOM coordinates
+      zoom: 13.0,
+      maxZoom: 15.5,
+      minZoom: 1.5,
+    });
+
+    const circleRadius = crater_params.crDiam ? crater_params.crDiam / 1000 : 0;
+
+    map.current.on("load", () => {
+      createCircle(
+        map.current!,
+        [formData.longitude, formData.latitude],
+        circleRadius,
+      );
+    });
+
+    return () => {
+      map.current?.remove();
+    };
+  }, []);
 
   return (
     <div className="w-full h-screen relative">

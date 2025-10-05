@@ -81,18 +81,18 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
   const imFreq =
     110 * Math.pow(scaled_megatons * Math.pow(10, megaton_power), 0.77);
 
-  console.log(imp);
-  console.log({
-    kineticEnergy: pjEnergy, // Joules
-    energyMegatons: energy0_megatons, // Megatons TNT
-    impactEnergy: imEnergy, // Joules
-    impactMegatons: imMegaton, // Megatons TNT
-    linearMomentum: linmom, // kg·m/s
-    angularMomentum: angmom, // kg·m^3/s
-    seafloorVelocity: vseafloor, // km/s
-    seafloorEnergy: energy_seafloor, // Joules
-    imFreq: imFreq, // years
-  });
+  // console.log(imp);
+  // console.log({
+  //   kineticEnergy: pjEnergy, // Joules
+  //   energyMegatons: energy0_megatons, // Megatons TNT
+  //   impactEnergy: imEnergy, // Joules
+  //   impactMegatons: imMegaton, // Megatons TNT
+  //   linearMomentum: linmom, // kg·m/s
+  //   angularMomentum: angmom, // kg·m^3/s
+  //   seafloorVelocity: vseafloor, // km/s
+  //   seafloorEnergy: energy_seafloor, // Joules
+  //   imFreq: imFreq, // years
+  // });
 
   // Return result object matching AsteroidImpactResult
   return {
