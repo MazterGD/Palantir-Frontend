@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { PLANETS } from "../lib/planetData";
-import { hasCachedData } from "../lib/cacheUtils";
 
 // Base celestial bodies data - only planets from our solar system (no hardcoded asteroids)
 const BASE_CELESTIAL_BODIES = [
@@ -37,18 +36,11 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
   // Data state
   const [allCelestialBodies, setAllCelestialBodies] = useState<Array<{ id: string, name: string, type: string }>>(BASE_CELESTIAL_BODIES);
   const [isLoadingAsteroids, setIsLoadingAsteroids] = useState(false);
-  const [isFromCache, setIsFromCache] = useState(false);
-  
-  // Helper to count asteroids
-  const asteroidCount = allCelestialBodies.filter(body => body.type === 'asteroid').length;
   
   // Load asteroid data exclusively from API - no mock data fallbacks
   useEffect(() => {
     const loadAsteroidData = async () => {
       setIsLoadingAsteroids(true);
-      
-      // Check if we have cached data
-      const hasCached = hasCachedData('asteroid_names');
       
       try {
         console.log('Starting to fetch asteroid data...');
@@ -70,9 +62,6 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
           throw new Error('No asteroid names returned from API');
         }
         
-        // Check if data came from cache
-        setIsFromCache(hasCached);
-        
         // Create asteroid objects from the fetched data
         const asteroidObjects = result.names.map((name: string) => ({
           id: `asteroid_${name.replace(/[^a-zA-Z0-9]/g, '_')}`,
@@ -83,8 +72,7 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
         // Update state with all celestial bodies
         setAllCelestialBodies([...BASE_CELESTIAL_BODIES, ...asteroidObjects]);
         
-        console.log(`Loaded ${asteroidObjects.length} asteroids successfully${hasCached ? ' (from cache)' : ' (from API)'}`);
-      } catch (error) {
+        console.log(`Loaded ${asteroidObjects.length} asteroids successfully`);      } catch (error) {
         console.error('Error loading asteroid data from API:', error);
         
         // Still update the state with whatever celestial bodies we have
@@ -289,20 +277,6 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
             {isLoadingAsteroids && (
               <div className="p-2.5 text-center text-gray-500 text-sm">
                 Loading data...
-              </div>
-            )}
-            
-            {!isLoadingAsteroids && asteroidCount > 0 && (
-              <div className="py-1.5 px-2.5 text-center text-gray-500 text-xs border-b border-white/10 flex items-center justify-center gap-2">
-                <span>{asteroidCount} asteroids loaded</span>
-                {isFromCache && (
-                  <span className="inline-flex items-center gap-1 text-green-400" title="Data loaded from cache">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                    </svg>
-                    cached
-                  </span>
-                )}
               </div>
             )}
             
