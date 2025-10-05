@@ -32,7 +32,7 @@ export default function AsteroidVisualizer({
   } = useAsteroidOne(id);
 
   // Helper to format dates
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr:any) => {
     if (!dateStr) return "N/A";
     const date = new Date(dateStr);
     return date.toLocaleDateString("en-US", {
@@ -43,7 +43,7 @@ export default function AsteroidVisualizer({
   };
 
   // Helper to format epoch date
-  const formatEpochDate = (epoch) => {
+  const formatEpochDate = (epoch:any) => {
     if (!epoch) return "N/A";
     const date = new Date(epoch * 1000);
     return date.toLocaleDateString("en-US", {
