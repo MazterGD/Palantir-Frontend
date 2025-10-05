@@ -218,7 +218,7 @@ export const createPlanet = (
     {
       color,
       ...ORBIT_PRESETS.standard,
-      minDistance: minDistance * 0.1,
+      minDistance: minDistance * 0.5,
       fadeNear: minDistance * 0.9,
     },
   );
