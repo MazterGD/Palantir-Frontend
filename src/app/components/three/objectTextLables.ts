@@ -8,6 +8,7 @@ const leagueSpartan = League_Spartan({
   display: "swap",
 });
 
+
 export function createLabel(
   object: THREE.Mesh,
   text: string,
