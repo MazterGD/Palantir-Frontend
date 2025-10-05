@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://galanor-backend.onrender.com/asteroid/asteroids/filter?min=${min}&max=${max}&page=${page}&limit=${limit}`
+      `https://galanor-backend-production.up.railway.app/asteroid/asteroids/filter?min=${min}&max=${max}`
     );
 
     console.log('Filter backend response status:', response.status);

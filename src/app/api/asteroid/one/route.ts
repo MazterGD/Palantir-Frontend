@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://galanor-backend.onrender.com/asteroid/one?id=${id}`,
+      `https://galanor-backend-production.up.railway.app/asteroid/one?id=${id}`,
     );
 
     console.log("Filter backend response status:", response.status);

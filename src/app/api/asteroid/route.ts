@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   }
   
   try {
-    const response = await fetch(`https://galanor-backend.onrender.com/asteroid/one?id=${id}`);
+    const response = await fetch(`https://galanor-backend-production.up.railway.app/asteroid/one?id=${id}`);
     
     if (!response.ok) {
       throw new Error(`Backend API returned ${response.status}`);

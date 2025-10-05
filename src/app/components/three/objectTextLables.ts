@@ -1,11 +1,11 @@
-import * as THREE from 'three';
-import { addObjectLabel } from './objectLabel';
-import { League_Spartan } from 'next/font/google';
+import * as THREE from "three";
+import { addObjectLabel } from "./objectLabel";
+import { League_Spartan } from "next/font/google";
 
 const leagueSpartan = League_Spartan({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  display: 'swap',
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
 });
 
 export function createLabel(
@@ -19,22 +19,24 @@ export function createLabel(
     fontSize?: number;
     offsetY?: number;
     opacity?: number;
-    fontFamily?: string;
-    alwaysVisible?: boolean; // NEW: Force label to always be visible
+    fontFamily?: string; // New option for Google Font
   },
-): { update: () => void; sprite: THREE.Sprite; setHighlight: (highlighted: boolean) => void } {
-  const canvas: HTMLCanvasElement = document.createElement('canvas');
-  const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
+): {
+  update: () => void;
+  sprite: THREE.Sprite;
+  setHighlight: (highlighted: boolean) => void;
+} {
+  const canvas: HTMLCanvasElement = document.createElement("canvas");
+  const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
 
   if (!ctx) {
-    throw new Error('Canvas context not supported');
+    throw new Error("Canvas context not supported");
   }
 
   // Default options
-  const color = options?.color ?? '#ffffff';
+  const color = "#ffffff";
   const fontSize = options?.fontSize ?? 16;
-  const fontFamily = options?.fontFamily ?? 'League Spartan';
-  const alwaysVisible = options?.alwaysVisible ?? false; // NEW: Default to false
+  const fontFamily = options?.fontFamily ?? "League Spartan"; // Default to Orbitron
   const originalColor = new THREE.Color(color);
 
   canvas.width = 256;
@@ -47,14 +49,17 @@ export function createLabel(
       await document.fonts.load(`${fontSize}px ${fontFamily}`);
       return fontFamily;
     } catch (error) {
-      console.warn(`Failed to load font ${fontFamily}, falling back to Arial:`, error);
-      return 'Arial';
+      console.warn(
+        `Failed to load font ${fontFamily}, falling back to Arial:`,
+        error,
+      );
+      return "Arial";
     }
   };
 
   // Draw label
   const drawLabel = (resolvedFont: string) => {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = "rgba(0, 0, 0, 1)";
     ctx.beginPath();
     ctx.roundRect(10, 10, canvas.width - 20, canvas.height - 20, 10);
     ctx.fill();
@@ -62,9 +67,13 @@ export function createLabel(
     // Draw text
     ctx.font = `${fontSize}px ${resolvedFont}`;
     ctx.fillStyle = color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text.toLocaleUpperCase(), canvas.width/2, canvas.height / 2-25);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      text.toLocaleUpperCase(),
+      canvas.width / 2,
+      canvas.height / 2 - 25,
+    );
   };
 
   // Create texture
@@ -80,35 +89,16 @@ export function createLabel(
   const updateResult = addObjectLabel(object, camera, {
     texture,
     size: 10,
-    minDistance: options?.minDistance ?? (alwaysVisible ? 1 : 500), // Override for always visible
-    maxDistance: options?.maxDistance ?? (alwaysVisible ? 100000 : 10000), // Very large max distance
-    opacity: options?.opacity ?? (alwaysVisible ? 1.0 : 0.8), // Full opacity if always visible
   });
 
-  // Override the update function to ensure always visible if specified
-  const originalUpdate = updateResult.update;
-  const customUpdate = () => {
-    if (alwaysVisible) {
-      // Force the sprite to be always visible with full opacity
-      updateResult.sprite.visible = true;
-      updateResult.sprite.material.opacity = options?.opacity ?? 1.0;
-      
-      // Still update scale based on distance
-      const worldPos = updateResult.sprite.getWorldPosition(new THREE.Vector3());
-      const distance = camera.position.distanceTo(worldPos);
-      const spriteScale = (10 * distance) / 35;
-      updateResult.sprite.scale.set(spriteScale, spriteScale, 1);
-    } else {
-      originalUpdate();
-    }
-  };
-
-  return { 
-    update: customUpdate, 
+  return {
+    update: updateResult.update,
     sprite: updateResult.sprite,
     setHighlight: (highlighted: boolean) => {
       updateResult.setHighlight(highlighted);
-      updateResult.sprite.material.color.setHex(highlighted ? 0xffff00 : originalColor.getHex());
-    }
+      updateResult.sprite.material.color.setHex(
+        highlighted ? 0xffff00 : originalColor.getHex(),
+      );
+    },
   };
 }
