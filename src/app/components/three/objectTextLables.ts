@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 import { addObjectLabel } from './objectLabel';
+import { League_Spartan } from 'next/font/google';
+
+const leagueSpartan = League_Spartan({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  display: 'swap',
+});
+
 
 export function createLabel(
   object: THREE.Mesh,

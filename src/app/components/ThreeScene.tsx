@@ -13,7 +13,7 @@ import { createSun } from "./three/objects/createSun";
 import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
-  scaleTimeSpeed,
+  speedScale,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
@@ -31,67 +31,6 @@ export default function ThreeScene() {
   const [selectedDateTime, setSelectedDateTime] = useState<string>("");
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   
-// Define speed scale options (balanced before and after the event)
-const speedScale = [
-  // Past speeds (negative values) - days
-  { label: "-30days", value: -30, daysPerSecond: -30 },
-  { label: "-28days", value: -28, daysPerSecond: -28 },
-  { label: "-21days", value: -21, daysPerSecond: -21 },
-  { label: "-14days", value: -14, daysPerSecond: -14 },
-  { label: "-7days", value: -7, daysPerSecond: -7 },
-  { label: "-5days", value: -5, daysPerSecond: -5 },
-  { label: "-3days", value: -3, daysPerSecond: -3 },
-  { label: "-2days", value: -2, daysPerSecond: -2 },
-  { label: "-1day", value: -1, daysPerSecond: -1 },
-
-  // Past speeds - hours
-  { label: "-24h", value: -1440, daysPerSecond: -1 },
-  { label: "-12h", value: -720, daysPerSecond: -1 / 2 },
-  { label: "-6h", value: -360, daysPerSecond: -1 / 4 },
-  { label: "-3h", value: -180, daysPerSecond: -1 / 8 },
-  { label: "-1h", value: -60, daysPerSecond: -1 / 24 },
-
-  // Past speeds - minutes
-  { label: "-45min", value: -45, daysPerSecond: -45 / 1440 },
-  { label: "-30min", value: -30, daysPerSecond: -30 / 1440 },
-  { label: "-15min", value: -15, daysPerSecond: -15 / 1440 },
-  { label: "-10min", value: -10, daysPerSecond: -10 / 1440 },
-  { label: "-5min", value: -5, daysPerSecond: -5 / 1440 },
-  { label: "-2min", value: -2, daysPerSecond: -2 / 1440 },
-  { label: "-1min", value: -1, daysPerSecond: -1 / 1440 },
-
-  // Real-time
-  { label: "Real-time", value: 0, daysPerSecond: 1 / 86400 }, // 1 second per day
-
-  // Future speeds - minutes
-  { label: "+1min", value: 1, daysPerSecond: 1 / 1440 },
-  { label: "+2min", value: 2, daysPerSecond: 1 / 720 },
-  { label: "+5min", value: 5, daysPerSecond: 1 / 288 },
-  { label: "+10min", value: 10, daysPerSecond: 1 / 144 },
-  { label: "+15min", value: 15, daysPerSecond: 1 / 96 },
-  { label: "+30min", value: 30, daysPerSecond: 1 / 48 },
-  { label: "+45min", value: 45, daysPerSecond: 1 / 32 },
-
-  // Future speeds - hours
-  { label: "+1h", value: 60, daysPerSecond: 1 / 24 },
-  { label: "+2h", value: 120, daysPerSecond: 1 / 12 },
-  { label: "+3h", value: 180, daysPerSecond: 1 / 8 },
-  { label: "+4h", value: 240, daysPerSecond: 1 / 6 },
-  { label: "+6h", value: 360, daysPerSecond: 1 / 4 },
-  { label: "+12h", value: 720, daysPerSecond: 1 / 2 },
-  { label: "+24h", value: 1440, daysPerSecond: 1 },
-
-  // Future speeds - days
-  { label: "+1day", value: 1, daysPerSecond: 1 },
-  { label: "+2days", value: 2, daysPerSecond: 2 },
-  { label: "+3days", value: 3, daysPerSecond: 3 },
-  { label: "+5days", value: 5, daysPerSecond: 5 },
-  { label: "+7days", value: 7, daysPerSecond: 7 },
-  { label: "+14days", value: 14, daysPerSecond: 14 },
-  { label: "+21days", value: 21, daysPerSecond: 21 },
-  { label: "+28days", value: 28, daysPerSecond: 28 },
-  { label: "+30days", value: 30, daysPerSecond: 30 },
-];
  
   // Find current speed option
   const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21]; // Default to real-time
