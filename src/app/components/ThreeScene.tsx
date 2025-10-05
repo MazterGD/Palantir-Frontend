@@ -76,6 +76,7 @@ const interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
 let halosAndLabelsRef: (() => void)[] = [];
 let currentSelectedBody: CelestialBody | null = null;
 let currentSelectedAsteroid: CelestialBody | null = null;
+let currentFocusedBody: CelestialBody | null = null;
 let rendererRef: THREE.WebGLRenderer | null = null;
 let controlsRef: OrbitControls | null = null;
 
@@ -300,9 +301,16 @@ export default function ThreeScene() {
       currentSelectedAsteroid = null;
     }
     currentSelectedBody = null;
+    currentFocusedBody = null;
     setSelectedBody(null);
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
+    
+    // Reset minimum distance back to sun's surface
+    if (controlsRef) {
+      const sceneBounds = getSceneBoundaries();
+      controlsRef.minDistance = sceneBounds.innerBoundary;
+    }
   };
 
   const handleCloseVisualizer = () => {
@@ -313,7 +321,14 @@ export default function ThreeScene() {
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
     currentSelectedBody = null;
+    currentFocusedBody = null;
     setSelectedBody(null);
+    
+    // Reset minimum distance back to sun's surface
+    if (controlsRef) {
+      const sceneBounds = getSceneBoundaries();
+      controlsRef.minDistance = sceneBounds.innerBoundary;
+    }
   };
 
   useEffect(() => {
@@ -537,7 +552,15 @@ export default function ThreeScene() {
       }
 
       currentSelectedBody = body;
+      currentFocusedBody = body;
       setSelectedBody(body);
+      
+      // Update minimum distance based on the focused body's size
+      if (controlsRef) {
+        const bodyRadius = body.diameter / 2;
+        // Set minimum distance to 1.5x the body's radius (safety margin to prevent clipping)
+        controlsRef.minDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
     };
 
     const onClick = (event: MouseEvent) => {
@@ -596,29 +619,40 @@ export default function ThreeScene() {
 
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = sceneBounds.innerBoundary;
+    controls.minDistance = sceneBounds.innerBoundary; // Stop at sun's surface
     const maxDistance = cameraDistance * 1.5; // Use the properly scaled distance directly
-    controls.maxDistance = maxDistance;
+    controls.maxDistance = Infinity; // No maximum zoom out limit
 
     const updateSliderFromCamera = debounce(() => {
       const currentDistance = camera.position.distanceTo(controls.target);
+      // Use focused body's minimum distance if available
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
 
       let newSliderValue: number;
 
+      // Reverse the logic from handleZoomChange
+      // 0-500: linear from minZoomDistance (sun's surface) to cameraDistance
+      // 500-1000: exponential beyond cameraDistance
       if (currentDistance <= cameraDistance) {
-        const normalizedDistance =
-          (currentDistance - controls.minDistance) /
-          (cameraDistance - controls.minDistance);
-        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
+        // Linear range: minZoomDistance to cameraDistance maps to 0-500
+        const normalizedDistance = (currentDistance - minZoomDistance) / (cameraDistance - minZoomDistance);
+        newSliderValue = Math.max(0, normalizedDistance * 500);
       } else {
-        const normalizedDistance =
-          (currentDistance - cameraDistance) /
-          (maxDistance - cameraDistance);
-        newSliderValue = Math.max(
-          50,
-          Math.min(100, 50 + normalizedDistance * 50),
-        );
+        // Exponential range: beyond cameraDistance maps to 500-1000
+        // Reverse the exponential: targetDistance = cameraDistance * 2^(exponent-1)
+        // Where exponent ranges from 1 to 5
+        const ratio = currentDistance / cameraDistance;
+        const exponent = Math.log2(ratio) + 1;
+        const normalizedValue = Math.min(1, (exponent - 1) / 4); // Clamp to prevent overflow
+        newSliderValue = 500 + normalizedValue * 500;
       }
+
+      // Clamp to reasonable range to prevent slider overflow
+      newSliderValue = Math.max(0, Math.min(1000, newSliderValue));
 
       if (Math.abs(newSliderValue - zoomLevel) > 1) {
         setZoomLevel(Math.round(newSliderValue));
@@ -773,15 +807,35 @@ export default function ThreeScene() {
 
   const handleZoomIn = () => {
     if (controlsRef && cameraRef) {
-      const newZoomLevel = Math.max(0, zoomLevel - 10);
-      setZoomLevel(newZoomLevel);
-      handleZoomChange(newZoomLevel);
+      // Zoom in by 5% of the current position or minimum 10 units
+      const step = Math.max(10, zoomLevel * 0.05);
+      const newZoomLevel = Math.max(0, zoomLevel - step);
+      
+      // Check if new zoom would be below surface
+      const sceneBounds = getSceneBoundaries();
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+      
+      const cameraDistanceForReset = getRecommendedCameraDistance();
+      const normalizedValue = newZoomLevel / 500;
+      const testDistance = minZoomDistance + (cameraDistanceForReset - minZoomDistance) * normalizedValue;
+      
+      // Only apply zoom if it's at or above the surface
+      if (testDistance >= minZoomDistance || newZoomLevel >= 0) {
+        setZoomLevel(newZoomLevel);
+        handleZoomChange(newZoomLevel);
+      }
     }
   };
 
   const handleZoomOut = () => {
     if (controlsRef && cameraRef) {
-      const newZoomLevel = Math.min(100, zoomLevel + 10);
+      // Zoom out by 5% of the current position or minimum 10 units
+      const step = Math.max(10, zoomLevel * 0.05);
+      const newZoomLevel = Math.min(1000, zoomLevel + step);
       setZoomLevel(newZoomLevel);
       handleZoomChange(newZoomLevel);
     }
@@ -808,7 +862,7 @@ export default function ThreeScene() {
 
       cameraRef.up.set(0, 0, 1);
       moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
-      setZoomLevel(50);
+      setZoomLevel(500); // Reset to middle position (cameraDistance position)
     }
   };
 
@@ -817,23 +871,37 @@ export default function ThreeScene() {
       setZoomLevel(value);
 
       const sceneBounds = getSceneBoundaries();
-      const minZoomDistance = sceneBounds.innerBoundary;
-      const maxZoomDistance = controlsRef.maxDistance;
+      // Use focused body's minimum distance if available, otherwise use sun's surface
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+      
       const cameraDistanceForReset = getRecommendedCameraDistance();
+      const baseMaxDistance = cameraDistanceForReset * 1.5;
 
       let targetDistance;
 
-      if (value <= 50) {
-        const normalizedValue = value / 50;
+      // Map slider value (0-1000) to camera distance
+      // 0-500: zoom from minZoomDistance (sun's surface) to cameraDistanceForReset (normal view)
+      // 500-1000: zoom from cameraDistanceForReset to far distances (exponential beyond baseMaxDistance)
+      if (value <= 500) {
+        // Linear zoom from minZoomDistance to cameraDistanceForReset
+        const normalizedValue = value / 500;
         targetDistance =
           minZoomDistance +
           (cameraDistanceForReset - minZoomDistance) * normalizedValue;
       } else {
-        const normalizedValue = (value - 50) / 50;
-        targetDistance =
-          cameraDistanceForReset +
-          (maxZoomDistance - cameraDistanceForReset) * normalizedValue;
+        // Exponential zoom beyond cameraDistanceForReset
+        const normalizedValue = (value - 500) / 500;
+        // Use exponential scaling for smooth far-distance zooming
+        const exponent = 1 + normalizedValue * 4; // Scale from 1x to 5x exponentially
+        targetDistance = cameraDistanceForReset * Math.pow(2, exponent - 1);
       }
+      
+      // Enforce minimum distance limit - cannot go below surface
+      targetDistance = Math.max(targetDistance, minZoomDistance);
 
       const directionVector = new THREE.Vector3()
         .subVectors(cameraRef.position, controlsRef.target)
