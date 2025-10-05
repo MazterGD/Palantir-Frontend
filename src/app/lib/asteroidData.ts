@@ -1,5 +1,6 @@
 import { OrbitElements } from "../components/three/orbitGenerator";
 import { FALLBACK_ASTEROID_NAMES, generateFallbackAsteroidDetails } from './apiUtils';
+import { saveToCache, loadFromCache } from './cacheUtils';
 
 export const J2000_EPOCH = 2451545.0;
 
@@ -210,6 +211,18 @@ function handleAsteroidResponse(data: any, sourceUrl: string): { names: string[]
 
 // Function to fetch asteroid names from API
 export async function fetchAsteroidNames(): Promise<{ names: string[] }> {
+  const CACHE_KEY = 'asteroid_names';
+  
+  // Try to load from cache first
+  const cachedData = loadFromCache<{ names: string[] }>(CACHE_KEY, {
+    ttl: 24 * 60 * 60 * 1000, // 24 hours
+  });
+  
+  if (cachedData && cachedData.names && cachedData.names.length > 0) {
+    console.log(`✓ Loaded ${cachedData.names.length} asteroid names from cache`);
+    return cachedData;
+  }
+  
   // Network status check
   if (isBrowser && !navigator.onLine) {
     console.warn('Network status check: Device appears to be offline');
@@ -221,7 +234,15 @@ export async function fetchAsteroidNames(): Promise<{ names: string[] }> {
     console.log(`Fetching asteroid names from: ${url}`);
     
     const data = await fetchWithRetry<any>(url);
-    return handleAsteroidResponse(data, API_BASE_URL);
+    const result = handleAsteroidResponse(data, API_BASE_URL);
+    
+    // Save successful result to cache
+    if (result.names && result.names.length > 0) {
+      saveToCache(CACHE_KEY, result);
+      console.log(`✓ Cached ${result.names.length} asteroid names`);
+    }
+    
+    return result;
   } catch (error) {
     console.error(`Failed to fetch asteroid names:`, error);
     console.warn('Using fallback asteroid data');
@@ -231,6 +252,18 @@ export async function fetchAsteroidNames(): Promise<{ names: string[] }> {
 
 // Fetch detailed data for a specific asteroid
 export async function fetchAsteroidDetails(asteroidName: string): Promise<AsteroidDetailedInfo> {
+  const CACHE_KEY = `asteroid_details_${asteroidName}`;
+  
+  // Try to load from cache first
+  const cachedData = loadFromCache<AsteroidDetailedInfo>(CACHE_KEY, {
+    ttl: 7 * 24 * 60 * 60 * 1000, // 7 days - details change less frequently
+  });
+  
+  if (cachedData) {
+    console.log(`✓ Loaded details for ${asteroidName} from cache`);
+    return cachedData;
+  }
+  
   try {
     // Use internal Next.js API route (no CORS issues)
     const url = `${API_BASE_URL}/details/${encodeURIComponent(asteroidName)}`;
@@ -239,7 +272,7 @@ export async function fetchAsteroidDetails(asteroidName: string): Promise<Astero
     const data = await fetchWithRetry<any>(url);
     
     if (data && typeof data === 'object') {
-      return {
+      const result: AsteroidDetailedInfo = {
         name: data.name || data.asteroid_name || asteroidName,
         diameter: data.diameter || data.size || (data.radius ? data.radius * 2 : 10),
         rotation_period: data.rotation_period || data.rotation || data.rotationPeriod,
@@ -250,6 +283,12 @@ export async function fetchAsteroidDetails(asteroidName: string): Promise<Astero
         discovered_by: data.discovered_by || data.discoverer,
         classification: data.classification || data.class || data.type
       };
+      
+      // Save successful result to cache
+      saveToCache(CACHE_KEY, result);
+      console.log(`✓ Cached details for ${asteroidName}`);
+      
+      return result;
     }
     
     throw new Error('Invalid asteroid data format');
