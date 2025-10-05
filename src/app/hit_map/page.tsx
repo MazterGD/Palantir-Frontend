@@ -106,6 +106,7 @@ export default function MapView() {
       G: 9.81, // m/s^2, gravitational acceleration
       fp: 1.0, // dimensionless shape factor, usually 1 for spheres
     });
+
     const energyParamsCalc = calcAsteroidEnergy({
       pjDiam: formData.diameter,
       pjDens: formData.density,
@@ -131,55 +132,57 @@ export default function MapView() {
   };
 
   const create_circle = (
-  map: maplibregl.Map,
-  center: [number, number],
-  radius: number
-): void => {
-  const options = { steps: 64, units: "kilometers" as const };
-  const circle = turf.circle(center, radius, options);
+    map: maplibregl.Map,
+    center: [number, number],
+    radius: number,
+  ): void => {
+    const options = { steps: 64, units: "kilometers" as const };
+    const circle = turf.circle(center, radius, options);
 
-  // Add GeoJSON source
-  if (!map.getSource("location-radius")) {
-    map.addSource("location-radius", {
-      type: "geojson",
-      data: circle,
-    });
-  } else {
-    // update existing source if circle already exists
-    (map.getSource("location-radius") as maplibregl.GeoJSONSource).setData(circle);
-  }
+    // Add GeoJSON source
+    if (!map.getSource("location-radius")) {
+      map.addSource("location-radius", {
+        type: "geojson",
+        data: circle,
+      });
+    } else {
+      // update existing source if circle already exists
+      (map.getSource("location-radius") as maplibregl.GeoJSONSource).setData(
+        circle,
+      );
+    }
 
-  // Fill layer
-  if (!map.getLayer("location-radius")) {
-    map.addLayer({
-      id: "location-radius",
-      type: "fill",
-      source: "location-radius",
-      paint: {
-        "fill-color": "#8CCFFF",
-        "fill-opacity": 0.5,
-      },
-    });
-  }
+    // Fill layer
+    if (!map.getLayer("location-radius")) {
+      map.addLayer({
+        id: "location-radius",
+        type: "fill",
+        source: "location-radius",
+        paint: {
+          "fill-color": "#8CCFFF",
+          "fill-opacity": 0.5,
+        },
+      });
+    }
 
-  // Outline layer
-  if (!map.getLayer("location-radius-outline")) {
-    map.addLayer({
-      id: "location-radius-outline",
-      type: "line",
-      source: "location-radius",
-      paint: {
-        "line-color": "#60a5fa",
-        "line-width": 3,
-      },
-    });
-  }
-};
+    // Outline layer
+    if (!map.getLayer("location-radius-outline")) {
+      map.addLayer({
+        id: "location-radius-outline",
+        type: "line",
+        source: "location-radius",
+        paint: {
+          "line-color": "#60a5fa",
+          "line-width": 3,
+        },
+      });
+    }
+  };
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return; // initialize map only once
 
-      handleSubmit();
+    handleSubmit();
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
@@ -190,10 +193,14 @@ export default function MapView() {
       minZoom: 1.5,
     });
 
-    const circleRadius = craterParams.crDiam? craterParams.crDiam/1 : 0;
+    const circleRadius = craterParams.crDiam ? craterParams.crDiam / 1 : 0;
 
     map.current.on("load", () => {
-      create_circle(map.current!,[formData.longitude,formData.latitude],circleRadius)
+      create_circle(
+        map.current!,
+        [formData.longitude, formData.latitude],
+        circleRadius,
+      );
     });
 
     return () => {
@@ -477,10 +484,11 @@ export default function MapView() {
                   className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400 "
                   required
                 >
-                  <div className="text-gray-900"><option value="w">Water</option>
-                  <option value="s">Sedimentary</option>
-                  <option value="i">Igneous</option></div>
-                  
+                  <div className="text-gray-900">
+                    <option value="w">Water</option>
+                    <option value="s">Sedimentary</option>
+                    <option value="i">Igneous</option>
+                  </div>
                 </select>
               </div>
 
@@ -488,7 +496,7 @@ export default function MapView() {
                 <label className="block text-sm font-medium mb-1">Depth</label>
                 <input
                   type="number"
-                  disabled={formData.trgt_type!="s"}
+                  disabled={formData.trgt_type != "s"}
                   value={formData.depth}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -514,7 +522,7 @@ export default function MapView() {
             </form>
           </div>
           <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
-            <ImpactTable data={energyParams} />
+            {energyParams && <ImpactTable data={energyParams} />}
           </div>
         </div>
       </div>
