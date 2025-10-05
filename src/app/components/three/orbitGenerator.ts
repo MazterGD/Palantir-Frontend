@@ -39,6 +39,10 @@ export interface OrbitLineOptions {
   lineWidth?: number;
   segments?: number;
   scale?: number;
+  minDistance?: number;
+  maxDistance?: number;
+  fadeNear?: number;
+  fadeFar?: number;
 }
 
 export interface StateVectors {
@@ -192,49 +196,6 @@ export class OrbitGenerator {
     };
   }
 
-  generateOrbitLine(options: OrbitLineOptions = {}): Line2 {
-    const {
-      color = "#ffffff",
-      opacity = 0.8,
-      segments = 360,
-      scale = 1,
-    } = options;
-
-    // Generate orbit points
-    const orbitPoints = this.generateOrbit(segments);
-
-    // Convert to Three.js format with scaling
-    const positions = new Float32Array(orbitPoints.length * 3);
-    for (let i = 0; i < orbitPoints.length; i++) {
-      const point = orbitPoints[i];
-      positions[i * 3] = point.x * scale;
-      positions[i * 3 + 1] = point.y * scale;
-      positions[i * 3 + 2] = point.z * scale;
-    }
-
-    // Create Line2 object
-    const geometry = new LineGeometry();
-    geometry.setPositions(positions);
-
-    const isMobile =
-      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-      (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
-
-    const lineW = isMobile ? 1.5 : 3;
-
-    const material = new LineMaterial({
-      color: color,
-      transparent: opacity < 1,
-      opacity: opacity,
-      linewidth: lineW,
-    });
-
-    const line = new Line2(geometry, material);
-    line.computeLineDistances();
-
-    return line;
-  }
-
   getCurrentStateVectors(julianDate: number): StateVectors {
     const { semiMajorAxis: a, eccentricity: e } = this.elements;
     const M = this.getMeanAnomalyAtTime(julianDate);
@@ -351,13 +312,21 @@ export class ScaledOrbitGenerator {
   }
 
   // Generate an orbit line already converted to render units
-  generateOrbitLine(options: OrbitLineOptions = {}): Line2 {
-    const { color = "#ffffff", opacity = 0.8, segments = 360 } = options;
+  generateOrbitLine(
+    camera: THREE.Camera,
+    centerObject: THREE.Object3D,
+    options: OrbitLineOptions = {},
+  ): { line: Line2; update: () => void } {
+    const {
+      color = "#ffffff",
+      opacity = 0.8,
+      segments = 360,
+      minDistance = 1,
+      fadeNear = 200,
+    } = options;
 
-    // get raw km points from the underlying generator
     const orbitPoints = this.orbitGenerator.generateOrbit(segments);
 
-    // Convert to render units
     const ruPositions = new Float32Array(orbitPoints.length * 3);
     for (let i = 0; i < orbitPoints.length; i++) {
       const p = orbitPoints[i];
@@ -377,7 +346,7 @@ export class ScaledOrbitGenerator {
 
     const material = new LineMaterial({
       color: color,
-      transparent: opacity < 1,
+      transparent: true,
       opacity: opacity,
       linewidth: lineW,
     });
@@ -385,7 +354,33 @@ export class ScaledOrbitGenerator {
     const line = new Line2(geometry, material);
     line.computeLineDistances();
 
-    return line;
+    const baseOpacity = opacity;
+
+    const update = () => {
+      const worldPos = centerObject.getWorldPosition(new THREE.Vector3());
+      const distance = camera.position.distanceTo(worldPos);
+
+      let currentOpacity = baseOpacity;
+
+      if (
+        distance < Math.max(0, minDistance - fadeNear)
+      ) {
+        currentOpacity = 0;
+      } else if (distance < minDistance) {
+        const fadeStart = Math.max(0, minDistance - fadeNear);
+        currentOpacity =
+          THREE.MathUtils.clamp(
+            (distance - fadeStart) / (minDistance - fadeStart),
+            0,
+            1,
+          ) * baseOpacity;
+      }
+
+      material.opacity = currentOpacity;
+      line.visible = currentOpacity > 0.001;
+    };
+
+    return { line, update };
   }
 }
 

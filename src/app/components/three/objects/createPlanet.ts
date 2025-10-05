@@ -8,7 +8,8 @@ import {
 } from "../orbitGenerator";
 import { addObjectLabel } from "../objectLabel";
 import { createLabel } from "../objectTextLables";
-import { kmToRenderUnits } from "@/app/lib/scalingUtils"; // NEW import
+import { getSceneBoundaries, kmToRenderUnits } from "@/app/lib/scalingUtils"; // NEW import
+import { min } from "three/tsl";
 
 export interface Planet {
   name: string;
@@ -190,79 +191,78 @@ export const createPlanet = (
   const { diameter, color, rotationPeriod, axisTilt, ...orbitElements } =
     planetData;
   const orbitGenerator = new OrbitGenerator(orbitElements);
-  const scaledOrbitGenerator = new ScaledOrbitGenerator(orbitGenerator); // use new scaled wrapper
+  const scaledOrbitGenerator = new ScaledOrbitGenerator(orbitGenerator);
 
-  // Convert physical diameter (km) -> render units
   const renderDiameter = kmToRenderUnits(diameter);
 
-  const orbitLine = scaledOrbitGenerator.generateOrbitLine({
-    color,
-    ...ORBIT_PRESETS.standard,
-  });
-
   const mesh = createPlanetMesh(name, renderDiameter, color);
-
-  // Create rings using render-units diameter
   const rings = createPlanetRings(name, renderDiameter, axisTilt);
 
-  const texturePath = "/textures/Sprites/circle.png";
+  mesh.rotation.x = Math.PI / 2;
 
+  const planetGroup = new THREE.Group();
+  planetGroup.add(mesh);
+
+  if (rings) {
+    planetGroup.add(rings);
+  }
+
+  planetGroup.rotation.x = axisTilt;
+
+  const { outerBoundary } = getSceneBoundaries();
+  const minDistance = kmToRenderUnits(planetData.diameter) * 200;
+
+  const orbitLineResult = scaledOrbitGenerator.generateOrbitLine(
+    camera,
+    planetGroup,
+    {
+      color,
+      ...ORBIT_PRESETS.standard,
+      minDistance: minDistance * 0.1,
+      fadeNear: minDistance * 0.9,
+    },
+  );
+
+  halos_and_labels.push(orbitLineResult.update);
+
+  const texturePath = "/textures/Sprites/circle.png";
   let map: THREE.Texture | undefined;
   if (texturePath) {
     map = new THREE.TextureLoader().load(texturePath);
   }
 
-  // Keep halo + label sizes identical and visible by providing explicit size and distance bounds.
-  // Use a moderate base size so scaling with camera distance matches previous visuals.
-  const SPRITE_BASE_SIZE = 1; // same size for halos and labels
+  const SPRITE_BASE_SIZE = 1;
 
   const haloResult = addObjectLabel(mesh, camera, {
     texture: map,
     color: planetData.color,
     size: SPRITE_BASE_SIZE,
-    minDistance: 500,
-    maxDistance: 100000,
+    minDistance: minDistance,
+    maxDistance: outerBoundary / 1.5,
     opacity: 1,
-    fadeNear: 1000,
-    fadeFar: 1500000,
+    fadeNear: minDistance * 0.9,
+    fadeFar: 100000,
   });
 
   const labelResult = createLabel(mesh, planetName, camera, {
     fontSize: 20,
-    minDistance: 300,
-    maxDistance: 150000,
-    opacity: 1.0,
+    minDistance: minDistance - minDistance * 0.7,
+    maxDistance: outerBoundary * 2,
+    opacity: 1,
   });
 
   halos_and_labels.push(haloResult.update);
   halos_and_labels.push(labelResult.update);
 
-  // Rotate mesh so its Y-axis (rotation axis) is perpendicular to orbital plane
-  mesh.rotation.x = Math.PI / 2; // 90 degrees
-
-  // Create a group to handle axis tilt separately from rotation
-  const planetGroup = new THREE.Group();
-  planetGroup.add(mesh);
-
-  // Add rings to the planet group if they exist
-  if (rings) {
-    planetGroup.add(rings);
-  }
-
-  // Apply axis tilt to the group, not the mesh
-  // This will tilt both the planet AND the rings together
-  planetGroup.rotation.x = axisTilt;
-
-  // Calculate rotation speed (radians per day) - rotationPeriod is in days
   const rotationSpeed =
     rotationPeriod !== 0 ? (2 * Math.PI) / rotationPeriod : 0;
 
   return {
     name: planetName,
     orbitGenerator: scaledOrbitGenerator,
-    diameter: renderDiameter, // now in render units
+    diameter: renderDiameter,
     color,
-    orbitLine,
+    orbitLine: orbitLineResult.line,
     mesh: planetGroup,
     rotationPeriod,
     axisTilt,

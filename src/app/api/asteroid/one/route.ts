@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const backendUrl = process.env.BACKEND_API_URL;
   const id = searchParams.get("id");
   console.log(`Fetching filtered asteroids - id: ${id}`);
 
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://galanor-backend-production.up.railway.app/asteroid/one?id=${id}`,
+      `${backendUrl}/asteroid/one?id=${id}`,
     );
 
     console.log("Filter backend response status:", response.status);

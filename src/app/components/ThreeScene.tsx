@@ -442,7 +442,7 @@ export default function ThreeScene() {
             object.mesh.getWorldPosition(objectPosition);
 
             const isAsteroid = object.name.toLowerCase().includes("asteroid");
-            const viewDistance = object.diameter * (isAsteroid ? 1000 : 10);
+            const viewDistance = object.diameter * (isAsteroid ? 1000 : 2);
 
             const cameraOffset = new THREE.Vector3(
               viewDistance,
