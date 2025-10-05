@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const backendUrl = process.env.BACKEND_API_URL;
   const id = searchParams.get('id');
   
   if (!id) {
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
   }
   
   try {
-    const response = await fetch(`https://galanor-backend-production.up.railway.app/asteroid/one?id=${id}`);
+    const response = await fetch(`${backendUrl}/asteroid/one?id=${id}`);
     
     if (!response.ok) {
       throw new Error(`Backend API returned ${response.status}`);

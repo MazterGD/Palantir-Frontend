@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const backendUrl = process.env.BACKEND_API_URL;
   const page = searchParams.get('page') || '1';
   const limit = searchParams.get('limit') || '10';
 
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://galanor-backend-production.up.railway.app/asteroid/asteroids?page=${page}&limit=${limit}`
+      `${backendUrl}/asteroid/asteroids?page=${page}&limit=${limit}`
     );
 
     console.log('Bulk backend response status:', response.status);

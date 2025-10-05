@@ -52,6 +52,8 @@ let currentSelectedBody: CelestialBody | null = null;
 let currentTimeRef = 0;
 let rendererRef: THREE.WebGLRenderer | null = null;
 let controlsRef: any = null;
+let currentSelectedAsteroid: CelestialBody | null = null;
+let forceModifiedOrbits: Map<string, THREE.Object3D> = new Map();
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -154,18 +156,39 @@ export default function ThreeScene() {
   };
 
   const clearSelection = () => {
-    currentSelectedBody = null;
-    setSelectedBody(null);
-    setShowAsteroidVisualizer(false);
-    setSelectedAsteroidId(null);
-  };
+  if (currentSelectedAsteroid) {
+    currentSelectedAsteroid.hideOrbit?.();
+    
+    // Clean up force-modified orbit
+    if (currentSelectedAsteroid.id && forceModifiedOrbits.has(currentSelectedAsteroid.id)) {
+      const oldModifiedOrbit = forceModifiedOrbits.get(currentSelectedAsteroid.id);
+      if (oldModifiedOrbit && sceneRef) {
+        sceneRef.remove(oldModifiedOrbit);
+      }
+      forceModifiedOrbits.delete(currentSelectedAsteroid.id);
+    }
+    
+    currentSelectedAsteroid = null;
+  }
+  
+  currentSelectedBody = null;
+  setSelectedBody(null);
+  setShowAsteroidVisualizer(false);
+  setSelectedAsteroidId(null);
+};
 
   // Add handler for closing the visualizer
   const handleCloseVisualizer = () => {
+    // Hide the asteroid orbit when closing the visualizer
+    if (currentSelectedAsteroid) {
+      currentSelectedAsteroid.hideOrbit?.();
+      currentSelectedAsteroid = null;
+    }
+
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
-    // Optionally keep the asteroid selected in the scene
-    // If you want to clear everything, call clearSelection() instead
+    currentSelectedBody = null;
+    setSelectedBody(null);
   };
 
   useEffect(() => {
@@ -183,6 +206,8 @@ export default function ThreeScene() {
       interactiveObjectsRef.clear();
       halosAndLabelsRef = [];
       currentSelectedBody = null;
+      currentSelectedAsteroid = null;
+      forceModifiedOrbits.clear();
 
       const setup = setupScene(mountRef.current!);
       const scene = setup.scene;
@@ -390,18 +415,60 @@ export default function ThreeScene() {
       const selectBody = (body: CelestialBody) => {
         console.log("selectBody called with:", body.name);
 
-        showOrbitForBody(body);
-        currentSelectedBody = body;
-        setSelectedBody(body);
+        const isAsteroid = body.id && "applyForce" in body;
 
-        // Check if it's an asteroid by the presence of applyForce method instead of name
-        if (body.id && "applyForce" in body) {
-          setSelectedAsteroidId(body.id);
+        if (isAsteroid) {
+          // Hide previous asteroid's orbit (both original and force-modified)
+          if (currentSelectedAsteroid && currentSelectedAsteroid !== body) {
+            currentSelectedAsteroid.hideOrbit?.();
+
+            // Also remove from force-modified tracking if it exists
+            if (
+              currentSelectedAsteroid.id &&
+              forceModifiedOrbits.has(currentSelectedAsteroid.id)
+            ) {
+              const oldModifiedOrbit = forceModifiedOrbits.get(
+                currentSelectedAsteroid.id,
+              );
+              if (oldModifiedOrbit && sceneRef) {
+                sceneRef.remove(oldModifiedOrbit);
+              }
+              forceModifiedOrbits.delete(currentSelectedAsteroid.id);
+            }
+          }
+
+          showOrbitForBody(body);
+          currentSelectedAsteroid = body;
+          setSelectedAsteroidId(body.id!);
           setShowAsteroidVisualizer(true);
         } else {
+          if (currentSelectedAsteroid) {
+            currentSelectedAsteroid.hideOrbit?.();
+
+            // Clean up force-modified orbit
+            if (
+              currentSelectedAsteroid.id &&
+              forceModifiedOrbits.has(currentSelectedAsteroid.id)
+            ) {
+              const oldModifiedOrbit = forceModifiedOrbits.get(
+                currentSelectedAsteroid.id,
+              );
+              if (oldModifiedOrbit && sceneRef) {
+                sceneRef.remove(oldModifiedOrbit);
+              }
+              forceModifiedOrbits.delete(currentSelectedAsteroid.id);
+            }
+
+            currentSelectedAsteroid = null;
+          }
+
+          showOrbitForBody(body);
           setShowAsteroidVisualizer(false);
           setSelectedAsteroidId(null);
         }
+
+        currentSelectedBody = body;
+        setSelectedBody(body);
       };
 
       const onClick = (event: MouseEvent) => {
@@ -442,8 +509,8 @@ export default function ThreeScene() {
             const objectPosition = new THREE.Vector3();
             object.mesh.getWorldPosition(objectPosition);
 
-            const isAsteroid = object.name.toLowerCase().includes("asteroid");
-            const viewDistance = object.diameter * (isAsteroid ? 1000 : 2);
+            const isAsteroid = object.id && "applyForce" in object;
+            const viewDistance = object.diameter * (isAsteroid ? 10000 : 2);
 
             const cameraOffset = new THREE.Vector3(
               viewDistance,
@@ -555,15 +622,6 @@ export default function ThreeScene() {
     const cleanup = initScene();
     return cleanup;
   }, []);
-
-  useEffect(() => {
-    console.log("selectedBody state changed:", selectedBody?.name);
-    console.log("selectedBody orbit methods:", {
-      showOrbit: !!selectedBody?.showOrbit,
-      hideOrbit: !!selectedBody?.hideOrbit,
-      orbitLine: !!selectedBody?.orbitLine,
-    });
-  }, [selectedBody]);
 
   useEffect(() => {
     if (

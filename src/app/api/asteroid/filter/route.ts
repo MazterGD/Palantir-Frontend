@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const backendUrl = process.env.BACKEND_API_URL;
   const min = searchParams.get('min');
   const max = searchParams.get('max');
   const page = searchParams.get('page') || '1';
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://galanor-backend-production.up.railway.app/asteroid/asteroids/filter?min=${min}&max=${max}`
+      `${backendUrl}/asteroid/asteroids/filter?min=${min}&max=${max}`
     );
 
     console.log('Filter backend response status:', response.status);
