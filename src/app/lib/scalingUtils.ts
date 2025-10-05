@@ -123,11 +123,11 @@ export function getSceneBoundaries(): {
   outerBoundary: number;
   recommendedViewDistance: number;
 } {
-  const mercuryOrbit = auToRenderUnits(0.387);
+  const sunRadiusRU = kmToRenderUnits(ASTRONOMICAL_CONSTANTS.SUN_DIAMETER_KM) / 2;
   const neptuneOrbit = auToRenderUnits(30.069);
 
   return {
-    innerBoundary: mercuryOrbit * 0.5,
+    innerBoundary: Math.max(0.5, sunRadiusRU * 2), // Stop at 2x sun's radius (safety margin)
     outerBoundary: neptuneOrbit * 3,
     recommendedViewDistance: neptuneOrbit * 1.5,
   };
