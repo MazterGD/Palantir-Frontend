@@ -17,6 +17,7 @@ import {
   getSceneBoundaries,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
+import AsteroidVisualizer from "./dataBox";
 
 interface CelestialBody {
   id?: string;
@@ -61,6 +62,10 @@ export default function ThreeScene() {
   const [forceZ, setForceZ] = useState("0");
   const [deltaTime, setDeltaTime] = useState("1");
   const [uiVersion, setUiVersion] = useState(0);
+  const [showAsteroidVisualizer, setShowAsteroidVisualizer] = useState(false);
+  const [selectedAsteroidId, setSelectedAsteroidId] = useState<string | null>(
+    null,
+  );
 
   const {
     asteroids: asteroidsData,
@@ -144,14 +149,22 @@ export default function ThreeScene() {
     }
 
     setUiVersion((v) => v + 1);
-    alert(
-      `Force applied to ${selectedBody.name}. Orbit has been updated.`,
-    );
+    alert(`Force applied to ${selectedBody.name}. Orbit has been updated.`);
   };
 
   const clearSelection = () => {
     currentSelectedBody = null;
     setSelectedBody(null);
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+  };
+
+  // Add handler for closing the visualizer
+  const handleCloseVisualizer = () => {
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+    // Optionally keep the asteroid selected in the scene
+    // If you want to clear everything, call clearSelection() instead
   };
 
   useEffect(() => {
@@ -376,11 +389,18 @@ export default function ThreeScene() {
       const selectBody = (body: CelestialBody) => {
         console.log("selectBody called with:", body.name);
 
-        // Show orbit for the selected body (don't hide others)
         showOrbitForBody(body);
-
         currentSelectedBody = body;
         setSelectedBody(body);
+
+        // Check if it's an asteroid by the presence of applyForce method instead of name
+        if (body.id && "applyForce" in body) {
+          setSelectedAsteroidId(body.id);
+          setShowAsteroidVisualizer(true);
+        } else {
+          setShowAsteroidVisualizer(false);
+          setSelectedAsteroidId(null);
+        }
       };
 
       const onClick = (event: MouseEvent) => {
@@ -620,9 +640,38 @@ export default function ThreeScene() {
     }
   }, [asteroidsData, sceneInitialized]);
 
+  useEffect(() => {
+    console.log("State check:", {
+      showAsteroidVisualizer,
+      selectedAsteroidId,
+      selectedBodyName: selectedBody?.name,
+      selectedBodyId: selectedBody?.id,
+    });
+  }, [showAsteroidVisualizer, selectedAsteroidId, selectedBody]);
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100vh" }}>
       <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
+
+      {/* Asteroid Visualizer on the left side */}
+      {showAsteroidVisualizer && selectedAsteroidId && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "400px", // Adjust width as needed
+            height: "100%",
+            zIndex: 1000,
+            pointerEvents: "auto",
+          }}
+        >
+          <AsteroidVisualizer
+            id={selectedAsteroidId}
+            onClose={handleCloseVisualizer}
+          />
+        </div>
+      )}
 
       {selectedBody && (
         <div
@@ -645,10 +694,6 @@ export default function ThreeScene() {
           </h3>
           <div style={{ marginBottom: "10px", fontSize: "12px", opacity: 0.8 }}>
             ID: {selectedBody.id || "N/A"}
-          </div>
-          <div style={{ fontSize: "10px", opacity: 0.6, marginBottom: "10px" }}>
-            Debug: {selectedBody.orbitLine ? "Has orbit line" : "No orbit line"}{" "}
-            |{selectedBody.showOrbit ? " Has showOrbit" : " No showOrbit"}
           </div>
 
           {"applyForce" in selectedBody && (
@@ -809,33 +854,6 @@ export default function ThreeScene() {
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {asteroidsData && sceneInitialized && (
-        <div
-          style={{
-            position: "absolute",
-            top: "10px",
-            left: "10px",
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            color: "white",
-            padding: "10px",
-            borderRadius: "5px",
-            zIndex: 1001,
-            fontSize: "14px",
-          }}
-        >
-          <div>Asteroids Loaded: {asteroidsData.length}</div>
-          <div>Celestial Bodies: {celestialBodiesRef.length}</div>
-          <div style={{ fontSize: "12px", marginTop: "5px", opacity: 0.8 }}>
-            • Click asteroid to select & highlight orbit
-            <br />
-            • Hover to highlight
-            <br />
-            • "Apply Force" updates orbit trajectory
-            <br />• Click empty space to clear selection
-          </div>
         </div>
       )}
 

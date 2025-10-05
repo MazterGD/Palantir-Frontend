@@ -25,7 +25,7 @@ export default function AsteroidVisualizer({
   } = useAsteroidOne(id);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-black p-8 flex items-center justify-center">
+    <div className="min-h-screen p-8 flex items-center justify-center">
       <div className="w-full max-w-md h-[80vh] bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-blue-900/40 backdrop-blur-xl rounded-3xl shadow-2xl border border-purple-500/30 overflow-hidden relative">
         {loading || !asteroidData ? (
           <LoadingAnimation />
