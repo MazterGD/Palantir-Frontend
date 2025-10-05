@@ -29,6 +29,36 @@ import { IoIosPause } from "react-icons/io";
 import { FaPlay } from "react-icons/fa";
 import { League_Spartan } from "next/font/google";
 
+class AsteroidOrbitManager {
+  static currentAsteroid: CelestialBody | null = null;
+
+  /** Show orbit for a clicked asteroid (and hide previous one) */
+  static showOrbit(asteroid: CelestialBody) {
+    // Hide previous orbit if exists and it's not the same asteroid
+    if (this.currentAsteroid && this.currentAsteroid !== asteroid) {
+      this.currentAsteroid.hideOrbit?.();
+    }
+
+    asteroid.showOrbit?.();
+    this.currentAsteroid = asteroid;
+  }
+
+  /** Clear the current asteroid’s orbit */
+  static clearOrbit() {
+    if (this.currentAsteroid) {
+      this.currentAsteroid.hideOrbit?.();
+      this.currentAsteroid = null;
+    }
+  }
+
+  /** Called when the same asteroid gets a new orbit (after applyForce) */
+  static replaceOrbit(asteroid: CelestialBody) {
+    if (this.currentAsteroid === asteroid) {
+      asteroid.showOrbit?.();
+    }
+  }
+}
+
 const leagueSpartan = League_Spartan({
   subsets: ["latin"],
   weight: ["400", "700"],
@@ -249,12 +279,12 @@ export default function ThreeScene() {
     }
 
     const force = {
-      x: parseFloat(forceX),
-      y: parseFloat(forceY),
-      z: parseFloat(forceZ),
+      x: parseFloat(forceX) || 0,
+      y: parseFloat(forceY) || 0,
+      z: parseFloat(forceZ) || 0,
     };
 
-    const dt = parseFloat(deltaTime);
+    const dt = parseFloat(deltaTime) || 1;
 
     if (isNaN(force.x) || isNaN(force.y) || isNaN(force.z) || isNaN(dt)) {
       alert("Please enter valid numbers for force and time");
@@ -265,40 +295,17 @@ export default function ThreeScene() {
     const currentUnixTime =
       startDateRef.current.getTime() / 1000 + currentTimeRef.current * 86400;
 
+    // Apply the force - the asteroid will handle its orbit update internally
     selectedBody.applyForce(force, dt, currentUnixTime);
 
-    if (selectedBody.orbitLine && selectedBody.orbitGenerator) {
-      const positions: number[] = [];
-      const steps = 360;
-      for (let i = 0; i <= steps; i++) {
-        const t =
-          (i / steps) *
-          selectedBody.orbitGenerator.getPositionAtTime(currentUnixTime).time;
-        const pos = selectedBody.orbitGenerator.getPositionAtTime(
-          currentUnixTime + t,
-        );
-        positions.push(pos.position.x, pos.position.y, pos.position.z);
-      }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(positions, 3),
-      );
-
-      if ((selectedBody.orbitLine as THREE.Line).geometry) {
-        (selectedBody.orbitLine as THREE.Line).geometry.dispose();
-      }
-      (selectedBody.orbitLine as THREE.Line).geometry = geometry;
-    }
-
-    alert(`Force applied to ${selectedBody.name}. Orbit has been updated.`);
+    // Optionally show a success message
+    console.log(
+      `Force applied to ${selectedBody.name}. Orbit has been updated.`,
+    );
   };
 
   const clearSelection = () => {
-    if (currentSelectedAsteroid) {
-      currentSelectedAsteroid.hideOrbit?.();
-      currentSelectedAsteroid = null;
-    }
+    AsteroidOrbitManager.clearOrbit();
     currentSelectedBody = null;
     setSelectedBody(null);
     setShowAsteroidVisualizer(false);
@@ -306,10 +313,7 @@ export default function ThreeScene() {
   };
 
   const handleCloseVisualizer = () => {
-    if (currentSelectedAsteroid) {
-      currentSelectedAsteroid.hideOrbit?.();
-      currentSelectedAsteroid = null;
-    }
+    AsteroidOrbitManager.clearOrbit();
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
     currentSelectedBody = null;
@@ -333,13 +337,9 @@ export default function ThreeScene() {
 
     const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
-    
+
     // Use the properly scaled camera distance directly
-    camera.position.set(
-      0,
-      (-cameraDistance),
-      cameraDistance * 0.045,
-    );
+    camera.position.set(0, -cameraDistance, cameraDistance * 0.045);
     camera.lookAt(0, 0, 0);
     camera.up.set(0, 0, 1);
 
@@ -479,108 +479,143 @@ export default function ThreeScene() {
       }
     };
 
-    const onMouseMove = (event: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    // Helper function to check if an object has valid geometry
+const hasValidGeometry = (obj: THREE.Object3D): boolean => {
+  if (!obj) return false;
+  
+  // Check for specific Three.js types that have geometry
+  if (obj instanceof THREE.Mesh || 
+      obj instanceof THREE.Points || 
+      obj instanceof THREE.Line ||
+      obj instanceof THREE.LineSegments ||
+      obj instanceof THREE.Sprite) {
+    
+    // For Sprites, they don't need geometry check
+    if (obj instanceof THREE.Sprite) return true;
+    
+    // For objects with geometry, check if it's valid
+    const typedObj = obj as THREE.Mesh | THREE.Points | THREE.Line;
+    if (typedObj.geometry) {
+      const geom = typedObj.geometry;
+      // Check if geometry has the required position attribute
+      return !!(geom.attributes && geom.attributes.position);
+    }
+  }
+  
+  return false;
+};
 
-      raycaster.setFromCamera(mouse, camera);
-      const checkObjects = Array.from(interactiveObjectsRef.keys());
-      const intersects = raycaster.intersectObjects(checkObjects, true);
+const onMouseMove = (event: MouseEvent) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-      if (intersects.length > 0) {
-        const intersectedObject = intersects[0].object;
-        let object = interactiveObjectsRef.get(intersectedObject);
+  raycaster.setFromCamera(mouse, camera);
+  
+  // Get all valid objects for raycasting
+  const checkObjects = Array.from(interactiveObjectsRef.keys()).filter(hasValidGeometry);
+  
+  try {
+    const intersects = raycaster.intersectObjects(checkObjects, true);
 
-        if (!object && intersectedObject.parent) {
-          object = interactiveObjectsRef.get(intersectedObject.parent);
-        }
+    if (intersects.length > 0) {
+      const intersectedObject = intersects[0].object;
+      let object = interactiveObjectsRef.get(intersectedObject);
 
-        if (object && object !== hoveredObject) {
-          if (hoveredObject) {
-            highlightObject(hoveredObject, false);
-          }
-          highlightObject(object, true);
-          hoveredObject = object;
-        }
-        renderer.domElement.style.cursor = "pointer";
-      } else {
+      if (!object && intersectedObject.parent) {
+        object = interactiveObjectsRef.get(intersectedObject.parent);
+      }
+
+      if (object && object !== hoveredObject) {
         if (hoveredObject) {
           highlightObject(hoveredObject, false);
-          hoveredObject = null;
         }
-        renderer.domElement.style.cursor = "default";
+        highlightObject(object, true);
+        hoveredObject = object;
       }
-    };
+      renderer.domElement.style.cursor = "pointer";
+    } else {
+      if (hoveredObject) {
+        highlightObject(hoveredObject, false);
+        hoveredObject = null;
+      }
+      renderer.domElement.style.cursor = "default";
+    }
+  } catch (error) {
+    console.warn("Raycaster error:", error);
+    // Reset cursor on error
+    renderer.domElement.style.cursor = "default";
+  }
+};
 
-    const selectBody = (body: CelestialBody) => {
-      const isAsteroid = body.id && "applyForce" in body;
+const selectBody = (body: CelestialBody) => {
+  const isAsteroid = body.id && "applyForce" in body;
 
-      if (isAsteroid) {
-        if (currentSelectedAsteroid && currentSelectedAsteroid !== body) {
-          currentSelectedAsteroid.hideOrbit?.();
+  if (isAsteroid) {
+    // Use the centralized manager
+    AsteroidOrbitManager.showOrbit(body);
+    setSelectedAsteroidId(body.id!);
+    setShowAsteroidVisualizer(true);
+  } else {
+    // Clear any asteroid orbit when selecting a planet
+    AsteroidOrbitManager.clearOrbit();
+    showOrbitForBody(body);
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+  }
+
+  currentSelectedBody = body;
+  setSelectedBody(body);
+};
+
+const onClick = (event: MouseEvent) => {
+  raycaster.setFromCamera(mouse, camera);
+  
+  // Get all valid objects for raycasting
+  const checkObjects = Array.from(interactiveObjectsRef.keys()).filter(hasValidGeometry);
+  
+  try {
+    const intersects = raycaster.intersectObjects(checkObjects, true);
+
+    if (intersects.length > 0) {
+      const intersectedObject = intersects[0].object;
+      let object = interactiveObjectsRef.get(intersectedObject);
+
+      if (!object) {
+        let current: THREE.Object3D<THREE.Object3DEventMap> | null =
+          intersectedObject;
+        while (current && !object) {
+          object = interactiveObjectsRef.get(current);
+          current = current.parent;
         }
-
-        showOrbitForBody(body);
-        currentSelectedAsteroid = body;
-        setSelectedAsteroidId(body.id!);
-        setShowAsteroidVisualizer(true);
-      } else {
-        if (currentSelectedAsteroid) {
-          currentSelectedAsteroid.hideOrbit?.();
-          currentSelectedAsteroid = null;
-        }
-
-        showOrbitForBody(body);
-        setShowAsteroidVisualizer(false);
-        setSelectedAsteroidId(null);
       }
 
-      currentSelectedBody = body;
-      setSelectedBody(body);
-    };
+      if (object) {
+        const objectPosition = new THREE.Vector3();
+        object.mesh.getWorldPosition(objectPosition);
 
-    const onClick = (event: MouseEvent) => {
-      raycaster.setFromCamera(mouse, camera);
-      const checkObjects = Array.from(interactiveObjectsRef.keys());
-      const intersects = raycaster.intersectObjects(checkObjects, true);
+        const isAsteroid = object.id && "applyForce" in object;
+        const viewDistance = object.diameter * (isAsteroid ? 10000 : 2);
 
-      if (intersects.length > 0) {
-        const intersectedObject = intersects[0].object;
-        let object = interactiveObjectsRef.get(intersectedObject);
+        const cameraOffset = new THREE.Vector3(
+          viewDistance,
+          viewDistance * 0.5,
+          viewDistance,
+        );
+        const cameraPosition = objectPosition.clone().add(cameraOffset);
 
-        if (!object) {
-          let current: THREE.Object3D<THREE.Object3DEventMap> | null =
-            intersectedObject;
-          while (current && !object) {
-            object = interactiveObjectsRef.get(current);
-            current = current.parent;
-          }
-        }
+        camera.up.set(0, 0, 1);
+        moveCamera(camera, controls, cameraPosition, objectPosition);
 
-        if (object) {
-          const objectPosition = new THREE.Vector3();
-          object.mesh.getWorldPosition(objectPosition);
-
-          const isAsteroid = object.id && "applyForce" in object;
-          const viewDistance = object.diameter * (isAsteroid ? 10000 : 2);
-
-          const cameraOffset = new THREE.Vector3(
-            viewDistance,
-            viewDistance * 0.5,
-            viewDistance,
-          );
-          const cameraPosition = objectPosition.clone().add(cameraOffset);
-
-          camera.up.set(0, 0, 1);
-          moveCamera(camera, controls, cameraPosition, objectPosition);
-
-          selectBody(object);
-        }
-      } else {
-        clearSelection();
+        selectBody(object);
       }
-    };
+    } else {
+      clearSelection();
+    }
+  } catch (error) {
+    console.warn("Click handler error:", error);
+  }
+};
 
     renderer.domElement.addEventListener("mousemove", onMouseMove);
     renderer.domElement.addEventListener("click", onClick);
@@ -612,8 +647,7 @@ export default function ThreeScene() {
         newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
       } else {
         const normalizedDistance =
-          (currentDistance - cameraDistance) /
-          (maxDistance - cameraDistance);
+          (currentDistance - cameraDistance) / (maxDistance - cameraDistance);
         newSliderValue = Math.max(
           50,
           Math.min(100, 50 + normalizedDistance * 50),
@@ -730,18 +764,16 @@ export default function ThreeScene() {
       asteroidsData,
       cameraRef,
       halosAndLabelsRef,
-      sceneRef,
+      sceneRef!,
     );
 
     createdAsteroids.forEach((asteroid) => {
       sceneRef!.add(asteroid.mesh);
 
-      if (
-        asteroid.orbitLine &&
-        !sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)
-      ) {
-        sceneRef!.add(asteroid.orbitLine);
-      }
+      // Don't add orbit line here - it will be added when shown
+      // if (asteroid.orbitLine) {
+      //   sceneRef!.add(asteroid.orbitLine);
+      // }
 
       const asteroidBody: CelestialBody = {
         id: asteroid.id,
@@ -761,10 +793,12 @@ export default function ThreeScene() {
 
       celestialBodiesRef.push(asteroidBody);
 
-      // if (asteroid.labelSprite) {
-      //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
-      // }
-      // interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+      if (asteroid.labelSprite) {
+        interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
+      }
+      interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+
+      // Don't add orbit line to interactive objects to avoid raycasting issues
       // if (asteroid.orbitLine) {
       //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
       // }
@@ -794,14 +828,10 @@ export default function ThreeScene() {
       const azimuthalAngle = 45 * (Math.PI / 180);
 
       const x =
-        cameraDistance *
-        Math.sin(angleFromY) *
-        Math.cos(azimuthalAngle);
+        cameraDistance * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
       const y = cameraDistance * Math.cos(angleFromY);
       const z =
-        cameraDistance *
-        Math.sin(angleFromY) *
-        Math.sin(azimuthalAngle);
+        cameraDistance * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
 
       const newPosition = new THREE.Vector3(x, y, z);
       const originTarget = new THREE.Vector3(0, 0, 0);

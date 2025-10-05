@@ -198,79 +198,142 @@ export class OrbitGenerator {
 
   getCurrentStateVectors(julianDate: number): StateVectors {
     const { semiMajorAxis: a, eccentricity: e } = this.elements;
+
+    // Gravitational parameter for the Sun (km³/s²)
+    const mu = 1.32712440018e11;
+
+    // Get mean anomaly at the given time
     const M = this.getMeanAnomalyAtTime(julianDate);
+
+    // Solve Kepler's equation
     const E = this.solveKepler(e, M);
 
     const cosE = Math.cos(E);
     const sinE = Math.sin(E);
 
+    // Position in orbital plane (km)
     const r = a * (1 - e * cosE);
-    const x = r * ((cosE - e) / (1 - e * cosE));
-    const y = r * ((Math.sqrt(1 - e * e) * sinE) / (1 - e * cosE));
+    const x_orbital = a * (cosE - e);
+    const y_orbital = a * Math.sqrt(1 - e * e) * sinE;
 
-    // velocities (approximate) are in km/s
-    const vx = -Math.sqrt(398600.4418 / (a * (1 - e * e))) * sinE;
-    const vy =
-      Math.sqrt(398600.4418 / (a * (1 - e * e))) * Math.sqrt(1 - e * e) * cosE;
+    // Velocity in orbital plane (km/s)
+    const n = this.elements.meanMotion * (1 / 86400); // Convert from rad/day to rad/s
+    const factor = (a * n) / (1 - e * cosE);
+    const vx_orbital = -factor * sinE;
+    const vy_orbital = factor * Math.sqrt(1 - e * e) * cosE;
 
-    const position3D = this.apply3DRotations([{ x, y, z: 0 }])[0];
-    const velocity3D = this.apply3DRotations([{ x: vx, y: vy, z: 0 }])[0];
+    // Apply 3D rotations to get heliocentric coordinates
+    const position3D = this.apply3DRotations([
+      { x: x_orbital, y: y_orbital, z: 0 },
+    ])[0];
+    const velocity3D = this.apply3DRotations([
+      { x: vx_orbital, y: vy_orbital, z: 0 },
+    ])[0];
 
-    return { position: position3D, velocity: velocity3D };
+    return {
+      position: position3D, // km
+      velocity: velocity3D, // km/s
+    };
   }
 
   static fromStateVectors(
-    position: Point3D,
-    velocity: Point3D,
-    epoch: number,
-    mu: number = 398600.4418,
+    position: Point3D, // km
+    velocity: Point3D, // km/s
+    epoch: number, // Julian Date
+    mu: number = 1.32712440018e11, // km³/s² for the Sun
   ): OrbitElements {
+    // Calculate orbital radius and speed
     const r = Math.sqrt(position.x ** 2 + position.y ** 2 + position.z ** 2);
     const v = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
 
+    // Angular momentum vector
     const hx = position.y * velocity.z - position.z * velocity.y;
     const hy = position.z * velocity.x - position.x * velocity.z;
     const hz = position.x * velocity.y - position.y * velocity.x;
     const h = Math.sqrt(hx ** 2 + hy ** 2 + hz ** 2);
 
+    // Node vector
     const nx = -hy;
     const ny = hx;
     const n = Math.sqrt(nx ** 2 + ny ** 2);
 
+    // Specific energy
     const energy = v ** 2 / 2 - mu / r;
+
+    // Semi-major axis
     const a = -mu / (2 * energy);
 
-    const dot =
+    // Eccentricity vector
+    const rdotv =
       position.x * velocity.x +
       position.y * velocity.y +
       position.z * velocity.z;
-    const ex = ((v ** 2 - mu / r) * position.x - dot * velocity.x) / mu;
-    const ey = ((v ** 2 - mu / r) * position.y - dot * velocity.y) / mu;
-    const ez = ((v ** 2 - mu / r) * position.z - dot * velocity.z) / mu;
+    const ex = ((v ** 2 - mu / r) * position.x - rdotv * velocity.x) / mu;
+    const ey = ((v ** 2 - mu / r) * position.y - rdotv * velocity.y) / mu;
+    const ez = ((v ** 2 - mu / r) * position.z - rdotv * velocity.z) / mu;
     const e = Math.sqrt(ex ** 2 + ey ** 2 + ez ** 2);
 
-    // inclination in radians
-    const i = Math.acos(hz / h);
+    // Inclination (radians)
+    const i = Math.acos(Math.min(1, Math.max(-1, hz / h)));
 
-    // ascending node in radians
+    // Longitude of ascending node (radians)
     let ascendingNode = 0;
     if (n !== 0) {
-      ascendingNode = Math.acos(nx / n);
+      ascendingNode = Math.acos(Math.min(1, Math.max(-1, nx / n)));
       if (ny < 0) ascendingNode = 2 * Math.PI - ascendingNode;
     }
 
+    // Argument of perihelion (radians)
     let perihelionArgument = 0;
     if (n !== 0 && e !== 0) {
-      perihelionArgument = Math.acos((nx * ex + ny * ey) / (n * e));
+      const dotProduct = (nx * ex + ny * ey) / (n * e);
+      perihelionArgument = Math.acos(Math.min(1, Math.max(-1, dotProduct)));
       if (ez < 0) perihelionArgument = 2 * Math.PI - perihelionArgument;
+    } else if (e !== 0) {
+      // For equatorial orbits
+      perihelionArgument = Math.atan2(ey, ex);
+      if (perihelionArgument < 0) perihelionArgument += 2 * Math.PI;
     }
 
-    // orbital period in seconds then convert to days
+    // True anomaly
+    let trueAnomaly = 0;
+    if (e !== 0) {
+      const dotProduct =
+        (ex * position.x + ey * position.y + ez * position.z) / (e * r);
+      trueAnomaly = Math.acos(Math.min(1, Math.max(-1, dotProduct)));
+      if (rdotv < 0) trueAnomaly = 2 * Math.PI - trueAnomaly;
+    } else {
+      // For circular orbits
+      const cosNu =
+        (position.x * Math.cos(ascendingNode) +
+          position.y * Math.sin(ascendingNode)) /
+        r;
+      const sinNu = position.z / (r * Math.sin(i));
+      trueAnomaly = Math.atan2(sinNu, cosNu);
+      if (trueAnomaly < 0) trueAnomaly += 2 * Math.PI;
+    }
+
+    // Eccentric anomaly
+    const cosE = (e + Math.cos(trueAnomaly)) / (1 + e * Math.cos(trueAnomaly));
+    const sinE =
+      (Math.sqrt(1 - e * e) * Math.sin(trueAnomaly)) /
+      (1 + e * Math.cos(trueAnomaly));
+    let E = Math.atan2(sinE, cosE);
+    if (E < 0) E += 2 * Math.PI;
+
+    // Mean anomaly at epoch
+    const meanAnomaly = E - e * Math.sin(E);
+
+    // Orbital period (days)
     const orbitalPeriodSeconds = 2 * Math.PI * Math.sqrt(a ** 3 / mu);
     const orbitalPeriodDays = orbitalPeriodSeconds / 86400;
 
-    // mean motion in radians per day
+    // Mean motion (radians per day)
     const meanMotion = (2 * Math.PI) / orbitalPeriodDays;
+
+    // Time of perihelion passage
+    const timeSincePerihelion = meanAnomaly / meanMotion; // days
+    const perihelionTime = epoch - timeSincePerihelion;
 
     return {
       semiMajorAxis: a,
@@ -279,8 +342,8 @@ export class OrbitGenerator {
       ascendingNode,
       perihelionArgument,
       orbitalPeriod: orbitalPeriodDays,
-      perihelionTime: epoch,
-      meanAnomaly: 0,
+      perihelionTime,
+      meanAnomaly,
       meanMotion,
       epoch,
     };
@@ -362,9 +425,7 @@ export class ScaledOrbitGenerator {
 
       let currentOpacity = baseOpacity;
 
-      if (
-        distance < Math.max(0, minDistance - fadeNear)
-      ) {
+      if (distance < Math.max(0, minDistance - fadeNear)) {
         currentOpacity = 0;
       } else if (distance < minDistance) {
         const fadeStart = Math.max(0, minDistance - fadeNear);
