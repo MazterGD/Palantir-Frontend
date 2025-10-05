@@ -204,24 +204,25 @@ export function moonToOrbitalElements(
   moon: MoonData,
   degreesToRadians: (deg: number) => number,
 ): {
-  semiMajorAxis: number; // Will be in render units after conversion
+  semiMajorAxis: number; // Will be in kilometers (standardized)
   eccentricity: number;
   inclination: number; // radians
   longitudeOfAscendingNode: number; // radians
   rightAscensionOfAscendingNode: number; // radians
-  orbitalPeriod: number; // seconds
+  orbitalPeriod: number; // days
   timeOfPeriapsisPassage: number;
 } {
   return {
-    // Convert km to render units using realistic scale
-    semiMajorAxis: kmToRenderUnits(moon.semiMajorAxis),
+    // Keep km as the standard internal unit
+    semiMajorAxis: moon.semiMajorAxis,
     eccentricity: moon.eccentricity,
     inclination: degreesToRadians(moon.inclination),
     longitudeOfAscendingNode: degreesToRadians(moon.longitudeOfAscendingNode),
     rightAscensionOfAscendingNode: degreesToRadians(
       moon.rightAscensionOfAscendingNode,
     ),
-    orbitalPeriod: Math.abs(moon.orbitalPeriod) * 3600, // Convert hours to seconds
+    // Convert hours -> days
+    orbitalPeriod: Math.abs(moon.orbitalPeriod) / 24,
     timeOfPeriapsisPassage: 0,
   };
 }

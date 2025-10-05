@@ -5,6 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import * as THREE from "three";
+import { kmToRenderUnits } from "@/app/lib/scalingUtils"; // NEW import
 
 export interface Point3D {
   x: number;
@@ -13,15 +14,15 @@ export interface Point3D {
 }
 
 export interface OrbitElements {
-  semiMajorAxis: number; // a (AU)
+  semiMajorAxis: number; // a (kilometers)
   eccentricity: number; // e
-  inclination: number; // i (degrees)
-  ascendingNode: number; // Ω (degrees)
-  perihelionArgument: number; // ω (degrees)
+  inclination: number; // i (radians)
+  ascendingNode: number; // Ω (radians)
+  perihelionArgument: number; // ω (radians)
   orbitalPeriod: number; // T (days)
   perihelionTime: number; // time of perihelion (Julian Date)
-  meanAnomaly: number; // M at epoch (degrees)
-  meanMotion: number; // n (degrees/day)
+  meanAnomaly: number; // M at epoch (radians)
+  meanMotion: number; // n (radians per day)
   epoch: number; // reference time (Julian Date)
 }
 
@@ -131,16 +132,21 @@ export class OrbitGenerator {
   }
 
   private getMeanAnomalyAtTime(julianDate: number): number {
+    // julianDate and epoch are in Julian Date -> difference is in days
     const daysSinceEpoch = julianDate - this.elements.epoch;
-    const meanAnomalyDegrees =
-      this.elements.meanAnomaly + this.elements.meanMotion * daysSinceEpoch;
-    return this.toRadians(meanAnomalyDegrees % 360);
+    const M =
+      this.elements.meanAnomaly + this.elements.meanMotion * daysSinceEpoch; // radians
+    // Normalize to 0..2PI
+    const twoPi = 2 * Math.PI;
+    const normalized = ((M % twoPi) + twoPi) % twoPi;
+    return normalized;
   }
 
   private apply3DRotations(points: Point3D[]): Point3D[] {
-    const incRad = this.toRadians(this.elements.inclination);
-    const argRad = this.toRadians(this.elements.perihelionArgument);
-    const nodeRad = this.toRadians(this.elements.ascendingNode);
+    // angles are assumed to be provided in radians now
+    const incRad = this.elements.inclination;
+    const argRad = this.elements.perihelionArgument;
+    const nodeRad = this.elements.ascendingNode;
 
     return points.map((point) => {
       let rotated = this.rotatePoint(point, argRad, 0, 0, 1);
@@ -180,9 +186,9 @@ export class OrbitGenerator {
     const rotated = this.apply3DRotations([{ x, y, z }])[0];
 
     return {
-      position: rotated,
-      time: this.julianToUnix(julianDate),
-      radius: r,
+      position: rotated, // in kilometers
+      time: this.julianToUnix(julianDate), // seconds
+      radius: r, // km
     };
   }
 
@@ -225,7 +231,7 @@ export class OrbitGenerator {
 
     const line = new Line2(geometry, material);
     line.computeLineDistances();
-    
+
     return line;
   }
 
@@ -233,20 +239,22 @@ export class OrbitGenerator {
     const { semiMajorAxis: a, eccentricity: e } = this.elements;
     const M = this.getMeanAnomalyAtTime(julianDate);
     const E = this.solveKepler(e, M);
-    
+
     const cosE = Math.cos(E);
     const sinE = Math.sin(E);
-    
+
     const r = a * (1 - e * cosE);
     const x = r * ((cosE - e) / (1 - e * cosE));
     const y = r * ((Math.sqrt(1 - e * e) * sinE) / (1 - e * cosE));
-    
+
+    // velocities (approximate) are in km/s
     const vx = -Math.sqrt(398600.4418 / (a * (1 - e * e))) * sinE;
-    const vy = Math.sqrt(398600.4418 / (a * (1 - e * e))) * Math.sqrt(1 - e * e) * cosE;
-    
+    const vy =
+      Math.sqrt(398600.4418 / (a * (1 - e * e))) * Math.sqrt(1 - e * e) * cosE;
+
     const position3D = this.apply3DRotations([{ x, y, z: 0 }])[0];
     const velocity3D = this.apply3DRotations([{ x: vx, y: vy, z: 0 }])[0];
-    
+
     return { position: position3D, velocity: velocity3D };
   }
 
@@ -254,56 +262,66 @@ export class OrbitGenerator {
     position: Point3D,
     velocity: Point3D,
     epoch: number,
-    mu: number = 398600.4418
+    mu: number = 398600.4418,
   ): OrbitElements {
     const r = Math.sqrt(position.x ** 2 + position.y ** 2 + position.z ** 2);
     const v = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
-    
+
     const hx = position.y * velocity.z - position.z * velocity.y;
     const hy = position.z * velocity.x - position.x * velocity.z;
     const hz = position.x * velocity.y - position.y * velocity.x;
     const h = Math.sqrt(hx ** 2 + hy ** 2 + hz ** 2);
-    
+
     const nx = -hy;
     const ny = hx;
     const n = Math.sqrt(nx ** 2 + ny ** 2);
-    
-    const energy = (v ** 2) / 2 - mu / r;
+
+    const energy = v ** 2 / 2 - mu / r;
     const a = -mu / (2 * energy);
-    
-    const ex = ((v ** 2 - mu / r) * position.x - (position.x * velocity.x + position.y * velocity.y + position.z * velocity.z) * velocity.x) / mu;
-    const ey = ((v ** 2 - mu / r) * position.y - (position.x * velocity.x + position.y * velocity.y + position.z * velocity.z) * velocity.y) / mu;
-    const ez = ((v ** 2 - mu / r) * position.z - (position.x * velocity.x + position.y * velocity.y + position.z * velocity.z) * velocity.z) / mu;
+
+    const dot =
+      position.x * velocity.x +
+      position.y * velocity.y +
+      position.z * velocity.z;
+    const ex = ((v ** 2 - mu / r) * position.x - dot * velocity.x) / mu;
+    const ey = ((v ** 2 - mu / r) * position.y - dot * velocity.y) / mu;
+    const ez = ((v ** 2 - mu / r) * position.z - dot * velocity.z) / mu;
     const e = Math.sqrt(ex ** 2 + ey ** 2 + ez ** 2);
-    
-    const i = Math.acos(hz / h) * (180 / Math.PI);
-    
+
+    // inclination in radians
+    const i = Math.acos(hz / h);
+
+    // ascending node in radians
     let ascendingNode = 0;
     if (n !== 0) {
-      ascendingNode = Math.acos(nx / n) * (180 / Math.PI);
-      if (ny < 0) ascendingNode = 360 - ascendingNode;
+      ascendingNode = Math.acos(nx / n);
+      if (ny < 0) ascendingNode = 2 * Math.PI - ascendingNode;
     }
-    
+
     let perihelionArgument = 0;
     if (n !== 0 && e !== 0) {
-      perihelionArgument = Math.acos((nx * ex + ny * ey) / (n * e)) * (180 / Math.PI);
-      if (ez < 0) perihelionArgument = 360 - perihelionArgument;
+      perihelionArgument = Math.acos((nx * ex + ny * ey) / (n * e));
+      if (ez < 0) perihelionArgument = 2 * Math.PI - perihelionArgument;
     }
-    
-    const orbitalPeriod = 2 * Math.PI * Math.sqrt((a ** 3) / mu);
-    const meanMotion = 360 / orbitalPeriod;
-    
+
+    // orbital period in seconds then convert to days
+    const orbitalPeriodSeconds = 2 * Math.PI * Math.sqrt(a ** 3 / mu);
+    const orbitalPeriodDays = orbitalPeriodSeconds / 86400;
+
+    // mean motion in radians per day
+    const meanMotion = (2 * Math.PI) / orbitalPeriodDays;
+
     return {
       semiMajorAxis: a,
       eccentricity: e,
       inclination: i,
       ascendingNode,
       perihelionArgument,
-      orbitalPeriod,
+      orbitalPeriod: orbitalPeriodDays,
       perihelionTime: epoch,
       meanAnomaly: 0,
       meanMotion,
-      epoch
+      epoch,
     };
   }
 }
@@ -311,26 +329,63 @@ export class OrbitGenerator {
 // Wrapper class for Three.js compatibility
 export class ScaledOrbitGenerator {
   private orbitGenerator: OrbitGenerator;
-  private scale: number;
 
-  constructor(orbitGenerator: OrbitGenerator, scale: number = 100) {
+  constructor(orbitGenerator: OrbitGenerator) {
     this.orbitGenerator = orbitGenerator;
-    this.scale = scale;
   }
 
   getPositionAtTime(unixTime: number) {
     const julianDate = unixTime / 86400 + 2440587.5;
     const orbitPosition = this.orbitGenerator.getPositionAtTime(julianDate);
 
+    // Convert kilometers -> render units per coordinate and enforce min via kmToRenderUnits
     return {
       position: {
-        x: orbitPosition.position.x * this.scale,
-        y: orbitPosition.position.y * this.scale,
-        z: orbitPosition.position.z * this.scale,
+        x: kmToRenderUnits(orbitPosition.position.x),
+        y: kmToRenderUnits(orbitPosition.position.y),
+        z: kmToRenderUnits(orbitPosition.position.z),
       },
-      radius: orbitPosition.radius * this.scale,
+      radius: kmToRenderUnits(orbitPosition.radius),
       time: orbitPosition.time,
     };
+  }
+
+  // Generate an orbit line already converted to render units
+  generateOrbitLine(options: OrbitLineOptions = {}): Line2 {
+    const { color = "#ffffff", opacity = 0.8, segments = 360 } = options;
+
+    // get raw km points from the underlying generator
+    const orbitPoints = this.orbitGenerator.generateOrbit(segments);
+
+    // Convert to render units
+    const ruPositions = new Float32Array(orbitPoints.length * 3);
+    for (let i = 0; i < orbitPoints.length; i++) {
+      const p = orbitPoints[i];
+      ruPositions[i * 3] = kmToRenderUnits(p.x);
+      ruPositions[i * 3 + 1] = kmToRenderUnits(p.y);
+      ruPositions[i * 3 + 2] = kmToRenderUnits(p.z);
+    }
+
+    const geometry = new LineGeometry();
+    geometry.setPositions(ruPositions);
+
+    const isMobile =
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
+
+    const lineW = isMobile ? 1.5 : 3;
+
+    const material = new LineMaterial({
+      color: color,
+      transparent: opacity < 1,
+      opacity: opacity,
+      linewidth: lineW,
+    });
+
+    const line = new Line2(geometry, material);
+    line.computeLineDistances();
+
+    return line;
   }
 }
 
@@ -343,5 +398,10 @@ export const ORBIT_PRESETS = {
     segments: 360,
   },
   bright: { opacity: 0.9, emissiveIntensity: 0.6, lineWidth: 3, segments: 360 },
-  subtle: { opacity: 0.1, emissiveIntensity: 0.1, lineWidth: 0.5, segments: 180 },
+  subtle: {
+    opacity: 0.1,
+    emissiveIntensity: 0.1,
+    lineWidth: 0.5,
+    segments: 180,
+  },
 };

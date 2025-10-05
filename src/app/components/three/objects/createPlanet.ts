@@ -8,6 +8,7 @@ import {
 } from "../orbitGenerator";
 import { addObjectLabel } from "../objectLabel";
 import { createLabel } from "../objectTextLables";
+import { kmToRenderUnits } from "@/app/lib/scalingUtils"; // NEW import
 
 export interface Planet {
   name: string;
@@ -34,7 +35,7 @@ const textureLoader = new THREE.TextureLoader();
 // NEW: Function to create planet rings
 const createPlanetRings = (
   planetName: string,
-  planetDiameter: number,
+  planetDiameterRenderUnits: number, // now expects diameter in render units
   axisTilt: number,
 ) => {
   // Define ring properties for different planets
@@ -71,10 +72,9 @@ const createPlanetRings = (
   const config = ringConfigs[planetName.toLowerCase()];
   if (!config) return null;
 
-  // Scale rings based on planet diameter
-  const scale = planetDiameter * 0.0001;
-  const innerRadius = config.innerRadius * scale;
-  const outerRadius = config.outerRadius * scale;
+  // Use planet diameter already converted to render units
+  const innerRadius = planetDiameterRenderUnits * config.innerRadius;
+  const outerRadius = planetDiameterRenderUnits * config.outerRadius;
 
   // Create ring geometry
   const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 256, 1);
@@ -127,7 +127,6 @@ const createPlanetRings = (
   // Rotate rings 90° around Z-axis to put them in XZ plane (perpendicular to Y-axis)
   ringMesh.rotation.z = Math.PI / 2;
 
-  // Create a group for the rings
   const ringsGroup = new THREE.Group();
   ringsGroup.add(ringMesh);
 
@@ -136,10 +135,11 @@ const createPlanetRings = (
 
 const createPlanetMesh = (
   planetName: string,
-  diameter: number,
+  diameterRenderUnits: number, // now receives render units
   fallbackColor: string,
 ) => {
-  const geometry = new THREE.SphereGeometry(diameter / 2, 64, 64);
+  // geometry expects units in render units (diameterRenderUnits)
+  const geometry = new THREE.SphereGeometry(diameterRenderUnits / 2, 64, 64);
   const texConfig = PLANET_TEXTURES[planetName] || {};
   const materialOptions: THREE.MeshPhongMaterialParameters = {};
 
@@ -158,10 +158,10 @@ const createPlanetMesh = (
   const material = new THREE.MeshPhongMaterial(materialOptions);
   const mesh = new THREE.Mesh(geometry, material);
 
-  // add a separate transparent cloud layer
+  // add a separate transparent cloud layer (scale relative to render-units)
   if (texConfig.cloud) {
     const cloudGeometry = new THREE.SphereGeometry(
-      (diameter / 2) * 1.01,
+      (diameterRenderUnits / 2) * 1.01,
       64,
       64,
     );
@@ -190,23 +190,20 @@ export const createPlanet = (
   const { diameter, color, rotationPeriod, axisTilt, ...orbitElements } =
     planetData;
   const orbitGenerator = new OrbitGenerator(orbitElements);
-  const positionScale = 100;
+  const scaledOrbitGenerator = new ScaledOrbitGenerator(orbitGenerator); // use new scaled wrapper
 
-  const orbitLine = orbitGenerator.generateOrbitLine({
+  // Convert physical diameter (km) -> render units
+  const renderDiameter = kmToRenderUnits(diameter);
+
+  const orbitLine = scaledOrbitGenerator.generateOrbitLine({
     color,
-    scale: positionScale,
     ...ORBIT_PRESETS.standard,
   });
 
-  // Store original orbit line properties for highlighting
-  (orbitLine as any).originalOpacity = ORBIT_PRESETS.standard.opacity;
-  (orbitLine as any).originalLineWidth = ORBIT_PRESETS.standard.lineWidth;
-  (orbitLine as any).originalEmissiveIntensity = ORBIT_PRESETS.standard.emissiveIntensity;
+  const mesh = createPlanetMesh(name, renderDiameter, color);
 
-  const mesh = createPlanetMesh(name, diameter * 0.0001, color);
-
-  // Create rings for planets that have them - pass axisTilt
-  const rings = createPlanetRings(name, diameter, axisTilt);
+  // Create rings using render-units diameter
+  const rings = createPlanetRings(name, renderDiameter, axisTilt);
 
   const texturePath = "/textures/Sprites/circle.png";
 
@@ -215,11 +212,27 @@ export const createPlanet = (
     map = new THREE.TextureLoader().load(texturePath);
   }
 
+  // Keep halo + label sizes identical and visible by providing explicit size and distance bounds.
+  // Use a moderate base size so scaling with camera distance matches previous visuals.
+  const SPRITE_BASE_SIZE = 1; // same size for halos and labels
+
   const haloResult = addObjectLabel(mesh, camera, {
     texture: map,
     color: planetData.color,
+    size: SPRITE_BASE_SIZE,
+    minDistance: 500,
+    maxDistance: 100000,
+    opacity: 1,
+    fadeNear: 1000,
+    fadeFar: 1500000,
   });
-  const labelResult = createLabel(mesh, planetName, camera);
+
+  const labelResult = createLabel(mesh, planetName, camera, {
+    fontSize: 20,
+    minDistance: 300,
+    maxDistance: 150000,
+    opacity: 1.0,
+  });
 
   halos_and_labels.push(haloResult.update);
   halos_and_labels.push(labelResult.update);
@@ -238,16 +251,16 @@ export const createPlanet = (
 
   // Apply axis tilt to the group, not the mesh
   // This will tilt both the planet AND the rings together
-  planetGroup.rotation.x = THREE.MathUtils.degToRad(axisTilt);
+  planetGroup.rotation.x = axisTilt;
 
-  // Calculate rotation speed (radians per day)
+  // Calculate rotation speed (radians per day) - rotationPeriod is in days
   const rotationSpeed =
-    rotationPeriod !== 0 ? (2 * Math.PI) / (rotationPeriod / 24) : 0;
+    rotationPeriod !== 0 ? (2 * Math.PI) / rotationPeriod : 0;
 
   return {
     name: planetName,
-    orbitGenerator: new ScaledOrbitGenerator(orbitGenerator, positionScale),
-    diameter: diameter * 0.0001,
+    orbitGenerator: scaledOrbitGenerator,
+    diameter: renderDiameter, // now in render units
     color,
     orbitLine,
     mesh: planetGroup,
@@ -258,7 +271,7 @@ export const createPlanet = (
     labelSprite: labelResult.sprite,
     setHaloHighlight: haloResult.setHighlight,
     setLabelHighlight: labelResult.setHighlight,
-    rings: rings, // Include rings in the planet object
+    rings: rings,
   };
 };
 

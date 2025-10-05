@@ -12,17 +12,17 @@ export function addObjectLabel(
     opacity?: number;
     texture?: THREE.Texture;
     fadeNear?: number; // how wide is the fade near minDistance
-    fadeFar?: number; // how wide is the fade near maxDistance
+    fadeFar?: number;  // how wide is the fade near maxDistance
   },
 ) {
   const color = options?.color ?? 0xffffff;
   const scale = options?.scale ?? 1;
-  const minDistance = options?.minDistance ?? 500;
-  const maxDistance = options?.maxDistance ?? 10000;
+  const minDistance = options?.minDistance ?? 1;
+  const maxDistance = options?.maxDistance ?? 150000;
   const size = options?.size ?? 1;
   const baseOpacity = options?.opacity ?? 1;
   const fadeNear = options?.fadeNear ?? 200; // start fading in this range
-  const fadeFar = options?.fadeFar ?? 1500; // start fading out this range
+  const fadeFar = options?.fadeFar ?? 1500;   // start fading out this range
   const map = options?.texture;
 
   const spriteMaterial = new THREE.SpriteMaterial({
@@ -44,44 +44,39 @@ export function addObjectLabel(
     const worldPos = sprite.getWorldPosition(new THREE.Vector3());
     const distance = camera.position.distanceTo(worldPos);
 
-    // Auto-scale glow with distance
     const spriteScale = (size * distance) / 35;
     sprite.scale.set(spriteScale, spriteScale, 1);
 
-    // Compute opacity fade
     let opacity = baseOpacity;
 
-    if (distance < minDistance - fadeNear || distance > maxDistance + fadeFar) {
-      // fully invisible outside extended bounds
+    if (distance < Math.max(0, minDistance - fadeNear) || distance > maxDistance + fadeFar) {
       opacity = 0;
     } else if (distance < minDistance) {
-      // fade in as approaching minDistance
-      opacity =
-        THREE.MathUtils.clamp(
-          (distance - (minDistance - fadeNear)) / fadeNear,
-          0,
-          1,
-        ) * baseOpacity;
+      const fadeStart = Math.max(0, minDistance - fadeNear);
+      opacity = THREE.MathUtils.clamp(
+        (distance - fadeStart) / (minDistance - fadeStart),
+        0,
+        1
+      ) * baseOpacity;
     } else if (distance > maxDistance) {
-      // fade out past maxDistance
-      opacity =
-        THREE.MathUtils.clamp(1 - (distance - maxDistance) / fadeFar, 0, 1) *
-        baseOpacity;
+      opacity = THREE.MathUtils.clamp(
+        1 - (distance - maxDistance) / fadeFar,
+        0,
+        1
+      ) * baseOpacity;
     }
 
     sprite.material.opacity = opacity;
-    sprite.visible = opacity > 0.001; // hide if nearly transparent
+    sprite.visible = opacity > 0.001;
   };
 
-  return {
-    update,
-    sprite,
-    setHighlight: (highlighted: boolean) => {
-      sprite.material.opacity = highlighted
-        ? Math.min(baseOpacity * 1.5, 1)
-        : baseOpacity;
-      const baseColor = new THREE.Color(color);
-      sprite.material.color.set(highlighted ? 0xffff00 : baseColor);
-    },
-  };
+  return { 
+  update, 
+  sprite,
+  setHighlight: (highlighted: boolean) => {
+  sprite.material.opacity = highlighted ? Math.min(baseOpacity * 1.5, 1) : baseOpacity;
+  const baseColor = new THREE.Color(color);
+  sprite.material.color.set(highlighted ? 0xffff00 : baseColor);
+}
+};
 }

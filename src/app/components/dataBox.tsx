@@ -68,7 +68,7 @@ export default function AsteroidVisualizer({
   };
 
   return (
-    <div className="w-full max-w-sm h-[85vh] bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-700/90 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-600/40 overflow-hidden relative transition-all duration-500">
+    <div className="top-4 left-4 w-full max-w-sm h-[85vh] bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-700/90 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-600/40 overflow-hidden relative transition-all duration-500">
       {loading ? (
         <LoadingAnimation />
       ) : asteroidData != null ? (
@@ -96,8 +96,10 @@ export default function AsteroidVisualizer({
           <div className="bg-gradient-to-r from-slate-900/80 to-slate-800/80 p-6 border-b border-slate-600/40 shadow-white/50">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-5 h-5 bg-slate-400 rounded-full animate-pulse shadow-white/50"></div>
-              <h1 className="text-4xl font-extrabold text-white tracking-tight drop-shadow-lg">
-                {asteroidData.name_limited}
+              <h1 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-lg">
+                {asteroidData.name_limited
+                  ? asteroidData.name_limited
+                  : asteroidData.name}
               </h1>
             </div>
             <p className="text-slate-300 text-sm font-medium opacity-90 tracking-wide">

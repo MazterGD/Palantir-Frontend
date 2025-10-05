@@ -1,40 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
-
-// Simple debounce function to limit how often slider updates during continuous zoom
-function debounce<T extends (...args: unknown[]) => unknown>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
-
-  return function(...args: Parameters<T>) {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupPostProcessing } from "./three/postProcessing";
+import { ORBIT_PRESETS, ScaledOrbitGenerator } from "./three/orbitGenerator";
 import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
 import { createAsteroids } from "./three/objects/createAsteroid";
+import { moveCamera } from "./three/cameraUtils";
 import { useAsteroidsBulk } from "../hooks/useAsteroidsBulk";
 import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
-import { moveCamera } from "./three/cameraUtils";
-import ControlPanel from "./ControlPanel";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import AsteroidVisualizer from "./dataBox";
+import SelectedBodyPanel from "./selectBodyPanel";
 
-interface CelestialBody {
+export interface CelestialBody {
   id?: string;
   mesh: THREE.Group | THREE.Points;
   orbitGenerator: any;
@@ -53,14 +39,14 @@ interface CelestialBody {
   applyForce?: (
     force: { x: number; y: number; z: number },
     deltaTime: number,
-    currentTime: number
+    currentTime: number,
   ) => void;
 }
 
 let sceneRef: THREE.Scene | null = null;
 let cameraRef: THREE.PerspectiveCamera | null = null;
 let celestialBodiesRef: CelestialBody[] = [];
-let interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
+const interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
 let halosAndLabelsRef: (() => void)[] = [];
 let currentSelectedBody: CelestialBody | null = null;
 let currentTimeRef = 0;
@@ -69,10 +55,118 @@ let controlsRef: any = null;
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [controlsRef, setControlsRef] = useState<OrbitControls | null>(null);
-  const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
-  const [initialCameraPosition, setInitialCameraPosition] = useState<THREE.Vector3 | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
+  const [isLoading, setIsLoading] = useState(true);
+  const [sceneInitialized, setSceneInitialized] = useState(false);
+  const [selectedBody, setSelectedBody] = useState<CelestialBody | null>(null);
+  const [forceX, setForceX] = useState("10");
+  const [forceY, setForceY] = useState("0");
+  const [forceZ, setForceZ] = useState("0");
+  const [deltaTime, setDeltaTime] = useState("1");
+  const [uiVersion, setUiVersion] = useState(0);
+  const [showAsteroidVisualizer, setShowAsteroidVisualizer] = useState(false);
+  const [selectedAsteroidId, setSelectedAsteroidId] = useState<string | null>(
+    null,
+  );
+
+  const {
+    asteroids: asteroidsData,
+    loading,
+    error,
+  } = useAsteroidsBulk(1, 1500);
+
+  useEffect(() => {
+    if (asteroidsData && sceneInitialized) {
+      setIsLoading(false);
+    }
+  }, [asteroidsData, sceneInitialized]);
+
+  const showOrbitForBody = (body: CelestialBody) => {
+    if (body.showOrbit) {
+      body.showOrbit();
+    } else if (body.orbitLine) {
+      // Fallback: directly show the orbit line
+      body.orbitLine.visible = true;
+
+      // Also ensure it's highlighted
+      if ("material" in body.orbitLine && body.orbitLine.material) {
+        const orbitLine = body.orbitLine as any;
+        orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+        if (orbitLine.material.linewidth !== undefined) {
+          orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+        }
+        if (orbitLine.material.emissiveIntensity !== undefined) {
+          orbitLine.material.emissiveIntensity =
+            ORBIT_PRESETS.bright.emissiveIntensity;
+        }
+        orbitLine.material.needsUpdate = true;
+      }
+    }
+  };
+
+  const applyForceToSelectedAsteroid = () => {
+    if (!selectedBody || !selectedBody.applyForce) {
+      alert("No asteroid selected or force function not available");
+      return;
+    }
+
+    const force = {
+      x: parseFloat(forceX),
+      y: parseFloat(forceY),
+      z: parseFloat(forceZ),
+    };
+
+    const dt = parseFloat(deltaTime);
+
+    if (isNaN(force.x) || isNaN(force.y) || isNaN(force.z) || isNaN(dt)) {
+      alert("Please enter valid numbers for force and time");
+      return;
+    }
+
+    // Apply the force and update the orbit
+    selectedBody.applyForce(force, dt, currentTimeRef);
+
+    // Update orbit line geometry after applying force
+    if (selectedBody.orbitLine && selectedBody.orbitGenerator) {
+      const positions: number[] = [];
+      const steps = 360;
+      for (let i = 0; i <= steps; i++) {
+        const t = (i / steps) * Math.PI * 2;
+        const pos = selectedBody.orbitGenerator.getPositionAtTime(
+          currentTimeRef + t * 100,
+        );
+        positions.push(pos.position.x, pos.position.y, pos.position.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
+
+      // Dispose of old geometry and assign new one
+      if ((selectedBody.orbitLine as THREE.Line).geometry) {
+        (selectedBody.orbitLine as THREE.Line).geometry.dispose();
+      }
+      (selectedBody.orbitLine as THREE.Line).geometry = geometry;
+    }
+
+    setUiVersion((v) => v + 1);
+    alert(`Force applied to ${selectedBody.name}. Orbit has been updated.`);
+  };
+
+  const clearSelection = () => {
+    currentSelectedBody = null;
+    setSelectedBody(null);
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+  };
+
+  // Add handler for closing the visualizer
+  const handleCloseVisualizer = () => {
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+    // Optionally keep the asteroid selected in the scene
+    // If you want to clear everything, call clearSelection() instead
+  };
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -82,26 +176,13 @@ export default function ThreeScene() {
     let renderer: THREE.WebGLRenderer;
     let controls: any;
 
-    const { scene, camera, renderer } = setupScene(mountRef.current);
-    const cameraDistance = getRecommendedCameraDistance();
-
-    // Set camera at approximately 40 degrees from the z-axis
-    const angleFromY = 50 * (Math.PI / 180); // Convert to radians (90 - 40 = 50)
-    const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
-
-    // Calculate position based on spherical coordinates
-    const x = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
-    const y = cameraDistance * 0.065 * Math.cos(angleFromY);
-    const z = cameraDistance * 0.065 * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
-
-    camera.position.set(x, y, z);
-    camera.lookAt(0, 0, 0);
-    camera.up.set(0, 0, 1); // Ensure z-up orientation
-
-    setCameraRef(camera);
-
-    const controls = setupControls(camera, renderer);
-    setControlsRef(controls);
+    const initScene = () => {
+      sceneRef = null;
+      cameraRef = null;
+      celestialBodiesRef = [];
+      interactiveObjectsRef.clear();
+      halosAndLabelsRef = [];
+      currentSelectedBody = null;
 
       const setup = setupScene(mountRef.current!);
       const scene = setup.scene;
@@ -124,46 +205,58 @@ export default function ThreeScene() {
       let currentTime = 0;
       const speedMultiplier = 0.1;
 
-    // Create mapping of interactive objects to planets
-    const interactiveObjects: Map<THREE.Object3D, CelestialBody> = new Map();
-    planets.forEach((planet) => {
-      // Map sprites to planet
-      if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
-    });
+      const { sun, update: updateSun } = createSun(camera);
+      scene.add(sun);
 
-    // Helper function to highlight planet
-    const highlightPlanet = (planet: CelestialBody, highlighted: boolean) => {
-      // Highlight halo
-      if (planet.setHaloHighlight) {
-        planet.setHaloHighlight(highlighted);
-      }
+      const planets = createAllPlanets(camera, halosAndLabelsRef);
+      planets.forEach((planet) => {
+        scene.add(planet.mesh);
+        if (planet.orbitLine) {
+          scene.add(planet.orbitLine);
+        }
 
-      // Highlight label
-      if (planet.setLabelHighlight) {
-        planet.setLabelHighlight(highlighted);
-      }
-
-      // Highlight orbit line
-      if (planet.orbitLine && planet.orbitLine.material) {
-        const lineMaterial = planet.orbitLine.material as LineMaterial;
-        lineMaterial.opacity = highlighted ? 1.0 : 0.7;
-        lineMaterial.linewidth = highlighted ? 5 : 3;
-      }
-
-      // Highlight planet mesh
-      planet.mesh.traverse((child: THREE.Object3D) => {
-        if (child instanceof THREE.Mesh) {
-          const materials = Array.isArray(child.material)
-            ? child.material
-            : [child.material];
-
-          materials.forEach((material) => {
-            if (material instanceof THREE.MeshPhongMaterial ||
-                material instanceof THREE.MeshStandardMaterial) {
-              material.emissive = new THREE.Color(planet.color);
-              material.emissiveIntensity = highlighted ? 0.3 : 0;
+        // Create showOrbit method for planets (no hideOrbit needed)
+        const showOrbit = () => {
+          if (planet.orbitLine) {
+            planet.orbitLine.visible = true;
+            // Highlight the orbit
+            if ("material" in planet.orbitLine && planet.orbitLine.material) {
+              const orbitLine = planet.orbitLine as any;
+              orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+              if (orbitLine.material.linewidth !== undefined) {
+                orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+              }
+              if (orbitLine.material.emissiveIntensity !== undefined) {
+                orbitLine.material.emissiveIntensity =
+                  ORBIT_PRESETS.bright.emissiveIntensity;
+              }
+              orbitLine.material.needsUpdate = true;
             }
-          });
+          }
+        };
+
+        const celestialBody: CelestialBody = {
+          mesh: planet.mesh,
+          orbitGenerator: planet.orbitGenerator,
+          rotationSpeed: planet.rotationSpeed,
+          diameter: planet.diameter,
+          color: planet.color,
+          name: planet.name,
+          haloSprite: planet.haloSprite,
+          labelSprite: planet.labelSprite,
+          setHaloHighlight: planet.setHaloHighlight,
+          setLabelHighlight: planet.setLabelHighlight,
+          orbitLine: planet.orbitLine,
+          showOrbit,
+        };
+
+        celestialBodiesRef.push(celestialBody);
+
+        if (planet.haloSprite) {
+          interactiveObjectsRef.set(planet.haloSprite, celestialBody);
+        }
+        if (planet.labelSprite) {
+          interactiveObjectsRef.set(planet.labelSprite, celestialBody);
         }
 
         planet.mesh.traverse((child) => {
@@ -172,129 +265,143 @@ export default function ThreeScene() {
           }
         });
 
-    // Click handler
-    const onClick = (event: MouseEvent) => {
-      raycaster.setFromCamera(mouse, camera);
-      const checkObjects = Array.from(interactiveObjects.keys());
-      const intersects = raycaster.intersectObjects(checkObjects, true);
-
-      if (intersects.length > 0) {
-        const intersectedObject = intersects[0].object;
-        let planet = interactiveObjects.get(intersectedObject);
-
-        if (!planet && intersectedObject.parent) {
-          planet = interactiveObjects.get(intersectedObject.parent);
-        }
-
-        if (planet) {
-          const planetPosition = new THREE.Vector3();
-          planet.mesh.getWorldPosition(planetPosition);
-
-          // Camera offset (from above and slightly back)
-          const viewDistance = planet.diameter * 1;
-          const cameraOffset = new THREE.Vector3(viewDistance, 0, viewDistance); // stays in XZ plane
-          const cameraPosition = planetPosition.clone().add(cameraOffset);
-
-          // Force "up" to always be +Z (parallel to orbital plane)
-          camera.up.set(0, 0, 1);
-
-          // Smoothly animate camera
-          moveCamera(camera, controls, cameraPosition, planetPosition);
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('mousemove', onMouseMove);
-    renderer.domElement.addEventListener('click', onClick);
-
-    addLights(scene);
-    const { update: renderWithPostProcessing, resize: resizePostProcessing } =
-      setupPostProcessing(scene, camera, renderer);
-
-    const sceneBounds = getSceneBoundaries();
-
-    camera.near = 1;
-    camera.far = sceneBounds.outerBoundary * 2;
-    camera.updateProjectionMatrix();
-
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 10; // Minimum zoom distance
-
-    // Calculate the maximum distance based on the same scaling factor used for reset view
-    // This ensures consistency between reset view and max zoom distance
-    const recommendedDistance = getRecommendedCameraDistance();
-    const maxDistance = recommendedDistance * CAMERA_SCALE_FACTOR * 1.5; // Allow zooming slightly more than reset distance
-    controls.maxDistance = maxDistance;
-
-    // Create a debounced function to update slider to prevent too many updates
-    const updateSliderFromCamera = debounce(() => {
-      // Get current camera distance from target
-      const currentDistance = camera.position.distanceTo(controls.target);
-
-      // Calculate reset view distance for reference point
-      const resetViewDistance = recommendedDistance * CAMERA_SCALE_FACTOR;
-
-      // Convert current distance to slider value
-      let newSliderValue: number;
-
-      if (currentDistance <= resetViewDistance) {
-        // Map distance from minDistance to resetViewDistance to slider 0-50
-        const normalizedDistance = (currentDistance - controls.minDistance) / (resetViewDistance - controls.minDistance);
-        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
-      } else {
-        // Map distance from resetViewDistance to maxDistance to slider 50-100
-        const normalizedDistance = (currentDistance - resetViewDistance) / (maxDistance - resetViewDistance);
-        newSliderValue = Math.max(50, Math.min(100, 50 + normalizedDistance * 50));
-      }
-
-      // Update slider value without triggering zoom change to avoid loops
-      // Only update if the difference is significant (to avoid minor fluctuations)
-      if (Math.abs(newSliderValue - zoomLevel) > 1) {
-        setZoomLevel(Math.round(newSliderValue));
-      }
-    }, 50); // 50ms debounce delay for smoother updates
-
-    // Add event listener to update slider when zooming with mouse/touch
-    controls.addEventListener('change', updateSliderFromCamera);
-
-    const animate = () => {
-      requestAnimationFrame(animate);
-
-      currentTime += 360 * speedMultiplier;
-
-      celestialBodies.forEach((body) => {
-        const position = body.orbitGenerator.getPositionAtTime(currentTime);
-        body.mesh.position.set(
-          position.position.x,
-          position.position.y,
-          position.position.z,
-        );
-
-        if (body.rotationSpeed) {
-          const planetMesh = body.mesh.children[0] as THREE.Mesh;
-          planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
+        if (planet.orbitLine) {
+          interactiveObjectsRef.set(planet.orbitLine, celestialBody);
         }
       });
 
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
+      let hoveredObject: CelestialBody | null = null;
 
-      // ✅ track mouse for raycasting
-      renderer.domElement.addEventListener("mousemove", (event) => {
+      const highlightObject = (object: CelestialBody, highlighted: boolean) => {
+        if (object.setHaloHighlight) {
+          object.setHaloHighlight(highlighted);
+        }
+
+        if (object.setLabelHighlight) {
+          object.setLabelHighlight(highlighted);
+        }
+
+        // Highlight the orbit line on hover (but don't change visibility)
+        if (
+          object.orbitLine &&
+          "material" in object.orbitLine &&
+          !object.name.toLowerCase().includes("asteroid")
+        ) {
+          const orbitLine = object.orbitLine as any;
+          if (orbitLine.material) {
+            if (highlighted) {
+              orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+              if (orbitLine.material.linewidth !== undefined) {
+                orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+              }
+              if (orbitLine.material.emissiveIntensity !== undefined) {
+                orbitLine.material.emissiveIntensity =
+                  ORBIT_PRESETS.bright.emissiveIntensity;
+              }
+            } else {
+              // Only revert to standard if this orbit is not currently selected
+              if (currentSelectedBody !== object) {
+                orbitLine.material.opacity = ORBIT_PRESETS.standard.opacity;
+                if (orbitLine.material.linewidth !== undefined) {
+                  orbitLine.material.linewidth =
+                    ORBIT_PRESETS.standard.lineWidth;
+                }
+                if (orbitLine.material.emissiveIntensity !== undefined) {
+                  orbitLine.material.emissiveIntensity =
+                    ORBIT_PRESETS.standard.emissiveIntensity;
+                }
+              }
+            }
+            orbitLine.material.needsUpdate = true;
+          }
+        }
+
+        if (object.mesh instanceof THREE.Group) {
+          object.mesh.traverse((child: any) => {
+            if (child instanceof THREE.Mesh && child.material) {
+              const materials = Array.isArray(child.material)
+                ? child.material
+                : [child.material];
+
+              materials.forEach((material) => {
+                if (
+                  material instanceof THREE.MeshPhongMaterial ||
+                  material instanceof THREE.MeshStandardMaterial
+                ) {
+                  material.emissive = new THREE.Color(object.color);
+                  material.emissiveIntensity = highlighted ? 0.3 : 0;
+                }
+              });
+            }
+          });
+        }
+
+        if (object.mesh instanceof THREE.Points) {
+          const material = object.mesh.material as THREE.PointsMaterial;
+          if (highlighted) {
+            material.color = new THREE.Color(0xffff00);
+            material.size = 5;
+            material.opacity = 1.0;
+          } else {
+            material.color = new THREE.Color(0x4fc3f7);
+            material.size = 3;
+            material.opacity = 0.8;
+          }
+        }
+      };
+
+      const onMouseMove = (event: MouseEvent) => {
         const rect = renderer.domElement.getBoundingClientRect();
         mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      });
+
+        raycaster.setFromCamera(mouse, camera);
+
+        const checkObjects = Array.from(interactiveObjectsRef.keys());
+        const intersects = raycaster.intersectObjects(checkObjects, true);
+
+        if (intersects.length > 0) {
+          const intersectedObject = intersects[0].object;
+          let object = interactiveObjectsRef.get(intersectedObject);
+
+          if (!object && intersectedObject.parent) {
+            object = interactiveObjectsRef.get(intersectedObject.parent);
+          }
+
+          if (object && object !== hoveredObject) {
+            if (hoveredObject) {
+              highlightObject(hoveredObject, false);
+            }
+            highlightObject(object, true);
+            hoveredObject = object;
+          }
+          renderer.domElement.style.cursor = "pointer";
+        } else {
+          if (hoveredObject) {
+            highlightObject(hoveredObject, false);
+            hoveredObject = null;
+          }
+          renderer.domElement.style.cursor = "default";
+        }
+      };
 
       const selectBody = (body: CelestialBody) => {
-        if (currentSelectedBody?.hideOrbit) {
-          currentSelectedBody.hideOrbit();
-        }
-        if (body.showOrbit) body.showOrbit();
+        console.log("selectBody called with:", body.name);
 
+        showOrbitForBody(body);
         currentSelectedBody = body;
         setSelectedBody(body);
+
+        // Check if it's an asteroid by the presence of applyForce method instead of name
+        if (body.id && "applyForce" in body) {
+          setSelectedAsteroidId(body.id);
+          setShowAsteroidVisualizer(true);
+        } else {
+          setShowAsteroidVisualizer(false);
+          setSelectedAsteroidId(null);
+        }
       };
 
       const onClick = (event: MouseEvent) => {
@@ -302,13 +409,20 @@ export default function ThreeScene() {
         const checkObjects = Array.from(interactiveObjectsRef.keys());
         const intersects = raycaster.intersectObjects(checkObjects, true);
 
+        console.log("Click detected, intersects:", intersects.length);
+
         if (intersects.length > 0) {
           const intersectedObject = intersects[0].object;
+          console.log(
+            "Clicked object type:",
+            intersectedObject.constructor.name,
+          );
 
           let object = interactiveObjectsRef.get(intersectedObject);
 
           if (!object) {
-            let current: THREE.Object3D | null = intersectedObject;
+            let current: THREE.Object3D<THREE.Object3DEventMap> | null =
+              intersectedObject;
             while (current && !object) {
               object = interactiveObjectsRef.get(current);
               current = current.parent;
@@ -316,14 +430,46 @@ export default function ThreeScene() {
           }
 
           if (object) {
+            console.log(
+              "Selected object:",
+              object.name,
+              "Type:",
+              object.mesh.constructor.name,
+            );
+            console.log("Orbit line available:", !!object.orbitLine);
+            console.log("showOrbit available:", !!object.showOrbit);
+
+            const objectPosition = new THREE.Vector3();
+            object.mesh.getWorldPosition(objectPosition);
+
+            const isAsteroid = object.name.toLowerCase().includes("asteroid");
+            const viewDistance = object.diameter * (isAsteroid ? 1000 : 2);
+
+            const cameraOffset = new THREE.Vector3(
+              viewDistance,
+              viewDistance * 0.5,
+              viewDistance,
+            );
+            const cameraPosition = objectPosition.clone().add(cameraOffset);
+
+            camera.up.set(0, 0, 1);
+            moveCamera(camera, controls, cameraPosition, objectPosition);
+
             selectBody(object);
+          } else {
+            console.log("No celestial body found for clicked object");
           }
+        } else {
+          // Clicked on empty space - clear selection
+          console.log("Clicked on empty space - clearing selection");
+          clearSelection();
         }
       };
 
+      renderer.domElement.addEventListener("mousemove", onMouseMove);
       renderer.domElement.addEventListener("click", onClick);
-      addLights(scene);
 
+      addLights(scene);
       const { update: renderWithPostProcessing, resize: resizePostProcessing } =
         setupPostProcessing(scene, camera, renderer);
 
@@ -332,135 +478,284 @@ export default function ThreeScene() {
       camera.far = sceneBounds.outerBoundary * 2;
       camera.updateProjectionMatrix();
 
-    return () => {
-      renderer.domElement.removeEventListener('mousemove', onMouseMove);
-      renderer.domElement.removeEventListener('click', onClick);
-      window.removeEventListener("resize", handleResize);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minDistance = 3;
+      controls.maxDistance = cameraDistance * 2;
 
-      // Clean up the event listener for the slider update
-      controls.removeEventListener('change', updateSliderFromCamera);
+      const animate = () => {
+        animationFrameId = requestAnimationFrame(animate);
 
-      controls.dispose();
-      renderer.dispose();
-      if (Refcurrent) {
-        Refcurrent.removeChild(renderer.domElement);
-      }
+        currentTime += 360 * speedMultiplier;
+        currentTimeRef = currentTime;
+
+        celestialBodiesRef.forEach((body) => {
+          const position = body.orbitGenerator.getPositionAtTime(currentTime);
+          body.mesh.position.set(
+            position.position.x,
+            position.position.y,
+            position.position.z,
+          );
+
+          if (body.rotationSpeed && body.mesh instanceof THREE.Group) {
+            const planetMesh = body.mesh.children[0] as THREE.Mesh;
+            planetMesh.rotation.y += body.rotationSpeed * speedMultiplier;
+          }
+
+          if (body.updateLOD) {
+            body.updateLOD(camera.position);
+          }
+        });
+
+        // CRITICAL: Update all halos and labels every frame
+        halosAndLabelsRef.forEach((updateHalo) => updateHalo());
+
+        updateSun();
+        controls.update();
+        renderWithPostProcessing();
+      };
+
+      animate();
+      setSceneInitialized(true);
+
+      const handleResize = () => {
+        camera.aspect =
+          mountRef.current!.clientWidth / mountRef.current!.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(
+          mountRef.current!.clientWidth,
+          mountRef.current!.clientHeight,
+        );
+        resizePostProcessing();
+      };
+      window.addEventListener("resize", handleResize);
+
+      return () => {
+        window.removeEventListener("resize", handleResize);
+        renderer.domElement.removeEventListener("mousemove", onMouseMove);
+        renderer.domElement.removeEventListener("click", onClick);
+        controls.dispose();
+        renderer.dispose();
+        if (Refcurrent && renderer.domElement.parentNode === Refcurrent) {
+          Refcurrent.removeChild(renderer.domElement);
+        }
+        cancelAnimationFrame(animationFrameId);
+
+        sceneRef = null;
+        cameraRef = null;
+        rendererRef = null;
+        controlsRef = null;
+        celestialBodiesRef = [];
+        interactiveObjectsRef.clear();
+        halosAndLabelsRef = [];
+        currentSelectedBody = null;
+      };
     };
 
     const cleanup = initScene();
     return cleanup;
   }, []);
 
-  const handleZoomIn = () => {
-    if (controlsRef && cameraRef) {
-      // Decrease slider value by 10 for more precise control
-      const newZoomLevel = Math.max(0, zoomLevel - 10);
+  useEffect(() => {
+    console.log("selectedBody state changed:", selectedBody?.name);
+    console.log("selectedBody orbit methods:", {
+      showOrbit: !!selectedBody?.showOrbit,
+      hideOrbit: !!selectedBody?.hideOrbit,
+      orbitLine: !!selectedBody?.orbitLine,
+    });
+  }, [selectedBody]);
 
-      // Update slider first
-      setZoomLevel(newZoomLevel);
-
-      // Then trigger zoom change with new value
-      handleZoomChange(newZoomLevel);
+  useEffect(() => {
+    if (
+      !asteroidsData ||
+      asteroidsData.length === 0 ||
+      !sceneInitialized ||
+      !sceneRef ||
+      !cameraRef
+    ) {
+      return;
     }
-  };
 
-  const handleZoomOut = () => {
-    if (controlsRef && cameraRef) {
-      // Increase slider value by 10 for more precise control
-      const newZoomLevel = Math.min(100, zoomLevel + 10);
+    console.log(`Creating ${asteroidsData.length} asteroids...`);
 
-      // Update slider first
-      setZoomLevel(newZoomLevel);
+    try {
+      const createdAsteroids = createAsteroids(
+        asteroidsData,
+        cameraRef,
+        halosAndLabelsRef,
+        sceneRef,
+      );
 
-      // Then trigger zoom change with new value
-      handleZoomChange(newZoomLevel);
+      createdAsteroids.forEach((asteroid) => {
+        sceneRef!.add(asteroid.mesh);
+
+        if (asteroid.orbitLine) {
+          console.log("Asteroid orbit line created for:", asteroid.name);
+          if (
+            !sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)
+          ) {
+            sceneRef!.add(asteroid.orbitLine);
+          }
+        }
+
+        const asteroidBody: CelestialBody = {
+          id: asteroid.id,
+          mesh: asteroid.mesh,
+          orbitGenerator: asteroid.orbitGenerator,
+          diameter: asteroid.diameter,
+          color: asteroid.color,
+          name: asteroid.name,
+          orbitLine: asteroid.orbitLine,
+          labelSprite: asteroid.labelSprite,
+          setLabelHighlight: asteroid.setLabelHighlight,
+          updateLOD: asteroid.updateLOD,
+          showOrbit: asteroid.showOrbit,
+          hideOrbit: asteroid.hideOrbit,
+          applyForce: asteroid.applyForce,
+        };
+
+        celestialBodiesRef.push(asteroidBody);
+
+        // Register ALL interactive elements
+        if (asteroid.labelSprite) {
+          interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
+        }
+
+        // Register the mesh itself (important for Points objects)
+        interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+
+        if (asteroid.orbitLine) {
+          interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
+        }
+
+        console.log(
+          `Registered asteroid: ${asteroid.name} with ${asteroid.labelSprite ? "label" : "no label"}, ${asteroid.orbitLine ? "orbit" : "no orbit"}`,
+        );
+      });
+
+      console.log(`Successfully created ${createdAsteroids.length} asteroids`);
+      console.log("Total celestial bodies:", celestialBodiesRef.length);
+      console.log("Total interactive objects:", interactiveObjectsRef.size);
+    } catch (err) {
+      console.error("Error creating asteroids:", err);
     }
-  };
+  }, [asteroidsData, sceneInitialized]);
 
-  // Define a consistent scaling factor to use in multiple places
-  const CAMERA_SCALE_FACTOR = 0.065;
-
-  const handleResetView = () => {
-    if (controlsRef && cameraRef) {
-      // Reset to a view at approximately 40 degrees from the z-axis
-      const cameraDistance = getRecommendedCameraDistance();
-
-      // Calculate position using spherical coordinates
-      // 40 degrees from z-axis means 50 degrees from y-axis in this coordinate system
-      const angleFromY = 50 * (Math.PI / 180); // Convert to radians
-      const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
-
-      // Calculate position based on spherical coordinates
-      const x = cameraDistance * CAMERA_SCALE_FACTOR * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
-      const y = cameraDistance * CAMERA_SCALE_FACTOR * Math.cos(angleFromY);
-      const z = cameraDistance * CAMERA_SCALE_FACTOR * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
-
-      const newPosition = new THREE.Vector3(x, y, z);
-      const originTarget = new THREE.Vector3(0, 0, 0);
-
-      // Reset camera up vector to ensure proper orientation
-      cameraRef.up.set(0, 0, 1);
-
-      moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
-
-      // Reset the zoom level slider to default
-      setZoomLevel(50);
-    }
-  };
-
-  const handleZoomChange = (value: number) => {
-    if (controlsRef && cameraRef) {
-      setZoomLevel(value);
-
-      // Calculate zoom based on slider value (0-100)
-      // Map slider range (0-100) to zoom distance range
-      // Lower value = closer zoom (minimum distance)
-      // Higher value = further zoom (maximum distance)
-
-      const minZoomDistance = controlsRef.minDistance;
-      const maxZoomDistance = controlsRef.maxDistance;
-
-      // When slider is at 50 (middle position), we want to be at the reset view distance
-      // Calculate reset view distance (same calculation used in handleResetView)
-      const cameraDistanceForReset = getRecommendedCameraDistance();
-      const resetViewDistance = cameraDistanceForReset * CAMERA_SCALE_FACTOR;
-
-      // Use a piecewise function:
-      // - Slider 0-50: Map to minDistance -> resetViewDistance
-      // - Slider 50-100: Map to resetViewDistance -> maxDistance
-      let targetDistance;
-
-      if (value <= 50) {
-        // Map 0-50 to minDistance-resetViewDistance
-        const normalizedValue = value / 50;
-        targetDistance = minZoomDistance + (resetViewDistance - minZoomDistance) * normalizedValue;
-      } else {
-        // Map 50-100 to resetViewDistance-maxDistance
-        const normalizedValue = (value - 50) / 50;
-        targetDistance = resetViewDistance + (maxZoomDistance - resetViewDistance) * normalizedValue;
-      }
-
-      // Get current direction from target
-      const directionVector = new THREE.Vector3().subVectors(cameraRef.position, controlsRef.target).normalize();
-
-      // Create new position at the calculated distance
-      const updatedPosition = new THREE.Vector3().copy(controlsRef.target).add(directionVector.multiplyScalar(targetDistance));
-
-      // Move camera to new position
-      moveCamera(cameraRef, controlsRef, updatedPosition, controlsRef.target, 500);
-    }
-  };
+  useEffect(() => {
+    console.log("State check:", {
+      showAsteroidVisualizer,
+      selectedAsteroidId,
+      selectedBodyName: selectedBody?.name,
+      selectedBodyId: selectedBody?.id,
+    });
+  }, [showAsteroidVisualizer, selectedAsteroidId, selectedBody]);
 
   return (
-    <div className="relative w-full h-screen">
-      <div ref={mountRef} className="w-full h-full" />
-      <ControlPanel
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onResetView={handleResetView}
-        zoomLevel={zoomLevel}
-        onZoomChange={handleZoomChange}
-      />
+    <div style={{ position: "relative", width: "100%", height: "100vh" }}>
+      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
+
+      {/* Asteroid Visualizer on the left side */}
+      {showAsteroidVisualizer && selectedAsteroidId && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "400px", // Adjust width as needed
+            height: "100%",
+            zIndex: 1000,
+            pointerEvents: "auto",
+          }}
+        >
+          <AsteroidVisualizer
+            id={selectedAsteroidId}
+            onCloseHandler={handleCloseVisualizer}
+          />
+        </div>
+      )}
+
+      {selectedBody && (
+        <SelectedBodyPanel
+          selectedBody={selectedBody}
+          forceX={forceX}
+          forceY={forceY}
+          forceZ={forceZ}
+          deltaTime={deltaTime}
+          setForceX={setForceX}
+          setForceY={setForceY}
+          setForceZ={setForceZ}
+          setDeltaTime={setDeltaTime}
+          applyForceToSelectedAsteroid={applyForceToSelectedAsteroid}
+          showOrbitForBody={showOrbitForBody}
+          clearSelection={clearSelection}
+        />
+      )}
+
+      {error && (
+        <div
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            backgroundColor: "rgba(255, 0, 0, 0.8)",
+            color: "white",
+            padding: "10px",
+            borderRadius: "5px",
+            zIndex: 1001,
+          }}
+        >
+          Error: {error}
+        </div>
+      )}
+
+      {(loading || isLoading) && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#000000",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            color: "white",
+            fontSize: "18px",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              width: "50px",
+              height: "50px",
+              border: "5px solid #f3f3f3",
+              borderTop: "5px solid #3498db",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              marginBottom: "20px",
+            }}
+          />
+          <p>Loading asteroid data...</p>
+          {asteroidsData && (
+            <p style={{ fontSize: "14px", marginTop: "10px" }}>
+              Loaded {asteroidsData.length} asteroids
+            </p>
+          )}
+
+          <style jsx>{`
+            @keyframes spin {
+              0% {
+                transform: rotate(0deg);
+              }
+              100% {
+                transform: rotate(360deg);
+              }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 }
