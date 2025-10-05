@@ -48,7 +48,11 @@ interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
 }
 
-export default function ThreeScene() {
+interface ThreeSceneProps {
+  loadingHandler: ()=> void
+}
+
+export default function ThreeScene({loadingHandler}: ThreeSceneProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [speedMultiplier, setSpeedMultiplier] = useState(21); // Default to real-time (index 21 in speedScale)
   const [isPaused, setIsPaused] = useState(false);
@@ -102,6 +106,7 @@ export default function ThreeScene() {
     return `${month} ${day}, ${year} ${hours}:${minutes}:${seconds}`;
   }, []);
 
+  console.log("Stage 01")
   // Update the refs whenever the states change
   useEffect(() => {
     speedMultiplierRef.current = speedMultiplier;
@@ -160,6 +165,8 @@ export default function ThreeScene() {
     });
   }, []);
 
+  console.log("Stage 02")
+
   // Set simulation to specific date/time
   const setSimulationDateTime = useCallback(() => {
     const selectedDate = new Date(selectedDateTime);
@@ -187,6 +194,8 @@ export default function ThreeScene() {
   const [initialCameraPosition, setInitialCameraPosition] =
     useState<THREE.Vector3 | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
+
+  console.log("Stage 03")
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -221,6 +230,7 @@ export default function ThreeScene() {
         orbitGenerator: planet.orbitGenerator,
       });
     });
+  console.log("Stage 04")
 
     // Update ref after all planets are added
     celestialBodiesRef.current = celestialBodies;
@@ -276,6 +286,8 @@ export default function ThreeScene() {
       });
     };
 
+  console.log("Stage 05")
+
     // Mouse move handler
     const onMouseMove = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -315,6 +327,8 @@ export default function ThreeScene() {
         renderer.domElement.style.cursor = "default";
       }
     };
+
+  console.log("Stage 06")
 
     // Click handler
     const onClick = () => {
@@ -365,6 +379,8 @@ export default function ThreeScene() {
     controls.dampingFactor = 0.05;
     controls.minDistance = 10; // Minimum zoom distance
 
+  console.log("Stage 07")
+
     // Calculate the maximum distance based on the same scaling factor used for reset view
     // This ensures consistency between reset view and max zoom distance
     const recommendedDistance = getRecommendedCameraDistance();
@@ -408,6 +424,7 @@ export default function ThreeScene() {
 
     // Add event listener to update slider when zooming with mouse/touch
     controls.addEventListener("change", updateSliderFromCamera);
+  console.log("Stage 08")
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -480,6 +497,7 @@ export default function ThreeScene() {
     };
     window.addEventListener("resize", handleResize);
 
+    loadingHandler();
     return () => {
       renderer.domElement.removeEventListener("mousemove", onMouseMove);
       renderer.domElement.removeEventListener("click", onClick);

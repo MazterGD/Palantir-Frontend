@@ -1,14 +1,16 @@
 import React from "react";
+import { League_Spartan } from "next/font/google";
 
-interface LoadingScreenProps {
-  loadingProgress?: number;
-}
+const leagueSpartan = League_Spartan({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
+});
 
-export default function LoadingScreen({
-  loadingProgress = 0,
-}: LoadingScreenProps) {
+
+export default function LoadingScreen() {
   return (
-    <div className="inset-0 bg-gradient-to-b from-black via-gray-900 to-black flex items-center justify-center z-50">
+    <div className={`h-[100vh] inset-0 bg-gradient-to-b from-black via-gray-900 to-black flex items-center justify-center z-50 ${leagueSpartan.className}`}>
       <div className="text-center relative">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white rounded-full animate-pulse opacity-60"></div>
@@ -59,28 +61,6 @@ export default function LoadingScreen({
         <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-6 animate-pulse">
           Loading
         </h2>
-
-        <div className="w-80 mx-auto mb-4">
-          <div className="relative h-3 bg-gray-800/50 rounded-full overflow-hidden backdrop-blur-sm border border-gray-700/50">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-300 ease-out relative"
-              style={{ width: `${loadingProgress}%` }}
-            >
-              {/* Animated shimmer effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-            </div>
-            {/* Glow effect */}
-            <div
-              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 blur-md opacity-50 transition-all duration-300"
-              style={{ width: `${loadingProgress}%` }}
-            ></div>
-          </div>
-        </div>
-
-        <p className="text-lg font-semibold text-gray-300 mb-2">
-          {Math.round(loadingProgress)}%
-        </p>
-
         <p className="text-sm text-gray-500 animate-pulse">
           Initializing celestial bodies...
         </p>
