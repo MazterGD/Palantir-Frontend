@@ -795,13 +795,13 @@ export default function ThreeScene() {
 
       celestialBodiesRef.push(asteroidBody);
 
-      // if (asteroid.labelSprite) {
-      //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
-      // }
-      // interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
-      // if (asteroid.orbitLine) {
-      //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
-      // }
+      if (asteroid.labelSprite) {
+        interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
+      }
+      interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+      if (asteroid.orbitLine) {
+        interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
+      }
     });
   }, [asteroidsData, sceneInitialized]);
 

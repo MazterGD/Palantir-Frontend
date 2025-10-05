@@ -9,7 +9,7 @@ export function createSun(camera: THREE.Camera) {
   const sunDiameterRenderUnits = kmToRenderUnits(
     ASTRONOMICAL_CONSTANTS.SUN_DIAMETER_KM,
   );
-  const sunRadiusRU = Math.max(0.5, sunDiameterRenderUnits / 2); // ensure visible minimum
+  const sunRadiusRU = Math.max(0.5, sunDiameterRenderUnits / 2)*5; // ensure visible minimum
   const geometry = new THREE.SphereGeometry(sunRadiusRU, 64, 64);
 
   // Load texture
