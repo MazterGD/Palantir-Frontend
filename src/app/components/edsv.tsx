@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
-
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
@@ -18,8 +17,6 @@ import {
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
 import { moveCamera } from "./three/cameraUtils";
-import ControlPanel from "./ControlPanel";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RiResetRightLine } from "react-icons/ri";
 import { IoIosPause } from "react-icons/io";
 import { FaPlay } from "react-icons/fa";
@@ -31,18 +28,6 @@ const leagueSpartan = League_Spartan({
   display: "swap",
 });
 
-// Simple debounce function to limit how often slider updates during continuous zoom
-function debounce<T extends (...args: unknown[]) => unknown>(
-  func: T,
-  wait: number,
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
-
-  return function (...args: Parameters<T>) {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
 // Extend Planet interface to include orbitGenerator for celestial bodies
 interface CelestialBody extends Planet {
   orbitGenerator: ScaledOrbitGenerator;
@@ -182,11 +167,6 @@ export default function ThreeScene() {
       );
     });
   }, [selectedDateTime]);
-  const [controlsRef, setControlsRef] = useState<OrbitControls | null>(null);
-  const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
-  const [initialCameraPosition, setInitialCameraPosition] =
-    useState<THREE.Vector3 | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -196,12 +176,8 @@ export default function ThreeScene() {
     const cameraDistance = getRecommendedCameraDistance();
     camera.position.set(0, cameraDistance * 0.065, cameraDistance * 0.045);
     camera.lookAt(0, 0, 0);
-    camera.up.set(0, 0, 1); // Ensure z-up orientation
-
-    setCameraRef(camera);
 
     const controls = setupControls(camera, renderer);
-    setControlsRef(controls);
 
     addStarsBackground(scene);
     const celestialBodies: CelestialBody[] = [];
@@ -363,51 +339,8 @@ export default function ThreeScene() {
 
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 10; // Minimum zoom distance
-
-    // Calculate the maximum distance based on the same scaling factor used for reset view
-    // This ensures consistency between reset view and max zoom distance
-    const recommendedDistance = getRecommendedCameraDistance();
-    const maxDistance = recommendedDistance * CAMERA_SCALE_FACTOR * 1.5; // Allow zooming slightly more than reset distance
-    controls.maxDistance = maxDistance;
-
-    // Create a debounced function to update slider to prevent too many updates
-    const updateSliderFromCamera = debounce(() => {
-      // Get current camera distance from target
-      const currentDistance = camera.position.distanceTo(controls.target);
-
-      // Calculate reset view distance for reference point
-      const resetViewDistance = recommendedDistance * CAMERA_SCALE_FACTOR;
-
-      // Convert current distance to slider value
-      let newSliderValue: number;
-
-      if (currentDistance <= resetViewDistance) {
-        // Map distance from minDistance to resetViewDistance to slider 0-50
-        const normalizedDistance =
-          (currentDistance - controls.minDistance) /
-          (resetViewDistance - controls.minDistance);
-        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
-      } else {
-        // Map distance from resetViewDistance to maxDistance to slider 50-100
-        const normalizedDistance =
-          (currentDistance - resetViewDistance) /
-          (maxDistance - resetViewDistance);
-        newSliderValue = Math.max(
-          50,
-          Math.min(100, 50 + normalizedDistance * 50),
-        );
-      }
-
-      // Update slider value without triggering zoom change to avoid loops
-      // Only update if the difference is significant (to avoid minor fluctuations)
-      if (Math.abs(newSliderValue - zoomLevel) > 1) {
-        setZoomLevel(Math.round(newSliderValue));
-      }
-    }, 50); // 50ms debounce delay for smoother updates
-
-    // Add event listener to update slider when zooming with mouse/touch
-    controls.addEventListener("change", updateSliderFromCamera);
+    controls.minDistance = 10;
+    controls.maxDistance = cameraDistance * 2;
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -484,10 +417,6 @@ export default function ThreeScene() {
       renderer.domElement.removeEventListener("mousemove", onMouseMove);
       renderer.domElement.removeEventListener("click", onClick);
       window.removeEventListener("resize", handleResize);
-
-      // Clean up the event listener for the slider update
-      controls.removeEventListener("change", updateSliderFromCamera);
-
       controls.dispose();
       renderer.dispose();
       if (Refcurrent) {
@@ -496,234 +425,101 @@ export default function ThreeScene() {
     };
   }, []);
 
-  const handleZoomIn = () => {
-    if (controlsRef && cameraRef) {
-      // Decrease slider value by 10 for more precise control
-      const newZoomLevel = Math.max(0, zoomLevel - 10);
-
-      // Update slider first
-      setZoomLevel(newZoomLevel);
-
-      // Then trigger zoom change with new value
-      handleZoomChange(newZoomLevel);
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (controlsRef && cameraRef) {
-      // Increase slider value by 10 for more precise control
-      const newZoomLevel = Math.min(100, zoomLevel + 10);
-
-      // Update slider first
-      setZoomLevel(newZoomLevel);
-
-      // Then trigger zoom change with new value
-      handleZoomChange(newZoomLevel);
-    }
-  };
-
-  // Define a consistent scaling factor to use in multiple places
-  const CAMERA_SCALE_FACTOR = 0.065;
-
-  const handleResetView = () => {
-    if (controlsRef && cameraRef) {
-      // Reset to a view at approximately 40 degrees from the z-axis
-      const cameraDistance = getRecommendedCameraDistance();
-
-      // Calculate position using spherical coordinates
-      // 40 degrees from z-axis means 50 degrees from y-axis in this coordinate system
-      const angleFromY = 50 * (Math.PI / 180); // Convert to radians
-      const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
-
-      // Calculate position based on spherical coordinates
-      const x =
-        cameraDistance *
-        CAMERA_SCALE_FACTOR *
-        Math.sin(angleFromY) *
-        Math.cos(azimuthalAngle);
-      const y = cameraDistance * CAMERA_SCALE_FACTOR * Math.cos(angleFromY);
-      const z =
-        cameraDistance *
-        CAMERA_SCALE_FACTOR *
-        Math.sin(angleFromY) *
-        Math.sin(azimuthalAngle);
-
-      const newPosition = new THREE.Vector3(x, y, z);
-      const originTarget = new THREE.Vector3(0, 0, 0);
-
-      // Reset camera up vector to ensure proper orientation
-      cameraRef.up.set(0, 0, 1);
-
-      moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
-
-      // Reset the zoom level slider to default
-      setZoomLevel(50);
-    }
-  };
-
-  const handleZoomChange = (value: number) => {
-    if (controlsRef && cameraRef) {
-      setZoomLevel(value);
-
-      // Calculate zoom based on slider value (0-100)
-      // Map slider range (0-100) to zoom distance range
-      // Lower value = closer zoom (minimum distance)
-      // Higher value = further zoom (maximum distance)
-
-      const minZoomDistance = controlsRef.minDistance;
-      const maxZoomDistance = controlsRef.maxDistance;
-
-      // When slider is at 50 (middle position), we want to be at the reset view distance
-      // Calculate reset view distance (same calculation used in handleResetView)
-      const cameraDistanceForReset = getRecommendedCameraDistance();
-      const resetViewDistance = cameraDistanceForReset * CAMERA_SCALE_FACTOR;
-
-      // Use a piecewise function:
-      // - Slider 0-50: Map to minDistance -> resetViewDistance
-      // - Slider 50-100: Map to resetViewDistance -> maxDistance
-      let targetDistance;
-
-      if (value <= 50) {
-        // Map 0-50 to minDistance-resetViewDistance
-        const normalizedValue = value / 50;
-        targetDistance =
-          minZoomDistance +
-          (resetViewDistance - minZoomDistance) * normalizedValue;
-      } else {
-        // Map 50-100 to resetViewDistance-maxDistance
-        const normalizedValue = (value - 50) / 50;
-        targetDistance =
-          resetViewDistance +
-          (maxZoomDistance - resetViewDistance) * normalizedValue;
-      }
-
-      // Get current direction from target
-      const directionVector = new THREE.Vector3()
-        .subVectors(cameraRef.position, controlsRef.target)
-        .normalize();
-
-      // Create new position at the calculated distance
-      const updatedPosition = new THREE.Vector3()
-        .copy(controlsRef.target)
-        .add(directionVector.multiplyScalar(targetDistance));
-
-      // Move camera to new position
-      moveCamera(
-        cameraRef,
-        controlsRef,
-        updatedPosition,
-        controlsRef.target,
-        500,
-      );
-    }
-  };
-
   return (
-    <div
-      className={`relative w-full h-screen ${leagueSpartan.className} uppercase`}
-    >
+    <div className={`relative w-full h-screen ${leagueSpartan.className}`}>
       <div ref={mountRef} className="w-full h-full" />
-      <ControlPanel
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onResetView={handleResetView}
-        zoomLevel={zoomLevel}
-        onZoomChange={handleZoomChange}
-      />
-      <div>
-        {/* Time travel slider */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-8 rounded-4xl w-[90%] sm:w-[600px] max-w-[95vw] backdrop-blur-sm">
-          <div className="flex items-center w-full mb-4">
-            <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-4 my-1.5 shadow-md backdrop-blur-sm w-full px-4">
-              {" "}
-              <input
-                type="range"
-                min="0"
-                max={speedScale.length - 1}
-                value={speedMultiplier}
-                onChange={(e) => handleSliderChange(parseInt(e.target.value))}
-                className="w-full h-1 appearance-none bg-gray-800 rounded-lg outline-none time-slider border-2 border-[rgba(255,255,255,0.3)]"
-                title="Time Speed Slider"
-                aria-label="Time Speed Control"
-                style={{
-                  accentColor: "white",
-                }}
-              />
-            </div>
-          </div>
 
-          <div className="flex place-content-between justify-center gap-3 w-full">
-            <div className="hover:bg-gray-500/50 p-2 rounded-xl w-[12vw] text-center">
-              <span
-                className="text-gray-300  font-medium text-lg cursor-pointer hover:text-gray-100 duration-300 mt-2"
-                onClick={() => setShowDateTimePicker(true)}
-                title="Click to jump to specific date and time"
-              >
-                {currentDate ? formatSimulationDate(currentDate) : "Loading..."}
-              </span>
-            </div>
-            <button
-              onClick={togglePause}
-              className={`px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-gray-500/60 text-white pause-button ${isPaused ? "pause-button-paused" : "pause-button-playing"}`}
-              title={isPaused ? "Resume" : "Pause"}
+      {/* Time travel slider */}
+      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-8 rounded-4xl w-[90%] sm:w-[600px] max-w-[95vw] backdrop-blur-sm">
+        <div className="flex items-center w-full mb-4">
+          <input
+            type="range"
+            min="0"
+            max={speedScale.length - 1}
+            value={speedMultiplier}
+            onChange={(e) => handleSliderChange(parseInt(e.target.value))}
+            className="w-full h-1 appearance-none bg-gray-800 rounded-lg outline-none time-slider"
+            title="Time Speed Slider"
+            aria-label="Time Speed Control"
+            style={{
+              accentColor: "white",
+              border: "2px solid #4b5563",
+              borderRadius: "100px",
+            }}
+          />
+        </div>
+
+        <div className="flex place-content-between justify-center gap-3 w-full">
+          <div className="hover:bg-gray-500/50 p-2 rounded-xl w-[12vw] text-center">
+            <span
+              className="text-gray-300  font-medium text-lg cursor-pointer hover:text-gray-100 duration-300 mt-2"
+              onClick={() => setShowDateTimePicker(true)}
+              title="Click to jump to specific date and time"
             >
-              {isPaused ? <FaPlay /> : <IoIosPause />}
-            </button>
-            <button
-              onClick={resetTime}
-              className="px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-red-500/60 text-white"
-              title="Reset to current time and positions"
-            >
-              <RiResetRightLine />
-            </button>
-            <span className="text-gray-300  font-medium text-lg cursor-pointer duration-300 m-2 mx-4">
-              {isPaused ? "Paused" : getCurrentSpeedDisplay()}
+              {currentDate ? formatSimulationDate(currentDate) : "Loading..."}
             </span>
           </div>
+          <button
+            onClick={togglePause}
+            className={`px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-gray-500/60 text-white pause-button ${isPaused ? "pause-button-paused" : "pause-button-playing"}`}
+            title={isPaused ? "Resume" : "Pause"}
+          >
+            {isPaused ? <FaPlay /> : <IoIosPause />}
+          </button>
+          <button
+            onClick={resetTime}
+            className="px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-red-500/60 text-white"
+            title="Reset to current time and positions"
+          >
+            <RiResetRightLine />
+          </button>
+          <span className="text-gray-300  font-medium text-lg cursor-pointer duration-300 m-2 mx-4">
+            {isPaused ? "--" : getCurrentSpeedDisplay()}
+          </span>
+        </div>
 
-          {/* Date/Time Picker Modal */}
-          {showDateTimePicker && (
-            <div className="fixed inset-0 flex items-center justify-center z-50">
-              <div className="bg-gray-800 p-6 rounded-2xl shadow-xl max-w-xl w-full mx-4">
-                <h3 className="text-white text-lg font-bold mb-4 text-center">
-                  Jump to Date & Time
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">
-                      Select Date and Time:
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={selectedDateTime}
-                      onChange={(e) => setSelectedDateTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:border-cyan-400 focus:outline-none"
-                      title="Select date and time to jump to"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      onClick={() => setShowDateTimePicker(false)}
-                      className="px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSimulationDateTime();
-                        setShowDateTimePicker(false);
-                      }}
-                      className="px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
-                    >
-                      Jump
-                    </button>
-                  </div>
+        {/* Date/Time Picker Modal */}
+        {showDateTimePicker && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-600 max-w-md w-full mx-4">
+              <h3 className="text-white text-lg font-bold mb-4 text-center">
+                Jump to Date & Time
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Select Date and Time:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={selectedDateTime}
+                    onChange={(e) => setSelectedDateTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:border-cyan-400 focus:outline-none"
+                    title="Select date and time to jump to"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowDateTimePicker(false)}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSimulationDateTime();
+                      setShowDateTimePicker(false);
+                    }}
+                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md font-medium transition-colors duration-200"
+                  >
+                    🚀 Jump
+                  </button>
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
