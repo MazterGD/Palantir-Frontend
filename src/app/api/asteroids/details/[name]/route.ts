@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { fetchFromBackend, generateFallbackAsteroidDetails } from '@/app/lib/apiUtils';
+import { fetchFromBackend } from '@/app/lib/apiUtils';
 
 export async function GET(
   request: NextRequest,
@@ -9,7 +9,6 @@ export async function GET(
   const asteroidName = decodeURIComponent(name);
   
   return fetchFromBackend(
-    `/asteroid/${encodeURIComponent(asteroidName)}`,
-    generateFallbackAsteroidDetails(asteroidName)
+    `/asteroid/${encodeURIComponent(asteroidName)}`
   );
 }

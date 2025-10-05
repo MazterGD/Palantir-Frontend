@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 
-const API_BASE_URL = 'https://galanor-backend.onrender.com';
+const API_BASE_URL = process.env.BACKEND_API_URL;
 
 /**
  * Generic fetch wrapper with error handling for backend API
  */
-export async function fetchFromBackend<T>(
-  endpoint: string,
-  fallbackData: T
+export async function fetchFromBackend(
+  endpoint: string
 ): Promise<NextResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -26,24 +25,11 @@ export async function fetchFromBackend<T>(
     });
   } catch (error) {
     console.error(`Failed to fetch from ${endpoint}:`, error);
-    return NextResponse.json(fallbackData, { status: 200 });
+    return NextResponse.json(
+      { error: 'Failed to fetch data from backend API' },
+      { status: 500 }
+    );
   }
 }
 
-/**
- * Generate simple fallback asteroid details
- */
-export function generateFallbackAsteroidDetails(asteroidName: string) {
-  return {
-    name: asteroidName,
-    diameter: 10,
-    classification: "API unavailable - using default values"
-  };
-}
 
-/**
- * Default fallback asteroid names
- */
-export const FALLBACK_ASTEROID_NAMES = [
-  "Ceres", "Vesta", "Pallas", "Hygiea", "Eros"
-];

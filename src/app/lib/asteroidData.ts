@@ -1,5 +1,4 @@
 import { OrbitElements } from "../components/three/orbitGenerator";
-import { FALLBACK_ASTEROID_NAMES, generateFallbackAsteroidDetails } from './apiUtils';
 import { saveToCache, loadFromCache } from './cacheUtils';
 
 export const J2000_EPOCH = 2451545.0;
@@ -9,77 +8,7 @@ interface AsteroidData extends OrbitElements {
   color: string;
 }
 
-const createAsteroid = (
-  data: Omit<AsteroidData, "epoch" | "perihelionTime"> & {
-    perihelionTime?: number;
-  },
-): AsteroidData => ({
-  ...data,
-  epoch: J2000_EPOCH,
-  perihelionTime: data.perihelionTime ?? J2000_EPOCH,
-});
 
-// Data for some notable asteroids in the asteroid belt
-export const ASTEROIDS = {
-  ceres: createAsteroid({
-    semiMajorAxis: 2.7691,
-    eccentricity: 0.0758,
-    inclination: 10.593,
-    ascendingNode: 80.3932,
-    perihelionArgument: 72.5898,
-    orbitalPeriod: 1681.63,
-    meanAnomaly: 95.9895,
-    meanMotion: 0.2140,
-    diameter: 939,
-    color: "#888888"
-  }),
-  vesta: createAsteroid({
-    semiMajorAxis: 2.3615,
-    eccentricity: 0.0887,
-    inclination: 7.1402,
-    ascendingNode: 103.8570,
-    perihelionArgument: 151.1985,
-    orbitalPeriod: 1325.75,
-    meanAnomaly: 103.4558,
-    meanMotion: 0.2715,
-    diameter: 525,
-    color: "#A69880"
-  }),
-  pallas: createAsteroid({
-    semiMajorAxis: 2.7721,
-    eccentricity: 0.2310,
-    inclination: 34.8366,
-    ascendingNode: 173.0962,
-    perihelionArgument: 309.9303,
-    orbitalPeriod: 1685.08,
-    meanAnomaly: 77.3863,
-    meanMotion: 0.2136,
-    diameter: 512,
-    color: "#9A9A9A"
-  }),
-  hygiea: createAsteroid({
-    semiMajorAxis: 3.1428,
-    eccentricity: 0.1168,
-    inclination: 3.8398,
-    ascendingNode: 283.2287,
-    perihelionArgument: 312.2087,
-    orbitalPeriod: 2033.94,
-    meanAnomaly: 306.5513,
-    meanMotion: 0.1770,
-    diameter: 430,
-    color: "#7A7A7A"
-  }),
-};
-
-export const getAsteroid = (name: keyof typeof ASTEROIDS) => ASTEROIDS[name];
-
-// Texture paths for asteroids
-export const ASTEROID_TEXTURES: Record<string, { color: string }> = {
-  ceres: { color: "/textures/Asteroids/ceres.jpg" },
-  vesta: { color: "/textures/Asteroids/vesta.jpg" },
-  pallas: { color: "/textures/Asteroids/pallas.jpg" },
-  hygiea: { color: "/textures/Asteroids/hygiea.jpg" },
-};
 
 // Extended interface for detailed asteroid information for API responses
 export interface AsteroidDetailedInfo {
@@ -94,13 +23,7 @@ export interface AsteroidDetailedInfo {
   classification?: string;
 }
 
-// Minimal fallback data structure - only used in case of network errors
-// Not populated with mock values as we're now relying solely on the API
-export const FALLBACK_ASTEROID_DATA: AsteroidDetailedInfo = {
-  name: "Unknown Asteroid",
-  diameter: 10,
-  classification: "Could not retrieve data from API"
-};
+
 
 // API base URL - can be configured based on environment
 // Use internal Next.js API routes to avoid CORS issues
@@ -245,8 +168,7 @@ export async function fetchAsteroidNames(): Promise<{ names: string[] }> {
     return result;
   } catch (error) {
     console.error(`Failed to fetch asteroid names:`, error);
-    console.warn('Using fallback asteroid data');
-    return { names: FALLBACK_ASTEROID_NAMES };
+    throw new Error('Failed to fetch asteroid names from API');
   }
 }
 
@@ -294,6 +216,6 @@ export async function fetchAsteroidDetails(asteroidName: string): Promise<Astero
     throw new Error('Invalid asteroid data format');
   } catch (error) {
     console.error(`Failed to fetch asteroid details for ${asteroidName}:`, error);
-    return generateFallbackAsteroidDetails(asteroidName);
+    throw new Error(`Failed to fetch details for asteroid: ${asteroidName}`);
   }
 }
