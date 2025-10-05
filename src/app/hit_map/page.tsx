@@ -496,7 +496,7 @@ export default function MapView() {
                 <label className="block text-sm font-medium mb-1">Depth</label>
                 <input
                   type="number"
-                  disabled={formData.trgt_type != "s"}
+                  disabled={formData.trgt_type != "w"}
                   value={formData.depth}
                   onChange={(e) =>
                     setFormData((prev) => ({
