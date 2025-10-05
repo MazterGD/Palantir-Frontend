@@ -51,7 +51,7 @@ export default function MapView() {
   const longitude = searchParams.get("long") || "";
   const latitude = searchParams.get("lat") || "";
   const depth = searchParams.get("depth") || "";
-  const trgt_type = searchParams.get("depth") || "";
+  const trgt_type = searchParams.get("trgt_type") || "";
 
   const [formData, setFormData] = useState<FormData>({
     name: neoName,
@@ -376,25 +376,6 @@ export default function MapView() {
                 />
               </div>
 
-              {/* Released Energy */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Released Energy (kt)
-                </label>
-                <input
-                  type="number"
-                  value={formData.energy}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      energy: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-              </div>
-
               {/* Trajectory Angle */}
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -481,14 +462,18 @@ export default function MapView() {
                       trgt_type: e.target.value as "w" | "s" | "i",
                     }))
                   }
-                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400 "
+                  className="w-full border rounded-sm p-2 focus:ring-2 focus:ring-blue-400"
                   required
                 >
-                  <div className="text-gray-900">
-                    <option value="w">Water</option>
-                    <option value="s">Sedimentary</option>
-                    <option value="i">Igneous</option>
-                  </div>
+                  <option value="w" className="text-gray-900">
+                    Water
+                  </option>
+                  <option value="s" className="text-gray-900">
+                    Sedimentary
+                  </option>
+                  <option value="i" className="text-gray-900">
+                    Igneous
+                  </option>
                 </select>
               </div>
 
