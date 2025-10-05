@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
@@ -28,52 +27,20 @@ export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [speedMultiplier, setSpeedMultiplier] = useState(50); // Default to middle value
   
-  // Configuration for time speed scaling
-  const timeSpeedConfig = {
-    baseSpeed: 1,           // Not used in the new scaling system
-    exponentialFactor: 2.5  // Higher exponent provides finer control in center, faster at edges
-  };
-  
   // Use a ref to access the latest speed multiplier in animation loop
   const speedMultiplierRef = useRef(speedMultiplier);
 
-  // Function to debounce slider updates for smoother experience
-  const debounce = useCallback((func: Function, wait: number) => {
-    let timeout: NodeJS.Timeout;
-    return (...args: any[]) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func(...args), wait);
-    };
-  }, []);
-
   // Handle slider change with debounce for smoother updates
   const handleSliderChange = useCallback(
-    debounce((value: number) => {
+    (value: number) => {
       setSpeedMultiplier(value);
-    }, 10),
+    },
     []
   );
 
   // Calculate the scaled time speed value and minutes per second for display
   const getScaledTimeSpeed = useCallback((value: number) => {
-    return scaleTimeSpeed(value, timeSpeedConfig.baseSpeed, timeSpeedConfig.exponentialFactor);
-  }, [timeSpeedConfig.baseSpeed, timeSpeedConfig.exponentialFactor]);
-  
-  // Get a CSS class for the time scale indicator based on slider value
-  const getTimeScaleClass = useCallback((value: number) => {
-    const normalizedValue = Math.abs(value - 50) / 50; // 0 to 1, from center to edges
-    
-    if (normalizedValue > 0.9) {
-      return "scale-month"; // Month level
-    } else if (normalizedValue > 0.7) {
-      return "scale-week"; // Week level 
-    } else if (normalizedValue > 0.5) {
-      return "scale-days"; // Days level
-    } else if (normalizedValue > 0.3) {
-      return "scale-day"; // Day level
-    } else {
-      return "scale-hours"; // Hours level
-    }
+    return scaleTimeSpeed(value);
   }, []);
 
   // Update the ref whenever the state changes
@@ -201,7 +168,7 @@ export default function ThreeScene() {
     };
 
     // Click handler
-    const onClick = (event: MouseEvent) => {
+    const onClick = () => {
       raycaster.setFromCamera(mouse, camera);
       const checkObjects = Array.from(interactiveObjects.keys());
       const intersects = raycaster.intersectObjects(checkObjects, true);
@@ -254,11 +221,7 @@ export default function ThreeScene() {
       requestAnimationFrame(animate);
       
       // Calculate the time advancement based on slider position using scaling utility
-      const timeSpeed = scaleTimeSpeed(
-        speedMultiplierRef.current, 
-        timeSpeedConfig.baseSpeed, 
-        timeSpeedConfig.exponentialFactor
-      );
+      const timeSpeed = scaleTimeSpeed(speedMultiplierRef.current);
       
       // Use scaled value for time advancement (handles up to 1 month)
       const { scaledValue } = timeSpeed;

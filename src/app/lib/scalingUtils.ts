@@ -199,9 +199,7 @@ export function getSceneBoundaries(): {
  * @returns Object with scaled time speed value, minutes per second, and formatted time display
  */
 export function scaleTimeSpeed(
-  sliderValue: number, 
-  baseSpeed: number = 4, 
-  exponentialFactor: number = 1.5
+  sliderValue: number
 ): { scaledValue: number; minutesPerSecond: number; formattedTime: string } {
   // Convert slider value from 0-100 to -1 to 1 range
   const normalizedValue = (sliderValue - 50) / 50;
@@ -212,8 +210,6 @@ export function scaleTimeSpeed(
   const DAYS_IN_YEAR = 365.25; // Account for leap years
   const DAYS_IN_MONTH = 30.44; // Average month length
   const MINUTES_IN_DAY = MINUTES_IN_HOUR * HOURS_IN_DAY;
-  const MINUTES_IN_MONTH = MINUTES_IN_DAY * DAYS_IN_MONTH;
-  const MINUTES_IN_YEAR = MINUTES_IN_DAY * DAYS_IN_YEAR;
   
   // The orbital period of Earth is 1 year (365.25 days)
   // We want to scale our time so that at max speed, we can see significant orbital movement
@@ -246,9 +242,6 @@ export function scaleTimeSpeed(
   
   // Apply sign based on direction
   daysPerSecond *= Math.sign(normalizedValue);
-  
-  // Set the scaled value to directly represent days
-  const finalScaledValue = daysPerSecond;
   
   // Convert to minutes for display purposes
   const minutesPerSecond = daysPerSecond * MINUTES_IN_DAY;
