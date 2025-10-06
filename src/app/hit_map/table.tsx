@@ -20,7 +20,7 @@ const ImpactTable = ({ data }: { data: AsteroidImpactResult }) => {
           unit: "per year",
         };
       }
-    }
+    } // correct
 
     let scaledValue = value;
     let unit = getBaseUnit(type);
