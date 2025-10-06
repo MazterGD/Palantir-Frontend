@@ -65,7 +65,7 @@ export const createAsteroid = (
 
   const points = new THREE.Points(geometry, material);
 
-  const texturePath = "/textures/Sprites/circle.png";
+  const texturePath = "/textures/Sprites/asteroid.webp";
     let map: THREE.Texture | undefined;
     if (texturePath) {
       map = new THREE.TextureLoader().load(texturePath);
