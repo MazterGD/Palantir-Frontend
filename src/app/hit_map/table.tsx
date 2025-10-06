@@ -159,16 +159,16 @@ const ImpactTable = ({ data }: { data: AsteroidImpactResult }) => {
       value: formatNumber(data.angularMomentum, "angularMomentum").value,
       unit: formatNumber(data.angularMomentum, "angularMomentum").unit,
     },
-    {
-      label: "Seafloor Velocity",
-      value: formatNumber(data.seafloorVelocity, "seafloorVelocity").value,
-      unit: formatNumber(data.seafloorVelocity, "seafloorVelocity").unit,
-    },
-    {
-      label: "Seafloor Energy",
-      value: formatNumber(data.seafloorEnergy, "energy").value,
-      unit: formatNumber(data.seafloorEnergy, "energy").unit,
-    },
+    // {
+    //   label: "Seafloor Velocity",
+    //   value: formatNumber(data.seafloorVelocity, "seafloorVelocity").value,
+    //   unit: formatNumber(data.seafloorVelocity, "seafloorVelocity").unit,
+    // },
+    // {
+    //   label: "Seafloor Energy",
+    //   value: formatNumber(data.seafloorEnergy, "energy").value,
+    //   unit: formatNumber(data.seafloorEnergy, "energy").unit,
+    // },
     {
       label: "Collision Frequency",
       value: formatNumber(data.imFreq, "imFreq").value,
