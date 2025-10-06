@@ -44,7 +44,7 @@ export default function MapView() {
 
   const neoName = searchParams.get("name") || "Custom Asteroid";
   const neoId = searchParams.get("id") || "136478";
-  const diameter = searchParams.get("diameter") || "1.8"; // in meters
+  const diameter = searchParams.get("diameter") || "30"; // in meters
   const density = searchParams.get("density") || "4000"; // kg/m³ (typical rocky asteroid)
   const angle = searchParams.get("angle") || "45"; // degrees
   const velocity = searchParams.get("velocity") || "16"; // km/s
