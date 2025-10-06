@@ -807,11 +807,28 @@ export default function ThreeScene() {
 
       celestialBodiesRef.push(asteroidBody);
 
-      // Add to map for search functionality
+      // Add to map for search functionality with multiple key formats
       setCelestialBodiesMap(prev => {
         const newMap = new Map(prev);
         if (asteroid.id) {
+          // Add by ID (e.g., "14033")
           newMap.set(asteroid.id, asteroidBody);
+          
+          // Also add by "asteroid_ID" format for search compatibility
+          newMap.set(`asteroid_${asteroid.id}`, asteroidBody);
+          
+          // Add by name if available (e.g., "14033 Example")
+          if (asteroid.name) {
+            newMap.set(asteroid.name, asteroidBody);
+            // Add by sanitized name format used in SearchUI
+            const sanitizedName = asteroid.name.replace(/[^a-zA-Z0-9]/g, '_');
+            newMap.set(`asteroid_${sanitizedName}`, asteroidBody);
+          }
+          
+          // Log first few additions for debugging
+          if (newMap.size <= 15) {
+            console.log(`Added asteroid to map with keys: ${asteroid.id}, asteroid_${asteroid.id}, ${asteroid.name}`);
+          }
         }
         return newMap;
       });
