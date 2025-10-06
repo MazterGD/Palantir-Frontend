@@ -986,7 +986,7 @@ export default function ThreeScene() {
       />
 
       {showAsteroidVisualizer && selectedAsteroidId && (
-        <div className="absolute top-0 left-0 w-full md:w-[400px] h-full z-[1000] pointer-events-auto">
+        <div className="absolute top-0 left-0 pointer-events-none z-[1000]">
           <AsteroidVisualizer
             id={selectedAsteroidId}
             onCloseHandler={handleCloseVisualizer}

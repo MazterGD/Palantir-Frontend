@@ -56,18 +56,18 @@ export default function AsteroidVisualizer({
   };
 
   return (
-    <div className="top-4 left-4 w-full max-w-xs h-[85vh] bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-700/90 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-600/40 overflow-hidden relative transition-all duration-500">
+    <div className="absolute top-4 left-4 w-[calc(100vw-32px)] sm:w-[360px] max-w-[360px] h-[calc(50vh-50px)] sm:h-[85vh] max-h-[85vh] bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 backdrop-blur-2xl rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_24px_rgba(100,116,139,0.3)] border border-slate-600/30 overflow-hidden z-[1000] transition-all duration-500 pointer-events-auto animate-[slideInLeft_0.3s_ease-out]">
       {loading ? (
         <LoadingAnimation />
       ) : asteroidData != null ? (
-        <div>
+        <div className="h-full flex flex-col">
           <button
             onClick={onCloseHandler}
-            className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-slate-700/60 hover:bg-slate-600/80 border border-slate-500/50 hover:border-slate-400/70 transition-all duration-300 group"
+            className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-slate-800/80 hover:bg-slate-700/90 border border-slate-600/50 hover:border-slate-500/70 transition-all duration-200 group shadow-lg"
             aria-label="Close"
           >
             <svg
-              className="w-6 h-6 text-slate-300 group-hover:text-white transition-colors"
+              className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -75,60 +75,58 @@ export default function AsteroidVisualizer({
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 d="M6 18L18 6M6 6l12 12"
               />
             </svg>
           </button>
 
-          <div className="bg-gradient-to-r from-slate-900/80 to-slate-800/80 p-6 border-b border-slate-600/40 shadow-white/50">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-5 h-5 bg-slate-400 rounded-full animate-pulse shadow-white/50"></div>
-              <h1 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-lg">
+          <div className="bg-gradient-to-r from-slate-900/90 to-slate-800/90 p-4 sm:p-6 border-b border-slate-600/30 shadow-xl">
+            <div className="flex items-center gap-3 mb-2 sm:mb-3">
+              <div className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(96,165,250,0.6)]"></div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight drop-shadow-lg">
                 {asteroidData.name_limited
                   ? asteroidData.name_limited
                   : asteroidData.name}
               </h1>
             </div>
-            <p className="text-slate-300 text-sm font-medium opacity-90 tracking-wide">
+            <p className="text-slate-400 text-xs sm:text-sm font-medium opacity-90 tracking-wide mb-3 sm:mb-4">
               {asteroidData.designation}
             </p>
-            <div className="mt-5 flex gap-3">
+            <div className="flex gap-2 flex-wrap">
               <span
-                className={`px-2 py-2 rounded-full flex items-center text-xs tracking-wide ${
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full flex items-center text-[10px] sm:text-xs font-semibold tracking-wide uppercase ${
                   asteroidData.is_potentially_hazardous_asteroid
-                    ? "bg-red-600/50 text-red-100 border border-red-500/60 shadow-white/50]"
-                    : "bg-green-600/50 text-green-100 border border-green-500/60 shadow-white/50"
-                } transition-all duration-200 `}
+                    ? "bg-red-600/60 text-red-100 border border-red-500/70 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+                    : "bg-green-600/60 text-green-100 border border-green-500/70 shadow-[0_0_10px_rgba(34,197,94,0.3)]"
+                } transition-all duration-200`}
               >
                 {asteroidData.is_potentially_hazardous_asteroid
-                  ? "HAZARDOUS"
-                  : "SAFE"}
+                  ? "⚠ Hazardous"
+                  : "✓ Safe"}
               </span>
-              <span className="px-4 py-1 rounded-full flex items-center text-xs  tracking-wide bg-slate-600/50 text-slate-100 border border-slate-500/60 hover:bg-slate-500/60 transition-all duration-200">
+              <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full flex items-center text-[10px] sm:text-xs font-semibold tracking-wide uppercase bg-slate-700/60 text-slate-200 border border-slate-600/60 hover:bg-slate-600/70 transition-all duration-200">
                 {asteroidData.orbital_data.orbit_class.orbit_class_type}
               </span>
 
-              <div className="px-6 py-1 rounded-full bg-gradient-to-r from-slate-500 to-slate-600 text-white border border-slate-400/60 hover:from-slate-600 hover:to-slate-700 hover:border-slate-300/70 transition-all duration-300 gap-2 cursor-pointer shadow-white/30 hover:shadow-white/80">
-                <a
-                  href={`hit_map?name=${asteroidData?.name}&id=${asteroidData?.id}&diameter=${asteroidData?.estimated_diameter.meters.estimated_diameter_max}&density=${4000}&energy=${0}&angle=${1}&velocity=${10}&long=${location?.long}&lat=${location?.lat}&depth=${0}&trgt_type=${""}`}
-                  className="flex items-center gap-2 py-1"
-                >
-                  <GiAsteroid />
-                  <p className="text-xs">See Impact</p>
-                </a>
-              </div>
+              <a
+                href={`hit_map?name=${asteroidData?.name}&id=${asteroidData?.id}&diameter=${asteroidData?.estimated_diameter.meters.estimated_diameter_max}&density=${4000}&energy=${0}&angle=${1}&velocity=${10}&long=${location?.long}&lat=${location?.lat}&depth=${0}&trgt_type=${""}`}
+                className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 text-white border-none hover:from-blue-700 hover:to-blue-600 transition-all duration-200 cursor-pointer shadow-[0_4px_14px_rgba(59,130,246,0.4)] hover:shadow-[0_6px_20px_rgba(59,130,246,0.6)] active:scale-95 flex items-center gap-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide"
+              >
+                <GiAsteroid className="text-sm sm:text-base" />
+                <span>See Impact</span>
+              </a>
             </div>
           </div>
-          <div className="flex border-b border-slate-600/50 bg-slate-900/30">
+          <div className="flex border-b border-slate-600/40 bg-slate-900/40">
             {["overview", "approaches", "orbital", "observation"].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 text-sm tracking-wide transition-all duration-300 ${
+                className={`flex-1 py-2 sm:py-3 text-[10px] sm:text-sm font-semibold tracking-wide uppercase transition-all duration-200 ${
                   activeTab === tab
-                    ? "text-slate-200 border-b-2 border-slate-400 bg-slate-800/20 shadow-white/50"
-                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-700/10"
+                    ? "text-white border-b-2 border-blue-400 bg-slate-800/30 shadow-[0_2px_8px_rgba(59,130,246,0.3)]"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/20"
                 }`}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -136,9 +134,9 @@ export default function AsteroidVisualizer({
             ))}
           </div>
 
-          <div className="p-6 overflow-y-auto h-[calc(85vh-240px)] custom-scrollbar hide-scrollbar">
+          <div className="p-3 sm:p-5 overflow-y-auto flex-1 custom-scrollbar">
             {activeTab === "overview" && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-5">
                 <DataCard title="Physical Properties">
                   <DataRow
                     label="Absolute Magnitude"
@@ -221,22 +219,22 @@ export default function AsteroidVisualizer({
             )}
 
             {activeTab === "approaches" && (
-              <div className="space-y-4">
+              <div className="space-y-2 sm:space-y-3">
                 {asteroidData.close_approach_data.map((approach, idx) => (
                   <div
                     key={idx}
-                    className="bg-gradient-to-br from-slate-800/30 to-slate-700/30 rounded-xl p-5 border border-slate-600/30 hover:border-slate-500/50 transition-all duration-300 shadow-white/50"
+                    className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 rounded-xl p-3 sm:p-4 border border-slate-600/30 hover:border-slate-500/50 transition-all duration-200 shadow-lg"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-slate-200">
+                    <div className="flex items-center justify-between mb-2 sm:mb-3 pb-2 border-b border-slate-700/40">
+                      <span className="text-slate-200 font-semibold text-xs sm:text-sm">
                         {formatDate(approach.close_approach_date)}
                       </span>
-                      <span className="px-3 py-1 bg-slate-600/50 text-slate-200 text-xs rounded-full border border-slate-500/40">
+                      <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 bg-slate-700/60 text-slate-200 text-[10px] sm:text-xs font-semibold rounded-full border border-slate-600/50 uppercase tracking-wide">
                         {approach.orbiting_body}
                       </span>
                     </div>
 
-                    <div className="space-y-2 text-xs">
+                    <div className="space-y-2">
                       <DataRow
                         label="Miss Distance (AU)"
                         value={approach.miss_distance.astronomical.toFixed(4)}
@@ -263,7 +261,7 @@ export default function AsteroidVisualizer({
             )}
 
             {activeTab === "orbital" && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-5">
                 <DataCard title="Orbital Elements">
                   <DataRow
                     label="Semi-major Axis"
@@ -388,7 +386,7 @@ export default function AsteroidVisualizer({
             )}
 
             {activeTab === "observation" && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-5">
                 <DataCard title="Observation Data">
                   <DataRow
                     label="First Observation"
