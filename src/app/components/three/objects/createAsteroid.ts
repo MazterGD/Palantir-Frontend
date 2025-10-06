@@ -1,3 +1,4 @@
+// asteroid creation
 import * as THREE from "three";
 import {
   OrbitGenerator,
@@ -8,7 +9,6 @@ import {
 import { AsteroidData } from "@/app/lib/asteroidData";
 import { createLabel } from "../objectTextLables";
 import { kmToRenderUnits } from "@/app/lib/scalingUtils";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
 
 export interface Asteroid {
   id: string;

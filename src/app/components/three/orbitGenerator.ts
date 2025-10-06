@@ -1,5 +1,5 @@
 /**
- * Orbit Generator - All orbit-related functionality
+ * Orbit Generator - All orbit-related functionality updated
  */
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";

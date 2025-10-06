@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";

@@ -1,3 +1,4 @@
+// Orbit manager
 import type { CelestialBody } from "../ThreeScene";
 import * as THREE from "three";
 
