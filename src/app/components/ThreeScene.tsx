@@ -13,6 +13,7 @@ import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
 import { createAsteroids } from "./three/objects/createAsteroid";
 import { moveCamera } from "./three/cameraUtils";
+import { CameraFollowController } from "./three/cameraFollow";
 import { useAsteroidsBulk } from "../hooks/useAsteroidsBulk";
 import {
   getRecommendedCameraDistance,
@@ -24,6 +25,7 @@ import ControlPanel from "./ControlPanel";
 import AsteroidVisualizer from "./dataBox";
 import SearchUI from "./SearchUI";
 import ObjectOptionsBar from "./ObjectOptionsBar";
+import CameraFollowControl from "./CameraFollowControl";
 import { useAsteroidSelection } from "../lib/useAsteroidSelection";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RiResetRightLine } from "react-icons/ri";
@@ -81,6 +83,7 @@ let currentSelectedAsteroid: CelestialBody | null = null;
 let currentFocusedBody: CelestialBody | null = null;
 let rendererRef: THREE.WebGLRenderer | null = null;
 let controlsRef: OrbitControls | null = null;
+let cameraFollowControllerRef: CameraFollowController | null = null;
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -104,6 +107,9 @@ export default function ThreeScene() {
   const [selectedDateTime, setSelectedDateTime] = useState<string>("");
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(50);
+  const [isCameraFollowing, setIsCameraFollowing] = useState(false);
+  const [followSmoothness, setFollowSmoothness] = useState(0.1);
+  const [followLookAhead, setFollowLookAhead] = useState(0);
 
   const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21];
 
@@ -311,6 +317,13 @@ export default function ThreeScene() {
     setShowOptionsBar(false);
     setSelectedAsteroidId(null);
     
+    // Disable camera follow when clearing selection
+    if (cameraFollowControllerRef) {
+      cameraFollowControllerRef.setEnabled(false);
+      cameraFollowControllerRef.setTarget(null);
+    }
+    setIsCameraFollowing(false);
+    
     // Reset minimum distance back to sun's surface
     if (controlsRef) {
       const sceneBounds = getSceneBoundaries();
@@ -342,6 +355,46 @@ export default function ThreeScene() {
     }
   };
 
+  // Camera follow handlers
+  const handleToggleCameraFollow = useCallback(() => {
+    if (!cameraFollowControllerRef || !currentFocusedBody || !controlsRef) return;
+    
+    const newFollowState = !isCameraFollowing;
+    setIsCameraFollowing(newFollowState);
+    
+    if (newFollowState) {
+      // Enable following
+      cameraFollowControllerRef.setEnabled(true);
+      cameraFollowControllerRef.setTarget(currentFocusedBody);
+      cameraFollowControllerRef.updateOptions({
+        smoothness: followSmoothness,
+        lookAhead: followLookAhead,
+      });
+      // Reduce damping for more responsive following
+      controlsRef.enableDamping = false;
+    } else {
+      // Disable following
+      cameraFollowControllerRef.setEnabled(false);
+      // Restore damping
+      controlsRef.enableDamping = true;
+      controlsRef.dampingFactor = 0.05;
+    }
+  }, [isCameraFollowing, followSmoothness, followLookAhead]);
+
+  const handleSmoothnessChange = useCallback((value: number) => {
+    setFollowSmoothness(value);
+    if (cameraFollowControllerRef) {
+      cameraFollowControllerRef.updateOptions({ smoothness: value });
+    }
+  }, []);
+
+  const handleLookAheadChange = useCallback((value: number) => {
+    setFollowLookAhead(value);
+    if (cameraFollowControllerRef) {
+      cameraFollowControllerRef.updateOptions({ lookAhead: value });
+    }
+  }, []);
+
   useEffect(() => {
     if (!mountRef.current) return;
 
@@ -371,6 +424,13 @@ export default function ThreeScene() {
 
     const controls = setupControls(camera, renderer);
     controlsRef = controls;
+
+    // Initialize camera follow controller
+    cameraFollowControllerRef = new CameraFollowController(camera, controls, {
+      enabled: false,
+      smoothness: 0.1,
+      lookAhead: 0,
+    });
 
     celestialBodiesRef = [];
     interactiveObjectsRef.clear();
@@ -577,6 +637,19 @@ export default function ThreeScene() {
       currentFocusedBody = body;
       setSelectedBody(body);
       
+      // Update camera follow target (if following is enabled, it will automatically follow the new body)
+      if (cameraFollowControllerRef) {
+        cameraFollowControllerRef.setTarget(body);
+        // Update offset distances based on body size
+        const bodyRadius = body.diameter / 2;
+        const isAsteroid = body.id && "applyForce" in body;
+        const baseDistance = bodyRadius * (isAsteroid ? 10000 : 3);
+        cameraFollowControllerRef.updateOptions({
+          offsetDistance: baseDistance,
+          offsetHeight: baseDistance * 0.5,
+        });
+      }
+      
       // Update minimum distance based on the focused body's size
       if (controlsRef) {
         const bodyRadius = body.diameter / 2;
@@ -728,6 +801,12 @@ export default function ThreeScene() {
 
       halosAndLabelsRef.forEach((updateHalo) => updateHalo());
       updateSun();
+      
+      // Update camera follow controller
+      if (cameraFollowControllerRef) {
+        cameraFollowControllerRef.update(currentTimeRef.current);
+      }
+      
       controls.update();
       renderWithPostProcessing();
     };
@@ -763,6 +842,7 @@ export default function ThreeScene() {
       cameraRef = null;
       rendererRef = null;
       controlsRef = null;
+      cameraFollowControllerRef = null;
       celestialBodiesRef = [];
       interactiveObjectsRef.clear();
       halosAndLabelsRef = [];
@@ -993,6 +1073,17 @@ export default function ThreeScene() {
         onResetView={handleResetView}
         zoomLevel={zoomLevel}
         onZoomChange={handleZoomChange}
+      />
+
+      {/* Camera Follow Control */}
+      <CameraFollowControl
+        isFollowing={isCameraFollowing}
+        onToggleFollow={handleToggleCameraFollow}
+        smoothness={followSmoothness}
+        onSmoothnessChange={handleSmoothnessChange}
+        lookAhead={followLookAhead}
+        onLookAheadChange={handleLookAheadChange}
+        disabled={!selectedBody && !currentFocusedBody}
       />
 
       {/* Options Bar - appears at top when object is selected */}
