@@ -20,16 +20,16 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
 
   // --- Mass ---
   // Calculate mass: volume of sphere (π * d^3 / 6) * density
-  const mass = ((Math.PI * Math.pow(imp.pjDiam, 3)) / 6) * imp.pjDens;
+  const mass = ((Math.PI * Math.pow(imp.pjDiam, 3)) / 6) * imp.pjDens; // correct
 
   // --- Initial energy ---
   // Kinetic energy: 0.5 * mass * (velocity in m/s)^2
-  let pjEnergy = 0.5 * mass * Math.pow(imp.pjVel * 1000, 2);
-  const energy0_megatons = pjEnergy / (4.186 * Math.pow(10, 15)); // Convert Joules to megatons TNT
+  let pjEnergy = 0.5 * mass * Math.pow(imp.pjVel * 1000, 2); // correct
+  const energy0_megatons = pjEnergy / (4.186 * Math.pow(10, 15)); // Convert Joules to megatons TNT // correct
 
   // --- Momentum ---
   // Linear momentum: mass * velocity (m/s)
-  let linmom = mass * (imVel * 1000);
+  let linmom = mass * (imVel * 1000); // correct
   // Angular momentum: mass * velocity (m/s) * cos(angle) * Earth radius
   let angmom =
     mass * (imVel * 1000) * Math.cos((imp.pjAngle * Math.PI) / 180) * R_earth;
@@ -42,7 +42,7 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
     pjEnergy *= beta;
     linmom *= beta;
     angmom *= beta;
-  }
+  } // correct
 
   // --- Impact energy ---
   let imEnergy;
