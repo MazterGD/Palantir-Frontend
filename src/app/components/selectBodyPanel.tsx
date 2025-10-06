@@ -35,9 +35,9 @@ export default function SelectedBodyPanel({
       <h3 className="mb-2 text-base md:text-lg font-semibold text-slate-300 drop-shadow-md">
         Selected: {selectedBody.name}
       </h3>
-      <div className="mb-3 text-xs md:text-sm opacity-80">
-        ID: {selectedBody.id || "N/A"}
-      </div>
+      {selectedBody.id && (
+        <div className="mb-3 text-sm opacity-80">ID: {selectedBody.id}</div>
+      )}
 
       {"applyForce" in selectedBody && (
         <div className="mt-3 md:mt-4 flex items-center flex-col">
@@ -99,13 +99,13 @@ export default function SelectedBodyPanel({
               Apply Force
             </button>
 
-            <button
+            {/* <button
               onClick={() => showOrbitForBody(selectedBody)}
               className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 mt-1.5 md:mt-2 bg-slate-700/50 border-slate-600/50 text-slate-300 text-xs md:text-sm hover:bg-slate-600/60 hover:border-slate-500/70 hover:text-slate-100 transition-all duration-300"
               aria-label="Highlight Orbit"
             >
               Highlight Orbit
-            </button>
+            </button> */}
 
             <button
               onClick={clearSelection}
