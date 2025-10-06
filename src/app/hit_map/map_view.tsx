@@ -263,6 +263,11 @@ const trgt_type = searchParams.get("trgt_type") || "s";
       map.current.removeSource("location-radius");
     }
 
+    map.current.flyTo({
+    center: [formData.longitude, formData.latitude],
+    zoom:13,
+    duration: 1000,
+  });
     createCircle(
       map.current!,
       [Number(formData.longitude), Number(formData.latitude)],
