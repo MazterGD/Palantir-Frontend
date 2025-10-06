@@ -99,13 +99,13 @@ export default function SelectedBodyPanel({
               Apply Force
             </button>
 
-            <button
+            {/* <button
               onClick={() => showOrbitForBody(selectedBody)}
               className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 mt-1.5 md:mt-2 bg-slate-700/50 border-slate-600/50 text-slate-300 text-xs md:text-sm hover:bg-slate-600/60 hover:border-slate-500/70 hover:text-slate-100 transition-all duration-300"
               aria-label="Highlight Orbit"
             >
               Highlight Orbit
-            </button>
+            </button> */}
 
             <button
               onClick={clearSelection}
