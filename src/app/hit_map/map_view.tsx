@@ -154,7 +154,7 @@ export default function MapView() {
       fp: 1.0, // dimensionless shape factor, usually 1 for spheres
     });
   }
-
+  
   function getCraterParameters() {
     const aTMParamsCalc = getTMParamsCalc();
 
@@ -162,8 +162,10 @@ export default function MapView() {
       pjDiam: formData.diameter,
       pjDens: formData.density,
       pjAngle: formData.angle,
-      pjVel: aTMParamsCalc.imVel,
+      pjVel: formData.velocity,
       tgDepth: formData.depth,
+      imVel:aTMParamsCalc.imVel,
+      abAltBurst:aTMParamsCalc.abAltBurst
     });
     setEnergyParams(energyParamsCalc);
     const craterParamsCalc = calculateCrater({

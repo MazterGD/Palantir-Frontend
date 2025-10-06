@@ -5,7 +5,7 @@ export interface ImpactorInput {
   pjAngle: number; // impact angle (degrees)
   tgDepth: number; // target depth (m)
   abAltBurst?: number; // airburst altitude (m), default = 0
-  imVel?: number; // final impact velocity (km/s)
+  imVel: number; // final impact velocity (km/s)
   imDist?: number; // impact distance (m)
 }
 
