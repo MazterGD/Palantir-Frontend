@@ -15,7 +15,7 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
 
   // Default values for optional parameters
   const abAltBurst = imp.abAltBurst || 0; // Altitude of airburst in meters
-  const imVel = imp.imVel || imp.pjVel; // Impact velocity defaults to projectile velocity (km/s)
+  const imVel = imp.imVel || 0; // Impact velocity defaults to projectile velocity (km/s)
   const imDist = imp.imDist || 0; // Distance from impact in km
 
   // --- Mass ---
