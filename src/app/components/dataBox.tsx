@@ -8,19 +8,43 @@ import { useAsteroidOne } from "../hooks/useAsteroidOne";
 import FetchFailed from "./ui/fetchFailed";
 import { useRouter } from "next/navigation";
 import { GiAsteroid } from "react-icons/gi";
+import { MdOutlineRocketLaunch } from "react-icons/md";
+import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { CelestialBody } from "./ThreeScene";
 
 interface AsteroidVisualizerProps {
   id: string;
   onCloseHandler: () => void;
+  selectedBody?: CelestialBody | null;
+  forceX?: string | number;
+  forceY?: string | number;
+  forceZ?: string | number;
+  deltaTime?: string | number;
+  setForceX?: (value: string) => void;
+  setForceY?: (value: string) => void;
+  setForceZ?: (value: string) => void;
+  setDeltaTime?: (value: string) => void;
+  applyForceToSelectedAsteroid?: () => void;
 }
 
 export default function AsteroidVisualizer({
   id,
   onCloseHandler,
+  selectedBody,
+  forceX,
+  forceY,
+  forceZ,
+  deltaTime,
+  setForceX,
+  setForceY,
+  setForceZ,
+  setDeltaTime,
+  applyForceToSelectedAsteroid,
 }: AsteroidVisualizerProps) {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState("overview");
+  const [showForceControls, setShowForceControls] = useState(false);
   const [location, setLocation] = useState<{
     long: number;
     lat: number;
@@ -56,11 +80,23 @@ export default function AsteroidVisualizer({
   };
 
   return (
-    <div className="absolute top-4 left-4 w-[calc(100vw-32px)] sm:w-[360px] max-w-[360px] h-[calc(50vh-50px)] sm:h-[85vh] max-h-[85vh] bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 backdrop-blur-2xl rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_24px_rgba(100,116,139,0.3)] border border-slate-600/30 overflow-hidden z-[1000] transition-all duration-500 pointer-events-auto animate-[slideInLeft_0.3s_ease-out]">
+    <div className="absolute top-4 left-4 w-[calc(100vw-32px)] sm:w-[400px] max-w-[400px] h-[calc(90vh-40px)] sm:h-[90vh] max-h-[90vh] bg-gradient-to-br from-slate-900/98 via-slate-800/96 to-slate-900/98 backdrop-blur-3xl rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.7),0_0_32px_rgba(100,116,139,0.5)] border border-slate-500/50 overflow-hidden z-[1100] transition-all duration-500 pointer-events-auto animate-[slideInLeft_0.3s_ease-out]">
       {loading ? (
         <LoadingAnimation />
       ) : asteroidData != null ? (
         <div className="h-full flex flex-col">
+          {/* Quick Access Force Controls Button - Top Right */}
+          {selectedBody && "applyForce" in selectedBody && (
+            <button
+              onClick={() => setShowForceControls(!showForceControls)}
+              className="absolute top-4 right-16 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-blue-600/80 hover:bg-blue-500/90 border border-blue-400/50 hover:border-blue-300/70 transition-all duration-200 group shadow-lg hover:shadow-blue-500/50 animate-pulse hover:animate-none"
+              aria-label="Toggle Force Controls"
+              title={showForceControls ? "Hide Force Controls" : "Show Force Controls"}
+            >
+              <MdOutlineRocketLaunch className="text-lg text-white group-hover:rotate-12 transition-transform" />
+            </button>
+          )}
+
           <button
             onClick={onCloseHandler}
             className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-slate-800/80 hover:bg-slate-700/90 border border-slate-600/50 hover:border-slate-500/70 transition-all duration-200 group shadow-lg"
@@ -425,6 +461,103 @@ export default function AsteroidVisualizer({
               </div>
             )}
           </div>
+
+          {/* Force Controls Section - Expandable */}
+          {selectedBody && "applyForce" in selectedBody && (
+            <div className="mt-4 border-t-2 border-blue-500/30 pt-4 bg-gradient-to-b from-blue-950/30 to-transparent px-2 pb-2 rounded-lg">
+              <button
+                onClick={() => setShowForceControls(!showForceControls)}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-slate-950/90 to-slate-900/90 hover:from-slate-950 hover:to-slate-900 rounded-xl transition-all duration-200 border-2 border-blue-500/40 hover:border-blue-400/60 group shadow-xl hover:shadow-blue-500/30"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-600/30 rounded-lg group-hover:bg-blue-600/40 transition-colors shadow-inner">
+                    <MdOutlineRocketLaunch className="text-2xl text-blue-300 group-hover:rotate-12 group-hover:scale-110 transition-all duration-300" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                      Force Controls
+                      {!showForceControls && <span className="text-[10px] px-2 py-0.5 bg-blue-600/30 rounded-full text-blue-200 border border-blue-500/30">Click to expand</span>}
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-0.5">Apply force vectors to {selectedBody.name}</p>
+                  </div>
+                </div>
+                {showForceControls ? (
+                  <FiChevronUp className="text-xl text-blue-300 group-hover:text-blue-200 transition-colors" />
+                ) : (
+                  <FiChevronDown className="text-xl text-blue-300 group-hover:text-blue-200 transition-colors animate-bounce" />
+                )}
+              </button>
+
+              {showForceControls && (
+                <div className="mt-4 space-y-3 animate-[slideInBottom_0.3s_ease-out]">
+                  <div className="p-4 bg-gradient-to-br from-slate-950/95 to-slate-900/95 rounded-xl border-2 border-blue-500/30 shadow-2xl shadow-blue-900/20">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/30">
+                      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <p className="text-xs text-slate-200 font-semibold">ADJUST FORCE VECTORS (N) AND TIME</p>
+                    </div>
+                    
+                    <div className="space-y-3">{/* Force inputs remain the same */}
+                      <div>
+                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">Force X:</label>
+                        <input
+                          type="number"
+                          value={forceX}
+                          onChange={(e) => setForceX?.(e.target.value)}
+                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">Force Y:</label>
+                        <input
+                          type="number"
+                          value={forceY}
+                          onChange={(e) => setForceY?.(e.target.value)}
+                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">Force Z:</label>
+                        <input
+                          type="number"
+                          value={forceZ}
+                          onChange={(e) => setForceZ?.(e.target.value)}
+                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">Delta Time (s):</label>
+                        <input
+                          type="number"
+                          value={deltaTime}
+                          onChange={(e) => setDeltaTime?.(e.target.value)}
+                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                          placeholder="1"
+                        />
+                      </div>
+
+                      <button
+                        onClick={applyForceToSelectedAsteroid}
+                        className="w-full mt-4 rounded-xl p-3.5 text-base bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white font-bold border-2 border-blue-400/50 hover:from-blue-700 hover:via-blue-600 hover:to-blue-700 hover:border-blue-300/70 active:scale-95 transition-all duration-200 shadow-[0_8px_24px_rgba(59,130,246,0.5)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.7)] flex items-center justify-center gap-3 animate-pulse hover:animate-none"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span className="text-base">Apply Force</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <FetchFailed />
