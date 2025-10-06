@@ -937,7 +937,7 @@ export default function ThreeScene() {
       />
 
       {showAsteroidVisualizer && selectedAsteroidId && (
-        <div className="absolute top-0 left-0 w-[400px] h-full z-[1000] pointer-events-auto">
+        <div className="absolute top-0 left-0 w-full md:w-[400px] h-full z-[1000] pointer-events-auto">
           <AsteroidVisualizer
             id={selectedAsteroidId}
             onCloseHandler={handleCloseVisualizer}
@@ -980,9 +980,9 @@ export default function ThreeScene() {
         </div>
       )}
 
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-8 rounded-4xl w-[90%] sm:w-[600px] max-w-[95vw] backdrop-blur-sm">
-        <div className="flex items-center w-full mb-4">
-          <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-4 my-1.5 shadow-md backdrop-blur-sm w-full px-4">
+      <div className="absolute bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-3 md:p-8 rounded-4xl w-[95%] sm:w-[90%] md:w-[600px] max-w-[95vw] backdrop-blur-sm">
+        <div className="flex items-center w-full mb-2 md:mb-4">
+          <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2 md:py-4 my-1 md:my-1.5 shadow-md backdrop-blur-sm w-full px-2 md:px-4">
             <input
               type="range"
               min="0"
@@ -995,10 +995,10 @@ export default function ThreeScene() {
           </div>
         </div>
 
-        <div className="flex place-content-between justify-center gap-3 w-full">
-          <div className="hover:bg-gray-500/50 p-2 rounded-xl w-[12vw] text-center">
+        <div className="flex flex-wrap place-content-between justify-center gap-2 md:gap-3 w-full">
+          <div className="hover:bg-gray-500/50 p-1 md:p-2 rounded-xl text-center flex-shrink-0">
             <span
-              className="text-gray-300 font-medium text-lg cursor-pointer hover:text-gray-100 duration-300 mt-2"
+              className="text-gray-300 font-medium text-xs md:text-lg cursor-pointer hover:text-gray-100 duration-300"
               onClick={() => setShowDateTimePicker(true)}
             >
               {currentDate ? formatSimulationDate(currentDate) : "Loading..."}
@@ -1006,17 +1006,17 @@ export default function ThreeScene() {
           </div>
           <button
             onClick={togglePause}
-            className={`px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-gray-500/60 text-white ${isPaused ? "pause-button-paused" : "pause-button-playing"}`}
+            className={`px-3 md:px-6 py-1.5 md:py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-gray-500/60 text-white ${isPaused ? "pause-button-paused" : "pause-button-playing"} flex-shrink-0`}
           >
-            {isPaused ? <FaPlay /> : <IoIosPause />}
+            {isPaused ? <FaPlay className="text-sm md:text-base" /> : <IoIosPause className="text-sm md:text-base" />}
           </button>
           <button
             onClick={resetTime}
-            className="px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-red-500/60 text-white"
+            className="px-3 md:px-6 py-1.5 md:py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-red-500/60 text-white flex-shrink-0"
           >
-            <RiResetRightLine />
+            <RiResetRightLine className="text-sm md:text-base" />
           </button>
-          <span className="text-gray-300 font-medium text-lg cursor-pointer duration-300 m-2 mx-4">
+          <span className="text-gray-300 font-medium text-xs md:text-lg cursor-pointer duration-300 my-1 md:m-2 mx-2 md:mx-4 flex-shrink-0">
             {isPaused ? "Paused" : getCurrentSpeedDisplay()}
           </span>
         </div>
