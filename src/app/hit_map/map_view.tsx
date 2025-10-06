@@ -277,9 +277,15 @@ export default function MapView() {
   }
 
   return (
-    <div className="w-full h-screen relative">
+    <div className={`w-full h-screen relative  ${leagueSpartan.className}`}>
+      <div className="w-screen absolute top-10 z-10  flex justify-center text-white">
+        <div className="text-center text-2xl md:text-4xl bg-slate-500/40 rounded-xs p-2 backdrop-blur-xs">
+          <h2>Asteroid Crater Map</h2>
+        </div>
+      </div>
+
       {/* Controls */}
-      <div className="absolute top-10 left-10 flex flex-col gap-2 z-10">
+      <div className="absolute top-10 left-10 flex flex-col gap-2 z-10 text-white">
         {/* Zoom Controls */}
         <button
           onClick={() => map.current?.zoomIn()}
@@ -305,10 +311,7 @@ export default function MapView() {
         {showLayers && (
           <div className="bg-slate-500/60 backdrop-blur-xs  px-4 py-2 rounded-sm shadow">
             {Object.entries(layersState).map(([key, value]) => (
-              <label
-                key={key}
-                className={`flex items-center gap-2 ${leagueSpartan.className}`}
-              >
+              <label key={key} className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={value}
@@ -325,9 +328,7 @@ export default function MapView() {
           </div>
         )}
       </div>
-      <div
-        className={`absolute top-0 right-0 z-10 ${leagueSpartan.className}`}
-      >
+      <div className={`absolute top-0 right-0 z-10 ${leagueSpartan.className}`}>
         <div className="hidden md:block absolute top-10 right-10">
           <div className="h-[90vh] w-[25vw] overflow-scroll scroll-smooth flex flex-col gap-2 hide-scrollbar">
             <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
