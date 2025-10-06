@@ -109,11 +109,13 @@ export default function ControlPanel({
             <path d="M18 13H6v-2h12v2z" fill="currentColor" />
           </svg>
         </button>
-      </div>
 
-      {/* Reset view button at the bottom right */}
-      <div className="absolute bottom-4 right-2 md:bottom-5 md:right-5 z-10">
-        <button className="m-0 w-8 h-8 md:w-auto md:h-auto flex items-center justify-center" onClick={onResetView} aria-label="Reset View">
+        {/* Reset view button below zoom controls with gap */}
+        <button 
+          className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] rounded-full bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] text-white cursor-pointer flex items-center justify-center shadow-md backdrop-blur-sm hover:bg-[rgba(30,30,60,0.8)] hover:border-[rgba(255,255,255,0.5)] active:translate-y-0 mt-3 md:mt-4" 
+          onClick={onResetView} 
+          aria-label="Reset View"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
