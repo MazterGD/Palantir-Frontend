@@ -28,7 +28,6 @@ import { RiResetRightLine } from "react-icons/ri";
 import { IoIosPause } from "react-icons/io";
 import { FaPlay } from "react-icons/fa";
 import { League_Spartan } from "next/font/google";
-import { AsteroidOrbitManager } from "./three/orbitManager";
 
 const leagueSpartan = League_Spartan({
   subsets: ["latin"],
@@ -68,7 +67,6 @@ export interface CelestialBody {
     deltaTime: number,
     currentTime: number,
   ) => void;
-  resetOrbit?: () => void;
 }
 
 let sceneRef: THREE.Scene | null = null;
@@ -77,6 +75,7 @@ let celestialBodiesRef: CelestialBody[] = [];
 const interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
 let halosAndLabelsRef: (() => void)[] = [];
 let currentSelectedBody: CelestialBody | null = null;
+let currentSelectedAsteroid: CelestialBody | null = null;
 let currentFocusedBody: CelestialBody | null = null;
 let rendererRef: THREE.WebGLRenderer | null = null;
 let controlsRef: OrbitControls | null = null;
@@ -251,12 +250,12 @@ export default function ThreeScene() {
     }
 
     const force = {
-      x: parseFloat(forceX) || 0,
-      y: parseFloat(forceY) || 0,
-      z: parseFloat(forceZ) || 0,
+      x: parseFloat(forceX),
+      y: parseFloat(forceY),
+      z: parseFloat(forceZ),
     };
 
-    const dt = parseFloat(deltaTime) || 1;
+    const dt = parseFloat(deltaTime);
 
     if (isNaN(force.x) || isNaN(force.y) || isNaN(force.z) || isNaN(dt)) {
       alert("Please enter valid numbers for force and time");
@@ -267,43 +266,40 @@ export default function ThreeScene() {
     const currentUnixTime =
       startDateRef.current.getTime() / 1000 + currentTimeRef.current * 86400;
 
-    // Apply the force - the asteroid will handle its orbit update internally
     selectedBody.applyForce(force, dt, currentUnixTime);
 
-    console.log(
-      `Force applied to ${selectedBody.name}. Orbit has been updated.`,
-    );
-  };
+    if (selectedBody.orbitLine && selectedBody.orbitGenerator) {
+      const positions: number[] = [];
+      const steps = 360;
+      for (let i = 0; i <= steps; i++) {
+        const t =
+          (i / steps) *
+          selectedBody.orbitGenerator.getPositionAtTime(currentUnixTime).time;
+        const pos = selectedBody.orbitGenerator.getPositionAtTime(
+          currentUnixTime + t,
+        );
+        positions.push(pos.position.x, pos.position.y, pos.position.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
 
-  const selectBody = (body: CelestialBody) => {
-    const isAsteroid = body.id && "applyForce" in body;
-
-    if (isAsteroid) {
-      // Use the centralized manager
-      AsteroidOrbitManager.showOrbit(body);
-      setSelectedAsteroidId(body.id!);
-      setShowAsteroidVisualizer(true);
-    } else {
-      // Clear any asteroid orbit when selecting a planet
-      AsteroidOrbitManager.clearOrbit();
-      showOrbitForBody(body);
-      setShowAsteroidVisualizer(false);
-      setSelectedAsteroidId(null);
+      if ((selectedBody.orbitLine as THREE.Line).geometry) {
+        (selectedBody.orbitLine as THREE.Line).geometry.dispose();
+      }
+      (selectedBody.orbitLine as THREE.Line).geometry = geometry;
     }
 
-    currentSelectedBody = body;
-    currentFocusedBody = body;
-    setSelectedBody(body);
-    
-    // Update minimum distance for the focused body
-    if (controlsRef) {
-      const bodyRadius = body.diameter / 2;
-      controlsRef.minDistance = Math.max(0.1, bodyRadius * 1.5);
-    }
+    alert(`Force applied to ${selectedBody.name}. Orbit has been updated.`);
   };
 
   const clearSelection = () => {
-    AsteroidOrbitManager.clearOrbit();
+    if (currentSelectedAsteroid) {
+      currentSelectedAsteroid.hideOrbit?.();
+      currentSelectedAsteroid = null;
+    }
     currentSelectedBody = null;
     currentFocusedBody = null;
     setSelectedBody(null);
@@ -318,7 +314,10 @@ export default function ThreeScene() {
   };
 
   const handleCloseVisualizer = () => {
-    AsteroidOrbitManager.clearOrbit();
+    if (currentSelectedAsteroid) {
+      currentSelectedAsteroid.hideOrbit?.();
+      currentSelectedAsteroid = null;
+    }
     setShowAsteroidVisualizer(false);
     setSelectedAsteroidId(null);
     currentSelectedBody = null;
@@ -347,14 +346,15 @@ export default function ThreeScene() {
     cameraRef = camera;
     rendererRef = renderer;
 
-    // Initialize the orbit manager with scene and halos reference
-    AsteroidOrbitManager.initialize(scene, halosAndLabelsRef);
-
     const cameraDistance = getRecommendedCameraDistance();
     const sceneBounds = getSceneBoundaries();
-
+    
     // Use the properly scaled camera distance directly
-    camera.position.set(0, -cameraDistance, cameraDistance * 0.045);
+    camera.position.set(
+      0,
+      (-cameraDistance),
+      cameraDistance * 0.045,
+    );
     camera.lookAt(0, 0, 0);
     camera.up.set(0, 0, 1);
 
@@ -365,7 +365,7 @@ export default function ThreeScene() {
     interactiveObjectsRef.clear();
     halosAndLabelsRef = [];
     currentSelectedBody = null;
-    currentFocusedBody = null;
+    currentSelectedAsteroid = null;
 
     addStarsBackground(scene);
     currentTimeRef.current = 0;
@@ -420,11 +420,7 @@ export default function ThreeScene() {
       }
     });
 
-    // Initialize raycaster with proper threshold for Points
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Points.threshold = 10; // IMPORTANT: Makes asteroids clickable
-    raycaster.params.Line.threshold = 3;
-    
     const mouse = new THREE.Vector2();
     let hoveredObject: CelestialBody | null = null;
 
@@ -488,11 +484,11 @@ export default function ThreeScene() {
         const material = object.mesh.material as THREE.PointsMaterial;
         if (highlighted) {
           material.color = new THREE.Color(0xffff00);
-          material.size = 10;
+          material.size = 5;
           material.opacity = 1.0;
         } else {
           material.color = new THREE.Color(0x4fc3f7);
-          material.size = 8;
+          material.size = 3;
           material.opacity = 0.8;
         }
       }
@@ -504,8 +500,6 @@ export default function ThreeScene() {
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      
-      // Get all interactive objects - no filtering needed
       const checkObjects = Array.from(interactiveObjectsRef.keys());
       const intersects = raycaster.intersectObjects(checkObjects, true);
 
@@ -534,9 +528,43 @@ export default function ThreeScene() {
       }
     };
 
+    const selectBody = (body: CelestialBody) => {
+      const isAsteroid = body.id && "applyForce" in body;
+
+      if (isAsteroid) {
+        if (currentSelectedAsteroid && currentSelectedAsteroid !== body) {
+          currentSelectedAsteroid.hideOrbit?.();
+        }
+
+        showOrbitForBody(body);
+        currentSelectedAsteroid = body;
+        setSelectedAsteroidId(body.id!);
+        setShowAsteroidVisualizer(true);
+      } else {
+        if (currentSelectedAsteroid) {
+          currentSelectedAsteroid.hideOrbit?.();
+          currentSelectedAsteroid = null;
+        }
+
+        showOrbitForBody(body);
+        setShowAsteroidVisualizer(false);
+        setSelectedAsteroidId(null);
+      }
+
+      currentSelectedBody = body;
+      currentFocusedBody = body;
+      setSelectedBody(body);
+      
+      // Update minimum distance based on the focused body's size
+      if (controlsRef) {
+        const bodyRadius = body.diameter / 2;
+        // Set minimum distance to 1.5x the body's radius (safety margin to prevent clipping)
+        controlsRef.minDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+    };
+
     const onClick = (event: MouseEvent) => {
       raycaster.setFromCamera(mouse, camera);
-      
       const checkObjects = Array.from(interactiveObjectsRef.keys());
       const intersects = raycaster.intersectObjects(checkObjects, true);
 
@@ -545,7 +573,8 @@ export default function ThreeScene() {
         let object = interactiveObjectsRef.get(intersectedObject);
 
         if (!object) {
-          let current: THREE.Object3D<THREE.Object3DEventMap> | null = intersectedObject;
+          let current: THREE.Object3D<THREE.Object3DEventMap> | null =
+            intersectedObject;
           while (current && !object) {
             object = interactiveObjectsRef.get(current);
             current = current.parent;
@@ -590,28 +619,40 @@ export default function ThreeScene() {
 
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = sceneBounds.innerBoundary;
-    const maxDistance = cameraDistance * 1.5;
-    controls.maxDistance = maxDistance;
+    controls.minDistance = sceneBounds.innerBoundary; // Stop at sun's surface
+    const maxDistance = cameraDistance * 1.5; // Use the properly scaled distance directly
+    controls.maxDistance = Infinity; // No maximum zoom out limit
 
     const updateSliderFromCamera = debounce(() => {
       const currentDistance = camera.position.distanceTo(controls.target);
+      // Use focused body's minimum distance if available
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
 
       let newSliderValue: number;
 
+      // Reverse the logic from handleZoomChange
+      // 0-500: linear from minZoomDistance (sun's surface) to cameraDistance
+      // 500-1000: exponential beyond cameraDistance
       if (currentDistance <= cameraDistance) {
-        const normalizedDistance =
-          (currentDistance - controls.minDistance) /
-          (cameraDistance - controls.minDistance);
-        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
+        // Linear range: minZoomDistance to cameraDistance maps to 0-500
+        const normalizedDistance = (currentDistance - minZoomDistance) / (cameraDistance - minZoomDistance);
+        newSliderValue = Math.max(0, normalizedDistance * 500);
       } else {
-        const normalizedDistance =
-          (currentDistance - cameraDistance) / (maxDistance - cameraDistance);
-        newSliderValue = Math.max(
-          50,
-          Math.min(100, 50 + normalizedDistance * 50),
-        );
+        // Exponential range: beyond cameraDistance maps to 500-1000
+        // Reverse the exponential: targetDistance = cameraDistance * 2^(exponent-1)
+        // Where exponent ranges from 1 to 5
+        const ratio = currentDistance / cameraDistance;
+        const exponent = Math.log2(ratio) + 1;
+        const normalizedValue = Math.min(1, (exponent - 1) / 4); // Clamp to prevent overflow
+        newSliderValue = 500 + normalizedValue * 500;
       }
+
+      // Clamp to reasonable range to prevent slider overflow
+      newSliderValue = Math.max(0, Math.min(1000, newSliderValue));
 
       if (Math.abs(newSliderValue - zoomLevel) > 1) {
         setZoomLevel(Math.round(newSliderValue));
@@ -704,7 +745,7 @@ export default function ThreeScene() {
       interactiveObjectsRef.clear();
       halosAndLabelsRef = [];
       currentSelectedBody = null;
-      currentFocusedBody = null;
+      currentSelectedAsteroid = null;
     };
   }, []);
 
@@ -719,17 +760,22 @@ export default function ThreeScene() {
       return;
     }
 
-    console.log("Creating asteroids:", asteroidsData.length);
-
     const createdAsteroids = createAsteroids(
       asteroidsData,
       cameraRef,
       halosAndLabelsRef,
-      sceneRef!,
+      sceneRef,
     );
 
-    createdAsteroids.forEach((asteroid, index) => {
+    createdAsteroids.forEach((asteroid) => {
       sceneRef!.add(asteroid.mesh);
+
+      if (
+        asteroid.orbitLine &&
+        !sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)
+      ) {
+        sceneRef!.add(asteroid.orbitLine);
+      }
 
       const asteroidBody: CelestialBody = {
         id: asteroid.id,
@@ -749,13 +795,6 @@ export default function ThreeScene() {
 
       celestialBodiesRef.push(asteroidBody);
 
-      // Add ONLY the mesh and label to interactive objects
-//       interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
-      
-//       if (asteroid.labelSprite) {
-//         interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
-//       }
-      
 
       // if (asteroid.labelSprite) {
       //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
@@ -765,21 +804,39 @@ export default function ThreeScene() {
       //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
       // }
     });
-    
-    console.log("Total interactive objects:", interactiveObjectsRef.size);
   }, [asteroidsData, sceneInitialized]);
 
   const handleZoomIn = () => {
     if (controlsRef && cameraRef) {
-      const newZoomLevel = Math.max(0, zoomLevel - 10);
-      setZoomLevel(newZoomLevel);
-      handleZoomChange(newZoomLevel);
+      // Zoom in by 5% of the current position or minimum 10 units
+      const step = Math.max(10, zoomLevel * 0.05);
+      const newZoomLevel = Math.max(0, zoomLevel - step);
+      
+      // Check if new zoom would be below surface
+      const sceneBounds = getSceneBoundaries();
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+      
+      const cameraDistanceForReset = getRecommendedCameraDistance();
+      const normalizedValue = newZoomLevel / 500;
+      const testDistance = minZoomDistance + (cameraDistanceForReset - minZoomDistance) * normalizedValue;
+      
+      // Only apply zoom if it's at or above the surface
+      if (testDistance >= minZoomDistance || newZoomLevel >= 0) {
+        setZoomLevel(newZoomLevel);
+        handleZoomChange(newZoomLevel);
+      }
     }
   };
 
   const handleZoomOut = () => {
     if (controlsRef && cameraRef) {
-      const newZoomLevel = Math.min(100, zoomLevel + 10);
+      // Zoom out by 5% of the current position or minimum 10 units
+      const step = Math.max(10, zoomLevel * 0.05);
+      const newZoomLevel = Math.min(1000, zoomLevel + step);
       setZoomLevel(newZoomLevel);
       handleZoomChange(newZoomLevel);
     }
@@ -792,17 +849,21 @@ export default function ThreeScene() {
       const azimuthalAngle = 45 * (Math.PI / 180);
 
       const x =
-        cameraDistance * Math.sin(angleFromY) * Math.cos(azimuthalAngle);
+        cameraDistance *
+        Math.sin(angleFromY) *
+        Math.cos(azimuthalAngle);
       const y = cameraDistance * Math.cos(angleFromY);
       const z =
-        cameraDistance * Math.sin(angleFromY) * Math.sin(azimuthalAngle);
+        cameraDistance *
+        Math.sin(angleFromY) *
+        Math.sin(azimuthalAngle);
 
       const newPosition = new THREE.Vector3(x, y, z);
       const originTarget = new THREE.Vector3(0, 0, 0);
 
       cameraRef.up.set(0, 0, 1);
       moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
-      setZoomLevel(50);
+      setZoomLevel(500); // Reset to middle position (cameraDistance position)
     }
   };
 
@@ -811,23 +872,37 @@ export default function ThreeScene() {
       setZoomLevel(value);
 
       const sceneBounds = getSceneBoundaries();
-      const minZoomDistance = sceneBounds.innerBoundary;
-      const maxZoomDistance = controlsRef.maxDistance;
+      // Use focused body's minimum distance if available, otherwise use sun's surface
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+      
       const cameraDistanceForReset = getRecommendedCameraDistance();
+      const baseMaxDistance = cameraDistanceForReset * 1.5;
 
       let targetDistance;
 
-      if (value <= 50) {
-        const normalizedValue = value / 50;
+      // Map slider value (0-1000) to camera distance
+      // 0-500: zoom from minZoomDistance (sun's surface) to cameraDistanceForReset (normal view)
+      // 500-1000: zoom from cameraDistanceForReset to far distances (exponential beyond baseMaxDistance)
+      if (value <= 500) {
+        // Linear zoom from minZoomDistance to cameraDistanceForReset
+        const normalizedValue = value / 500;
         targetDistance =
           minZoomDistance +
           (cameraDistanceForReset - minZoomDistance) * normalizedValue;
       } else {
-        const normalizedValue = (value - 50) / 50;
-        targetDistance =
-          cameraDistanceForReset +
-          (maxZoomDistance - cameraDistanceForReset) * normalizedValue;
+        // Exponential zoom beyond cameraDistanceForReset
+        const normalizedValue = (value - 500) / 500;
+        // Use exponential scaling for smooth far-distance zooming
+        const exponent = 1 + normalizedValue * 4; // Scale from 1x to 5x exponentially
+        targetDistance = cameraDistanceForReset * Math.pow(2, exponent - 1);
       }
+      
+      // Enforce minimum distance limit - cannot go below surface
+      targetDistance = Math.max(targetDistance, minZoomDistance);
 
       const directionVector = new THREE.Vector3()
         .subVectors(cameraRef.position, controlsRef.target)
