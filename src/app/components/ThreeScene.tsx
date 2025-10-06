@@ -8,24 +8,26 @@ import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
 import { addLights } from "./three/addLights";
 import { setupPostProcessing } from "./three/postProcessing";
-import { ScaledOrbitGenerator } from "./three/orbitGenerator";
-import { createAllPlanets, Planet } from "./three/objects/createPlanet";
+import { ORBIT_PRESETS, ScaledOrbitGenerator } from "./three/orbitGenerator";
+import { createAllPlanets } from "./three/objects/createPlanet";
 import { createSun } from "./three/objects/createSun";
+import { createAsteroids } from "./three/objects/createAsteroid";
+import { moveCamera } from "./three/cameraUtils";
+import { useAsteroidsBulk } from "../hooks/useAsteroidsBulk";
 import {
   getRecommendedCameraDistance,
   getSceneBoundaries,
   speedScale,
 } from "../lib/scalingUtils";
 import { addStarsBackground } from "./three/createBackground";
-import { moveCamera } from "./three/cameraUtils";
 import ControlPanel from "./ControlPanel";
+import AsteroidVisualizer from "./dataBox";
+import SelectedBodyPanel from "./selectBodyPanel";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RiResetRightLine } from "react-icons/ri";
 import { IoIosPause } from "react-icons/io";
 import { FaPlay } from "react-icons/fa";
 import { League_Spartan } from "next/font/google";
-import SearchUI from "./SearchUI";
-import { useAsteroidSelection } from "../lib/useAsteroidSelection";
 
 const leagueSpartan = League_Spartan({
   subsets: ["latin"],
@@ -33,52 +35,127 @@ const leagueSpartan = League_Spartan({
   display: "swap",
 });
 
-// Simple debounce function to limit how often slider updates during continuous zoom
 function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number,
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null;
-
   return function (...args: Parameters<T>) {
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
 }
-// Extend Planet interface to include orbitGenerator for celestial bodies
-interface CelestialBody extends Planet {
+
+export interface CelestialBody {
+  id?: string;
+  mesh: THREE.Group | THREE.Points;
   orbitGenerator: ScaledOrbitGenerator;
+  orbitLine?: THREE.Line | THREE.Object3D;
+  rotationSpeed?: number;
+  diameter: number;
+  color: string;
+  name: string;
+  haloSprite?: THREE.Sprite;
+  labelSprite?: THREE.Sprite;
+  setHaloHighlight?: (highlighted: boolean) => void;
+  setLabelHighlight?: (highlighted: boolean) => void;
+  updateLOD?: (cameraPosition: THREE.Vector3) => void;
+  showOrbit?: () => void;
+  hideOrbit?: () => void;
+  applyForce?: (
+    force: { x: number; y: number; z: number },
+    deltaTime: number,
+    currentTime: number,
+  ) => void;
 }
+
+let sceneRef: THREE.Scene | null = null;
+let cameraRef: THREE.PerspectiveCamera | null = null;
+let celestialBodiesRef: CelestialBody[] = [];
+const interactiveObjectsRef: Map<THREE.Object3D, CelestialBody> = new Map();
+let halosAndLabelsRef: (() => void)[] = [];
+let currentSelectedBody: CelestialBody | null = null;
+let currentSelectedAsteroid: CelestialBody | null = null;
+let currentFocusedBody: CelestialBody | null = null;
+let rendererRef: THREE.WebGLRenderer | null = null;
+let controlsRef: OrbitControls | null = null;
 
 export default function ThreeScene() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const [speedMultiplier, setSpeedMultiplier] = useState(21); // Default to real-time (index 21 in speedScale)
+  const [isLoading, setIsLoading] = useState(true);
+  const [sceneInitialized, setSceneInitialized] = useState(false);
+  const [selectedBody, setSelectedBody] = useState<CelestialBody | null>(null);
+  const [forceX, setForceX] = useState("10");
+  const [forceY, setForceY] = useState("0");
+  const [forceZ, setForceZ] = useState("0");
+  const [deltaTime, setDeltaTime] = useState("1");
+  const [showAsteroidVisualizer, setShowAsteroidVisualizer] = useState(false);
+  const [selectedAsteroidId, setSelectedAsteroidId] = useState<string | null>(
+    null,
+  );
+
+  const [speedMultiplier, setSpeedMultiplier] = useState(21);
   const [isPaused, setIsPaused] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [selectedDateTime, setSelectedDateTime] = useState<string>("");
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(50);
 
-  // Find current speed option
-  const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21]; // Default to real-time
+  const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21];
 
-  // Use refs to access the latest values in animation loop
   const speedMultiplierRef = useRef(speedMultiplier);
   const isPausedRef = useRef(isPaused);
   const currentTimeRef = useRef(0);
-  const celestialBodiesRef = useRef<CelestialBody[]>([]);
   const startDateRef = useRef(new Date());
 
-  // Handle slider change with debounce for smoother updates
+  const {
+    asteroids: asteroidsData,
+    loading,
+    error,
+  } = useAsteroidsBulk(1, 1500);
+
+  useEffect(() => {
+    if (asteroidsData && sceneInitialized) {
+      setIsLoading(false);
+    }
+  }, [asteroidsData, sceneInitialized]);
+
+  useEffect(() => {
+    speedMultiplierRef.current = speedMultiplier;
+  }, [speedMultiplier]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  useEffect(() => {
+    const now = new Date();
+    setCurrentDate(now);
+    setSelectedDateTime(now.toISOString().slice(0, 16));
+  }, []);
+
+  useEffect(() => {
+    if (!currentDate) return;
+    const interval = setInterval(() => {
+      if (!isPausedRef.current) {
+        const days = currentTimeRef.current;
+        const newDate = new Date(
+          startDateRef.current.getTime() + days * 24 * 60 * 60 * 1000,
+        );
+        setCurrentDate(newDate);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [currentDate]);
+
   const handleSliderChange = useCallback((value: number) => {
     setSpeedMultiplier(value);
   }, []);
 
-  // Get current speed display
   const getCurrentSpeedDisplay = useCallback(() => {
     return currentSpeedOption.label;
   }, [currentSpeedOption]);
 
-  // Format date for display
   const formatSimulationDate = useCallback((date: Date) => {
     const months = [
       "Jan",
@@ -100,59 +177,22 @@ export default function ThreeScene() {
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
     const seconds = date.getSeconds().toString().padStart(2, "0");
-
     return `${month} ${day}, ${year} ${hours}:${minutes}:${seconds}`;
   }, []);
 
-  // Update the refs whenever the states change
-  useEffect(() => {
-    speedMultiplierRef.current = speedMultiplier;
-  }, [speedMultiplier]);
-
-  useEffect(() => {
-    isPausedRef.current = isPaused;
-  }, [isPaused]);
-
-  // Initialize dates on client side to prevent hydration mismatch
-  useEffect(() => {
-    const now = new Date();
-    setCurrentDate(now);
-    setSelectedDateTime(now.toISOString().slice(0, 16));
-  }, []);
-
-  // Update date display based on simulation time
-  useEffect(() => {
-    if (!currentDate) return; // Don't start updating until date is initialized
-
-    const interval = setInterval(() => {
-      if (!isPausedRef.current) {
-        const days = currentTimeRef.current;
-        const newDate = new Date(
-          startDateRef.current.getTime() + days * 24 * 60 * 60 * 1000,
-        );
-        setCurrentDate(newDate);
-      }
-    }, 100); // Update 10 times per second for smooth display
-
-    return () => clearInterval(interval);
-  }, [currentDate]);
-
-  // Toggle pause state
   const togglePause = useCallback(() => {
     setIsPaused((prev) => !prev);
   }, []);
 
-  // Reset time and positions
   const resetTime = useCallback(() => {
     currentTimeRef.current = 0;
-    setSpeedMultiplier(21); // Reset to real-time (index 21)
-    setIsPaused(false); // Unpause if paused
+    setSpeedMultiplier(21);
+    setIsPaused(false);
     const now = new Date();
     startDateRef.current = now;
     setCurrentDate(now);
 
-    // Reset all celestial body positions
-    celestialBodiesRef.current.forEach((body) => {
+    celestialBodiesRef.forEach((body) => {
       const position = body.orbitGenerator.getPositionAtTime(0);
       body.mesh.position.set(
         position.position.x,
@@ -162,20 +202,18 @@ export default function ThreeScene() {
     });
   }, []);
 
-  // Set simulation to specific date/time
   const setSimulationDateTime = useCallback(() => {
     const selectedDate = new Date(selectedDateTime);
     const now = new Date();
     const timeDiff =
-      (selectedDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24); // Convert to days
+      (selectedDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
 
     currentTimeRef.current = timeDiff;
     startDateRef.current = now;
     setCurrentDate(selectedDate);
-    setSpeedMultiplier(21); // Reset to real-time when jumping to new date
+    setSpeedMultiplier(21);
 
-    // Update all celestial body positions to the selected time
-    celestialBodiesRef.current.forEach((body) => {
+    celestialBodiesRef.forEach((body) => {
       const position = body.orbitGenerator.getPositionAtTime(timeDiff);
       body.mesh.position.set(
         position.position.x,
@@ -184,182 +222,386 @@ export default function ThreeScene() {
       );
     });
   }, [selectedDateTime]);
-  
-  const [controlsRef, setControlsRef] = useState<OrbitControls | null>(null);
-  const [cameraRef, setCameraRef] = useState<THREE.Camera | null>(null);
-  const [initialCameraPosition, setInitialCameraPosition] =
-    useState<THREE.Vector3 | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(50); // Default zoom level (middle)
-  
-  // Search UI state
-  const [celestialBodiesMap, setCelestialBodiesMap] = useState<Map<string, CelestialBody>>(new Map());
+
+  const showOrbitForBody = (body: CelestialBody) => {
+    if (body.showOrbit) {
+      body.showOrbit();
+    } else if (body.orbitLine) {
+      body.orbitLine.visible = true;
+      if ("material" in body.orbitLine && body.orbitLine.material) {
+        const orbitLine = body.orbitLine as any;
+        orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+        if (orbitLine.material.linewidth !== undefined) {
+          orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+        }
+        if (orbitLine.material.emissiveIntensity !== undefined) {
+          orbitLine.material.emissiveIntensity =
+            ORBIT_PRESETS.bright.emissiveIntensity;
+        }
+        orbitLine.material.needsUpdate = true;
+      }
+    }
+  };
+
+  const applyForceToSelectedAsteroid = () => {
+    if (!selectedBody || !selectedBody.applyForce) {
+      alert("No asteroid selected or force function not available");
+      return;
+    }
+
+    const force = {
+      x: parseFloat(forceX),
+      y: parseFloat(forceY),
+      z: parseFloat(forceZ),
+    };
+
+    const dt = parseFloat(deltaTime);
+
+    if (isNaN(force.x) || isNaN(force.y) || isNaN(force.z) || isNaN(dt)) {
+      alert("Please enter valid numbers for force and time");
+      return;
+    }
+
+    // Convert current time (days) to unix time (seconds)
+    const currentUnixTime =
+      startDateRef.current.getTime() / 1000 + currentTimeRef.current * 86400;
+
+    selectedBody.applyForce(force, dt, currentUnixTime);
+
+    if (selectedBody.orbitLine && selectedBody.orbitGenerator) {
+      const positions: number[] = [];
+      const steps = 360;
+      for (let i = 0; i <= steps; i++) {
+        const t =
+          (i / steps) *
+          selectedBody.orbitGenerator.getPositionAtTime(currentUnixTime).time;
+        const pos = selectedBody.orbitGenerator.getPositionAtTime(
+          currentUnixTime + t,
+        );
+        positions.push(pos.position.x, pos.position.y, pos.position.z);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
+
+      if ((selectedBody.orbitLine as THREE.Line).geometry) {
+        (selectedBody.orbitLine as THREE.Line).geometry.dispose();
+      }
+      (selectedBody.orbitLine as THREE.Line).geometry = geometry;
+    }
+
+    alert(`Force applied to ${selectedBody.name}. Orbit has been updated.`);
+  };
+
+  const clearSelection = () => {
+    if (currentSelectedAsteroid) {
+      currentSelectedAsteroid.hideOrbit?.();
+      currentSelectedAsteroid = null;
+    }
+    currentSelectedBody = null;
+    currentFocusedBody = null;
+    setSelectedBody(null);
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+    
+    // Reset minimum distance back to sun's surface
+    if (controlsRef) {
+      const sceneBounds = getSceneBoundaries();
+      controlsRef.minDistance = sceneBounds.innerBoundary;
+    }
+  };
+
+  const handleCloseVisualizer = () => {
+    if (currentSelectedAsteroid) {
+      currentSelectedAsteroid.hideOrbit?.();
+      currentSelectedAsteroid = null;
+    }
+    setShowAsteroidVisualizer(false);
+    setSelectedAsteroidId(null);
+    currentSelectedBody = null;
+    currentFocusedBody = null;
+    setSelectedBody(null);
+    
+    // Reset minimum distance back to sun's surface
+    if (controlsRef) {
+      const sceneBounds = getSceneBoundaries();
+      controlsRef.minDistance = sceneBounds.innerBoundary;
+    }
+  };
 
   useEffect(() => {
     if (!mountRef.current) return;
+
     const Refcurrent = mountRef.current;
+    let animationFrameId: number;
 
-    const { scene, camera, renderer } = setupScene(mountRef.current);
+    const setup = setupScene(mountRef.current);
+    const scene = setup.scene;
+    const camera = setup.camera;
+    const renderer = setup.renderer;
+
+    sceneRef = scene;
+    cameraRef = camera;
+    rendererRef = renderer;
+
     const cameraDistance = getRecommendedCameraDistance();
-    camera.position.set(0, cameraDistance * 0.065, cameraDistance * 0.045);
+    const sceneBounds = getSceneBoundaries();
+    
+    // Use the properly scaled camera distance directly
+    camera.position.set(
+      0,
+      (-cameraDistance),
+      cameraDistance * 0.045,
+    );
     camera.lookAt(0, 0, 0);
-    camera.up.set(0, 0, 1); // Ensure z-up orientation
-
-    setCameraRef(camera);
+    camera.up.set(0, 0, 1);
 
     const controls = setupControls(camera, renderer);
-    setControlsRef(controls);
+    controlsRef = controls;
+
+    celestialBodiesRef = [];
+    interactiveObjectsRef.clear();
+    halosAndLabelsRef = [];
+    currentSelectedBody = null;
+    currentSelectedAsteroid = null;
 
     addStarsBackground(scene);
-    const celestialBodies: CelestialBody[] = [];
     currentTimeRef.current = 0;
 
     const { sun, update: updateSun } = createSun(camera);
     scene.add(sun);
 
-    const halos_and_labels: (() => void)[] = [];
-    const planets = createAllPlanets(camera, halos_and_labels);
-    const celestialBodiesMapTemp = new Map<string, CelestialBody>();
-    
+    const planets = createAllPlanets(camera, halosAndLabelsRef);
     planets.forEach((planet) => {
       scene.add(planet.mesh);
-      scene.add(planet.orbitLine);
+      if (planet.orbitLine) {
+        scene.add(planet.orbitLine);
+      }
 
-      const celestialBody = {
-        ...planet,
-        orbitGenerator: planet.orbitGenerator,
+      const showOrbit = () => {
+        if (planet.orbitLine) {
+          planet.orbitLine.visible = true;
+          if ("material" in planet.orbitLine && planet.orbitLine.material) {
+            const orbitLine = planet.orbitLine as any;
+            orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+            if (orbitLine.material.linewidth !== undefined) {
+              orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+            }
+            if (orbitLine.material.emissiveIntensity !== undefined) {
+              orbitLine.material.emissiveIntensity =
+                ORBIT_PRESETS.bright.emissiveIntensity;
+            }
+            orbitLine.material.needsUpdate = true;
+          }
+        }
       };
-      celestialBodies.push(celestialBody);
-      
-      // Add to the map using planet.id for search functionality
-      celestialBodiesMapTemp.set(planet.id, celestialBody);
+
+      const celestialBody: CelestialBody = {
+        mesh: planet.mesh,
+        orbitGenerator: planet.orbitGenerator,
+        rotationSpeed: planet.rotationSpeed,
+        diameter: planet.diameter,
+        color: planet.color,
+        name: planet.name,
+        haloSprite: planet.haloSprite,
+        labelSprite: planet.labelSprite,
+        setHaloHighlight: planet.setHaloHighlight,
+        setLabelHighlight: planet.setLabelHighlight,
+        orbitLine: planet.orbitLine,
+        showOrbit,
+      };
+
+      celestialBodiesRef.push(celestialBody);
+
+      if (planet.haloSprite) {
+        interactiveObjectsRef.set(planet.haloSprite, celestialBody);
+      }
     });
-    
-    // Update the state with all celestial bodies
-    setCelestialBodiesMap(celestialBodiesMapTemp);
 
-    // Update ref after all planets are added
-    celestialBodiesRef.current = celestialBodies;
-
-    // Raycaster setup for interactions
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    let hoveredPlanet: CelestialBody | null = null;
+    let hoveredObject: CelestialBody | null = null;
 
-    // Create mapping of interactive objects to planets
-    const interactiveObjects: Map<THREE.Object3D, CelestialBody> = new Map();
-    planets.forEach((planet) => {
-      // Map sprites to planet
-      if (planet.haloSprite) interactiveObjects.set(planet.haloSprite, planet);
-    });
-
-    // Helper function to highlight planet
-    const highlightPlanet = (planet: CelestialBody, highlighted: boolean) => {
-      // Highlight halo
-      if (planet.setHaloHighlight) {
-        planet.setHaloHighlight(highlighted);
+    const highlightObject = (object: CelestialBody, highlighted: boolean) => {
+      if (object.setHaloHighlight) {
+        object.setHaloHighlight(highlighted);
       }
 
-      // Highlight label
-      if (planet.setLabelHighlight) {
-        planet.setLabelHighlight(highlighted);
+      if (object.setLabelHighlight) {
+        object.setLabelHighlight(highlighted);
       }
 
-      // Highlight orbit line
-      if (planet.orbitLine && planet.orbitLine.material) {
-        const lineMaterial = planet.orbitLine.material as LineMaterial;
-        lineMaterial.opacity = highlighted ? 1.0 : 0.7;
-        lineMaterial.linewidth = highlighted ? 5 : 3;
-      }
-
-      // Highlight planet mesh
-      planet.mesh.traverse((child: THREE.Object3D) => {
-        if (child instanceof THREE.Mesh) {
-          const materials = Array.isArray(child.material)
-            ? child.material
-            : [child.material];
-
-          materials.forEach((material) => {
-            if (
-              material instanceof THREE.MeshPhongMaterial ||
-              material instanceof THREE.MeshStandardMaterial
-            ) {
-              material.emissive = new THREE.Color(planet.color);
-              material.emissiveIntensity = highlighted ? 0.3 : 0;
+      if (object.orbitLine && "material" in object.orbitLine) {
+        const orbitLine = object.orbitLine as any;
+        if (orbitLine.material) {
+          if (highlighted) {
+            orbitLine.material.opacity = ORBIT_PRESETS.bright.opacity;
+            if (orbitLine.material.linewidth !== undefined) {
+              orbitLine.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
             }
-          });
+            if (orbitLine.material.emissiveIntensity !== undefined) {
+              orbitLine.material.emissiveIntensity =
+                ORBIT_PRESETS.bright.emissiveIntensity;
+            }
+          } else {
+            if (currentSelectedBody !== object) {
+              orbitLine.material.opacity = ORBIT_PRESETS.standard.opacity;
+              if (orbitLine.material.linewidth !== undefined) {
+                orbitLine.material.linewidth = ORBIT_PRESETS.standard.lineWidth;
+              }
+              if (orbitLine.material.emissiveIntensity !== undefined) {
+                orbitLine.material.emissiveIntensity =
+                  ORBIT_PRESETS.standard.emissiveIntensity;
+              }
+            }
+          }
+          orbitLine.material.needsUpdate = true;
         }
-      });
+      }
+
+      if (object.mesh instanceof THREE.Group) {
+        object.mesh.traverse((child: any) => {
+          if (child instanceof THREE.Mesh && child.material) {
+            const materials = Array.isArray(child.material)
+              ? child.material
+              : [child.material];
+            materials.forEach((material) => {
+              if (
+                material instanceof THREE.MeshPhongMaterial ||
+                material instanceof THREE.MeshStandardMaterial
+              ) {
+                material.emissive = new THREE.Color(object.color);
+                material.emissiveIntensity = highlighted ? 0.3 : 0;
+              }
+            });
+          }
+        });
+      }
+
+      if (object.mesh instanceof THREE.Points) {
+        const material = object.mesh.material as THREE.PointsMaterial;
+        if (highlighted) {
+          material.color = new THREE.Color(0xffff00);
+          material.size = 5;
+          material.opacity = 1.0;
+        } else {
+          material.color = new THREE.Color(0x4fc3f7);
+          material.size = 3;
+          material.opacity = 0.8;
+        }
+      }
     };
 
-    // Mouse move handler
     const onMouseMove = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-
-      // Get all interactive objects
-      const checkObjects = Array.from(interactiveObjects.keys());
+      const checkObjects = Array.from(interactiveObjectsRef.keys());
       const intersects = raycaster.intersectObjects(checkObjects, true);
 
       if (intersects.length > 0) {
         const intersectedObject = intersects[0].object;
-        let planet = interactiveObjects.get(intersectedObject);
+        let object = interactiveObjectsRef.get(intersectedObject);
 
-        // Check parent objects if direct mapping not found
-        if (!planet && intersectedObject.parent) {
-          planet = interactiveObjects.get(intersectedObject.parent);
+        if (!object && intersectedObject.parent) {
+          object = interactiveObjectsRef.get(intersectedObject.parent);
         }
 
-        if (planet && planet !== hoveredPlanet) {
-          // Unhighlight previous planet
-          if (hoveredPlanet) {
-            highlightPlanet(hoveredPlanet, false);
+        if (object && object !== hoveredObject) {
+          if (hoveredObject) {
+            highlightObject(hoveredObject, false);
           }
-          // Highlight new planet
-          highlightPlanet(planet, true);
-          hoveredPlanet = planet;
+          highlightObject(object, true);
+          hoveredObject = object;
         }
         renderer.domElement.style.cursor = "pointer";
       } else {
-        if (hoveredPlanet) {
-          highlightPlanet(hoveredPlanet, false);
-          hoveredPlanet = null;
+        if (hoveredObject) {
+          highlightObject(hoveredObject, false);
+          hoveredObject = null;
         }
         renderer.domElement.style.cursor = "default";
       }
     };
 
-    // Click handler
-    const onClick = () => {
+    const selectBody = (body: CelestialBody) => {
+      const isAsteroid = body.id && "applyForce" in body;
+
+      if (isAsteroid) {
+        if (currentSelectedAsteroid && currentSelectedAsteroid !== body) {
+          currentSelectedAsteroid.hideOrbit?.();
+        }
+
+        showOrbitForBody(body);
+        currentSelectedAsteroid = body;
+        setSelectedAsteroidId(body.id!);
+        setShowAsteroidVisualizer(true);
+      } else {
+        if (currentSelectedAsteroid) {
+          currentSelectedAsteroid.hideOrbit?.();
+          currentSelectedAsteroid = null;
+        }
+
+        showOrbitForBody(body);
+        setShowAsteroidVisualizer(false);
+        setSelectedAsteroidId(null);
+      }
+
+      currentSelectedBody = body;
+      currentFocusedBody = body;
+      setSelectedBody(body);
+      
+      // Update minimum distance based on the focused body's size
+      if (controlsRef) {
+        const bodyRadius = body.diameter / 2;
+        // Set minimum distance to 1.5x the body's radius (safety margin to prevent clipping)
+        controlsRef.minDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+    };
+
+    const onClick = (event: MouseEvent) => {
       raycaster.setFromCamera(mouse, camera);
-      const checkObjects = Array.from(interactiveObjects.keys());
+      const checkObjects = Array.from(interactiveObjectsRef.keys());
       const intersects = raycaster.intersectObjects(checkObjects, true);
 
       if (intersects.length > 0) {
         const intersectedObject = intersects[0].object;
-        let planet = interactiveObjects.get(intersectedObject);
+        let object = interactiveObjectsRef.get(intersectedObject);
 
-        if (!planet && intersectedObject.parent) {
-          planet = interactiveObjects.get(intersectedObject.parent);
+        if (!object) {
+          let current: THREE.Object3D<THREE.Object3DEventMap> | null =
+            intersectedObject;
+          while (current && !object) {
+            object = interactiveObjectsRef.get(current);
+            current = current.parent;
+          }
         }
 
-        if (planet) {
-          const planetPosition = new THREE.Vector3();
-          planet.mesh.getWorldPosition(planetPosition);
+        if (object) {
+          const objectPosition = new THREE.Vector3();
+          object.mesh.getWorldPosition(objectPosition);
 
-          // Camera offset (from above and slightly back)
-          const viewDistance = planet.diameter * 1;
-          const cameraOffset = new THREE.Vector3(viewDistance, 0, viewDistance); // stays in XZ plane
-          const cameraPosition = planetPosition.clone().add(cameraOffset);
+          const isAsteroid = object.id && "applyForce" in object;
+          const viewDistance = object.diameter * (isAsteroid ? 10000 : 2);
 
-          // Force "up" to always be +Z (parallel to orbital plane)
+          const cameraOffset = new THREE.Vector3(
+            viewDistance,
+            viewDistance * 0.5,
+            viewDistance,
+          );
+          const cameraPosition = objectPosition.clone().add(cameraOffset);
+
           camera.up.set(0, 0, 1);
+          moveCamera(camera, controls, cameraPosition, objectPosition);
 
-          // Smoothly animate camera
-          moveCamera(camera, controls, cameraPosition, planetPosition);
+          selectBody(object);
         }
+      } else {
+        clearSelection();
       }
     };
 
@@ -370,120 +612,106 @@ export default function ThreeScene() {
     const { update: renderWithPostProcessing, resize: resizePostProcessing } =
       setupPostProcessing(scene, camera, renderer);
 
-    const sceneBounds = getSceneBoundaries();
-
+    // Use scene boundaries for camera settings
     camera.near = 1;
     camera.far = sceneBounds.outerBoundary * 2;
     camera.updateProjectionMatrix();
 
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 10; // Minimum zoom distance
+    controls.minDistance = sceneBounds.innerBoundary; // Stop at sun's surface
+    const maxDistance = cameraDistance * 1.5; // Use the properly scaled distance directly
+    controls.maxDistance = Infinity; // No maximum zoom out limit
 
-    // Calculate the maximum distance based on the same scaling factor used for reset view
-    // This ensures consistency between reset view and max zoom distance
-    const recommendedDistance = getRecommendedCameraDistance();
-    const maxDistance = recommendedDistance * CAMERA_SCALE_FACTOR * 1.5; // Allow zooming slightly more than reset distance
-    controls.maxDistance = maxDistance;
-
-    // Create a debounced function to update slider to prevent too many updates
     const updateSliderFromCamera = debounce(() => {
-      // Get current camera distance from target
       const currentDistance = camera.position.distanceTo(controls.target);
-
-      // Calculate reset view distance for reference point
-      const resetViewDistance = recommendedDistance * CAMERA_SCALE_FACTOR;
-
-      // Convert current distance to slider value
-      let newSliderValue: number;
-
-      if (currentDistance <= resetViewDistance) {
-        // Map distance from minDistance to resetViewDistance to slider 0-50
-        const normalizedDistance =
-          (currentDistance - controls.minDistance) /
-          (resetViewDistance - controls.minDistance);
-        newSliderValue = Math.max(0, Math.min(50, normalizedDistance * 50));
-      } else {
-        // Map distance from resetViewDistance to maxDistance to slider 50-100
-        const normalizedDistance =
-          (currentDistance - resetViewDistance) /
-          (maxDistance - resetViewDistance);
-        newSliderValue = Math.max(
-          50,
-          Math.min(100, 50 + normalizedDistance * 50),
-        );
+      // Use focused body's minimum distance if available
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
       }
 
-      // Update slider value without triggering zoom change to avoid loops
-      // Only update if the difference is significant (to avoid minor fluctuations)
+      let newSliderValue: number;
+
+      // Reverse the logic from handleZoomChange
+      // 0-500: linear from minZoomDistance (sun's surface) to cameraDistance
+      // 500-1000: exponential beyond cameraDistance
+      if (currentDistance <= cameraDistance) {
+        // Linear range: minZoomDistance to cameraDistance maps to 0-500
+        const normalizedDistance = (currentDistance - minZoomDistance) / (cameraDistance - minZoomDistance);
+        newSliderValue = Math.max(0, normalizedDistance * 500);
+      } else {
+        // Exponential range: beyond cameraDistance maps to 500-1000
+        // Reverse the exponential: targetDistance = cameraDistance * 2^(exponent-1)
+        // Where exponent ranges from 1 to 5
+        const ratio = currentDistance / cameraDistance;
+        const exponent = Math.log2(ratio) + 1;
+        const normalizedValue = Math.min(1, (exponent - 1) / 4); // Clamp to prevent overflow
+        newSliderValue = 500 + normalizedValue * 500;
+      }
+
+      // Clamp to reasonable range to prevent slider overflow
+      newSliderValue = Math.max(0, Math.min(1000, newSliderValue));
+
       if (Math.abs(newSliderValue - zoomLevel) > 1) {
         setZoomLevel(Math.round(newSliderValue));
       }
-    }, 50); // 50ms debounce delay for smoother updates
+    }, 50);
 
-    // Add event listener to update slider when zooming with mouse/touch
     controls.addEventListener("change", updateSliderFromCamera);
 
-    // We're using useRef to store Three.js objects instead of DOM element properties
-    
     const animate = () => {
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
 
-      // Only update time if not paused
       if (!isPausedRef.current) {
-        // Get current speed option using index
         const currentSpeed = speedScale[speedMultiplierRef.current];
         const daysPerSecond = currentSpeed
           ? currentSpeed.daysPerSecond
-          : 1 / 86400; // Default to real-time
+          : 1 / 86400;
 
-        // Use daysPerSecond for time advancement (assuming 60fps)
-        currentTimeRef.current += daysPerSecond / 60; // Convert days-per-second to days-per-frame
+        // Advance time
+        currentTimeRef.current += daysPerSecond / 60;
 
-        // Debug: Log time progression every 60 frames (once per second at 60fps)
-        if (Math.random() < 0.016) {
-          // ~1 in 60 chance
-          const speedLabel = currentSpeed ? currentSpeed.label : "Real-time";
-          console.log(
-            `Time: ${currentTimeRef.current.toFixed(2)} days, Speed: ${speedLabel}, Days/sec: ${daysPerSecond.toFixed(6)}`,
-          );
-        }
+        celestialBodiesRef.forEach((body) => {
+          // Convert days to unix time for orbit calculation
+          const unixTime =
+            startDateRef.current.getTime() / 1000 +
+            currentTimeRef.current * 86400;
+          const position = body.orbitGenerator.getPositionAtTime(unixTime);
 
-        celestialBodies.forEach((body) => {
-          const position = body.orbitGenerator.getPositionAtTime(
-            currentTimeRef.current,
-          );
           body.mesh.position.set(
             position.position.x,
             position.position.y,
             position.position.z,
           );
 
-          if (body.rotationSpeed) {
+          if (body.rotationSpeed && body.mesh instanceof THREE.Group) {
             const planetMesh = body.mesh.children[0] as THREE.Mesh;
-            // Use absolute value for rotation speed to always rotate in the proper direction
-            // Scale by 0.01 to make rotation speed appropriate for day-based time units
             const rotationAmount =
               body.rotationSpeed * Math.abs(daysPerSecond) * 0.01;
 
-            // Determine rotation direction based on time direction
             if (daysPerSecond >= 0) {
               planetMesh.rotation.y += rotationAmount;
             } else {
               planetMesh.rotation.y -= rotationAmount;
             }
           }
+
+          if (body.updateLOD) {
+            body.updateLOD(camera.position);
+          }
         });
       }
 
-      halos_and_labels.forEach((updateHalo) => updateHalo());
-
+      halosAndLabelsRef.forEach((updateHalo) => updateHalo());
       updateSun();
-
       controls.update();
       renderWithPostProcessing();
     };
+
     animate();
+    setSceneInitialized(true);
 
     const handleResize = () => {
       camera.aspect =
@@ -498,83 +726,144 @@ export default function ThreeScene() {
     window.addEventListener("resize", handleResize);
 
     return () => {
+      window.removeEventListener("resize", handleResize);
       renderer.domElement.removeEventListener("mousemove", onMouseMove);
       renderer.domElement.removeEventListener("click", onClick);
-      window.removeEventListener("resize", handleResize);
-
-      // Clean up the event listener for the slider update
       controls.removeEventListener("change", updateSliderFromCamera);
-
       controls.dispose();
       renderer.dispose();
-      if (Refcurrent) {
+      if (Refcurrent && renderer.domElement.parentNode === Refcurrent) {
         Refcurrent.removeChild(renderer.domElement);
       }
+      cancelAnimationFrame(animationFrameId);
+
+      sceneRef = null;
+      cameraRef = null;
+      rendererRef = null;
+      controlsRef = null;
+      celestialBodiesRef = [];
+      interactiveObjectsRef.clear();
+      halosAndLabelsRef = [];
+      currentSelectedBody = null;
+      currentSelectedAsteroid = null;
     };
   }, []);
 
+  useEffect(() => {
+    if (
+      !asteroidsData ||
+      asteroidsData.length === 0 ||
+      !sceneInitialized ||
+      !sceneRef ||
+      !cameraRef
+    ) {
+      return;
+    }
+
+    const createdAsteroids = createAsteroids(
+      asteroidsData,
+      cameraRef,
+      halosAndLabelsRef,
+      sceneRef,
+    );
+
+    createdAsteroids.forEach((asteroid) => {
+      sceneRef!.add(asteroid.mesh);
+
+      if (
+        asteroid.orbitLine &&
+        !sceneRef!.children.includes(asteroid.orbitLine as THREE.Object3D)
+      ) {
+        sceneRef!.add(asteroid.orbitLine);
+      }
+
+      const asteroidBody: CelestialBody = {
+        id: asteroid.id,
+        mesh: asteroid.mesh,
+        orbitGenerator: asteroid.orbitGenerator,
+        diameter: asteroid.diameter,
+        color: asteroid.color,
+        name: asteroid.name,
+        orbitLine: asteroid.orbitLine,
+        labelSprite: asteroid.labelSprite,
+        setLabelHighlight: asteroid.setLabelHighlight,
+        updateLOD: asteroid.updateLOD,
+        showOrbit: asteroid.showOrbit,
+        hideOrbit: asteroid.hideOrbit,
+        applyForce: asteroid.applyForce,
+      };
+
+      celestialBodiesRef.push(asteroidBody);
+
+
+      // if (asteroid.labelSprite) {
+      //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
+      // }
+      interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
+      // if (asteroid.orbitLine) {
+      //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
+      // }
+    });
+  }, [asteroidsData, sceneInitialized]);
+
   const handleZoomIn = () => {
     if (controlsRef && cameraRef) {
-      // Decrease slider value by 10 for more precise control
-      const newZoomLevel = Math.max(0, zoomLevel - 10);
-
-      // Update slider first
-      setZoomLevel(newZoomLevel);
-
-      // Then trigger zoom change with new value
-      handleZoomChange(newZoomLevel);
+      // Zoom in by 5% of the current position or minimum 10 units
+      const step = Math.max(10, zoomLevel * 0.05);
+      const newZoomLevel = Math.max(0, zoomLevel - step);
+      
+      // Check if new zoom would be below surface
+      const sceneBounds = getSceneBoundaries();
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+      
+      const cameraDistanceForReset = getRecommendedCameraDistance();
+      const normalizedValue = newZoomLevel / 500;
+      const testDistance = minZoomDistance + (cameraDistanceForReset - minZoomDistance) * normalizedValue;
+      
+      // Only apply zoom if it's at or above the surface
+      if (testDistance >= minZoomDistance || newZoomLevel >= 0) {
+        setZoomLevel(newZoomLevel);
+        handleZoomChange(newZoomLevel);
+      }
     }
   };
 
   const handleZoomOut = () => {
     if (controlsRef && cameraRef) {
-      // Increase slider value by 10 for more precise control
-      const newZoomLevel = Math.min(100, zoomLevel + 10);
-
-      // Update slider first
+      // Zoom out by 5% of the current position or minimum 10 units
+      const step = Math.max(10, zoomLevel * 0.05);
+      const newZoomLevel = Math.min(1000, zoomLevel + step);
       setZoomLevel(newZoomLevel);
-
-      // Then trigger zoom change with new value
       handleZoomChange(newZoomLevel);
     }
   };
 
-  // Define a consistent scaling factor to use in multiple places
-  const CAMERA_SCALE_FACTOR = 0.065;
-
   const handleResetView = () => {
     if (controlsRef && cameraRef) {
-      // Reset to a view at approximately 40 degrees from the z-axis
       const cameraDistance = getRecommendedCameraDistance();
+      const angleFromY = 50 * (Math.PI / 180);
+      const azimuthalAngle = 45 * (Math.PI / 180);
 
-      // Calculate position using spherical coordinates
-      // 40 degrees from z-axis means 50 degrees from y-axis in this coordinate system
-      const angleFromY = 50 * (Math.PI / 180); // Convert to radians
-      const azimuthalAngle = 45 * (Math.PI / 180); // 45 degrees around the y-axis
-
-      // Calculate position based on spherical coordinates
       const x =
         cameraDistance *
-        CAMERA_SCALE_FACTOR *
         Math.sin(angleFromY) *
         Math.cos(azimuthalAngle);
-      const y = cameraDistance * CAMERA_SCALE_FACTOR * Math.cos(angleFromY);
+      const y = cameraDistance * Math.cos(angleFromY);
       const z =
         cameraDistance *
-        CAMERA_SCALE_FACTOR *
         Math.sin(angleFromY) *
         Math.sin(azimuthalAngle);
 
       const newPosition = new THREE.Vector3(x, y, z);
       const originTarget = new THREE.Vector3(0, 0, 0);
 
-      // Reset camera up vector to ensure proper orientation
       cameraRef.up.set(0, 0, 1);
-
       moveCamera(cameraRef, controlsRef, newPosition, originTarget, 1000);
-
-      // Reset the zoom level slider to default
-      setZoomLevel(50);
+      setZoomLevel(500); // Reset to middle position (cameraDistance position)
     }
   };
 
@@ -582,49 +871,47 @@ export default function ThreeScene() {
     if (controlsRef && cameraRef) {
       setZoomLevel(value);
 
-      // Calculate zoom based on slider value (0-100)
-      // Map slider range (0-100) to zoom distance range
-      // Lower value = closer zoom (minimum distance)
-      // Higher value = further zoom (maximum distance)
-
-      const minZoomDistance = controlsRef.minDistance;
-      const maxZoomDistance = controlsRef.maxDistance;
-
-      // When slider is at 50 (middle position), we want to be at the reset view distance
-      // Calculate reset view distance (same calculation used in handleResetView)
+      const sceneBounds = getSceneBoundaries();
+      // Use focused body's minimum distance if available, otherwise use sun's surface
+      let minZoomDistance = sceneBounds.innerBoundary;
+      if (currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+      }
+      
       const cameraDistanceForReset = getRecommendedCameraDistance();
-      const resetViewDistance = cameraDistanceForReset * CAMERA_SCALE_FACTOR;
+      const baseMaxDistance = cameraDistanceForReset * 1.5;
 
-      // Use a piecewise function:
-      // - Slider 0-50: Map to minDistance -> resetViewDistance
-      // - Slider 50-100: Map to resetViewDistance -> maxDistance
       let targetDistance;
 
-      if (value <= 50) {
-        // Map 0-50 to minDistance-resetViewDistance
-        const normalizedValue = value / 50;
+      // Map slider value (0-1000) to camera distance
+      // 0-500: zoom from minZoomDistance (sun's surface) to cameraDistanceForReset (normal view)
+      // 500-1000: zoom from cameraDistanceForReset to far distances (exponential beyond baseMaxDistance)
+      if (value <= 500) {
+        // Linear zoom from minZoomDistance to cameraDistanceForReset
+        const normalizedValue = value / 500;
         targetDistance =
           minZoomDistance +
-          (resetViewDistance - minZoomDistance) * normalizedValue;
+          (cameraDistanceForReset - minZoomDistance) * normalizedValue;
       } else {
-        // Map 50-100 to resetViewDistance-maxDistance
-        const normalizedValue = (value - 50) / 50;
-        targetDistance =
-          resetViewDistance +
-          (maxZoomDistance - resetViewDistance) * normalizedValue;
+        // Exponential zoom beyond cameraDistanceForReset
+        const normalizedValue = (value - 500) / 500;
+        // Use exponential scaling for smooth far-distance zooming
+        const exponent = 1 + normalizedValue * 4; // Scale from 1x to 5x exponentially
+        targetDistance = cameraDistanceForReset * Math.pow(2, exponent - 1);
       }
+      
+      // Enforce minimum distance limit - cannot go below surface
+      targetDistance = Math.max(targetDistance, minZoomDistance);
 
-      // Get current direction from target
       const directionVector = new THREE.Vector3()
         .subVectors(cameraRef.position, controlsRef.target)
         .normalize();
 
-      // Create new position at the calculated distance
       const updatedPosition = new THREE.Vector3()
         .copy(controlsRef.target)
         .add(directionVector.multiplyScalar(targetDistance));
 
-      // Move camera to new position
       moveCamera(
         cameraRef,
         controlsRef,
@@ -635,18 +922,12 @@ export default function ThreeScene() {
     }
   };
 
-  // Use the asteroid selection hook
-  const { handleCelestialBodySelection } = useAsteroidSelection({
-    camera: cameraRef as THREE.PerspectiveCamera | null,
-    controls: controlsRef,
-    celestialBodiesMap,
-  });
-
   return (
     <div
       className={`relative w-full h-screen ${leagueSpartan.className} uppercase`}
     >
       <div ref={mountRef} className="w-full h-full" />
+
       <ControlPanel
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -654,101 +935,132 @@ export default function ThreeScene() {
         zoomLevel={zoomLevel}
         onZoomChange={handleZoomChange}
       />
-      <SearchUI onSelectBody={handleCelestialBodySelection} />
-      <div>
-        {/* Time travel slider */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-8 rounded-4xl w-[90%] sm:w-[600px] max-w-[95vw] backdrop-blur-sm">
-          <div className="flex items-center w-full mb-4">
-            <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-4 my-1.5 shadow-md backdrop-blur-sm w-full px-4">
-              {" "}
-              <input
-                type="range"
-                min="0"
-                max={speedScale.length - 1}
-                value={speedMultiplier}
-                onChange={(e) => handleSliderChange(parseInt(e.target.value))}
-                className="w-full h-1 appearance-none bg-gray-800 rounded-lg outline-none time-slider border-2 border-[rgba(255,255,255,0.3)]"
-                title="Time Speed Slider"
-                aria-label="Time Speed Control"
-                style={{
-                  accentColor: "white",
-                }}
-              />
-            </div>
-          </div>
 
-          <div className="flex place-content-between justify-center gap-3 w-full">
-            <div className="hover:bg-gray-500/50 p-2 rounded-xl w-[12vw] text-center">
-              <span
-                className="text-gray-300  font-medium text-lg cursor-pointer hover:text-gray-100 duration-300 mt-2"
-                onClick={() => setShowDateTimePicker(true)}
-                title="Click to jump to specific date and time"
-              >
-                {currentDate ? formatSimulationDate(currentDate) : "Loading..."}
-              </span>
-            </div>
-            <button
-              onClick={togglePause}
-              className={`px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-gray-500/60 text-white pause-button ${isPaused ? "pause-button-paused" : "pause-button-playing"}`}
-              title={isPaused ? "Resume" : "Pause"}
+      {showAsteroidVisualizer && selectedAsteroidId && (
+        <div className="absolute top-0 left-0 w-[400px] h-full z-[1000] pointer-events-auto">
+          <AsteroidVisualizer
+            id={selectedAsteroidId}
+            onCloseHandler={handleCloseVisualizer}
+          />
+        </div>
+      )}
+
+      {selectedBody && (
+        <SelectedBodyPanel
+          selectedBody={selectedBody}
+          forceX={forceX}
+          forceY={forceY}
+          forceZ={forceZ}
+          deltaTime={deltaTime}
+          setForceX={setForceX}
+          setForceY={setForceY}
+          setForceZ={setForceZ}
+          setDeltaTime={setDeltaTime}
+          applyForceToSelectedAsteroid={applyForceToSelectedAsteroid}
+          showOrbitForBody={showOrbitForBody}
+          clearSelection={clearSelection}
+        />
+      )}
+
+      {error && (
+        <div className="absolute top-2.5 right-2.5 bg-red-800/80 text-white p-2.5 rounded-md z-[1001]">
+          Error: {error}
+        </div>
+      )}
+
+      {(loading || isLoading) && (
+        <div className="absolute top-0 left-0 w-full h-full bg-black flex flex-col justify-center items-center text-white text-lg z-[1000]">
+          <div className="w-[50px] h-[50px] border-[5px] border-gray-300 border-t-blue-500 rounded-full animate-spin mb-5" />
+          <p>Loading asteroid data...</p>
+          {asteroidsData && (
+            <p className="text-sm mt-2.5">
+              Loaded {asteroidsData.length} asteroids
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-8 rounded-4xl w-[90%] sm:w-[600px] max-w-[95vw] backdrop-blur-sm">
+        <div className="flex items-center w-full mb-4">
+          <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-4 my-1.5 shadow-md backdrop-blur-sm w-full px-4">
+            <input
+              type="range"
+              min="0"
+              max={speedScale.length - 1}
+              value={speedMultiplier}
+              onChange={(e) => handleSliderChange(parseInt(e.target.value))}
+              className="w-full h-1 appearance-none bg-gray-800 rounded-lg outline-none time-slider border-2 border-[rgba(255,255,255,0.3)]"
+              style={{ accentColor: "white" }}
+            />
+          </div>
+        </div>
+
+        <div className="flex place-content-between justify-center gap-3 w-full">
+          <div className="hover:bg-gray-500/50 p-2 rounded-xl w-[12vw] text-center">
+            <span
+              className="text-gray-300 font-medium text-lg cursor-pointer hover:text-gray-100 duration-300 mt-2"
+              onClick={() => setShowDateTimePicker(true)}
             >
-              {isPaused ? <FaPlay /> : <IoIosPause />}
-            </button>
-            <button
-              onClick={resetTime}
-              className="px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-red-500/60 text-white"
-              title="Reset to current time and positions"
-            >
-              <RiResetRightLine />
-            </button>
-            <span className="text-gray-300  font-medium text-lg cursor-pointer duration-300 m-2 mx-4">
-              {isPaused ? "Paused" : getCurrentSpeedDisplay()}
+              {currentDate ? formatSimulationDate(currentDate) : "Loading..."}
             </span>
           </div>
+          <button
+            onClick={togglePause}
+            className={`px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-gray-500/60 text-white ${isPaused ? "pause-button-paused" : "pause-button-playing"}`}
+          >
+            {isPaused ? <FaPlay /> : <IoIosPause />}
+          </button>
+          <button
+            onClick={resetTime}
+            className="px-6 py-2 rounded-xl font-bold transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 bg-gray-500/40 hover:bg-red-500/60 text-white"
+          >
+            <RiResetRightLine />
+          </button>
+          <span className="text-gray-300 font-medium text-lg cursor-pointer duration-300 m-2 mx-4">
+            {isPaused ? "Paused" : getCurrentSpeedDisplay()}
+          </span>
+        </div>
 
-          {/* Date/Time Picker Modal */}
-          {showDateTimePicker && (
-            <div className="fixed inset-0 flex items-center justify-center z-50">
-              <div className="bg-gray-800 p-6 rounded-2xl shadow-xl max-w-xl w-full mx-4">
-                <h3 className="text-white text-lg font-bold mb-4 text-center">
-                  Jump to Date & Time
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">
-                      Select Date and Time:
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={selectedDateTime}
-                      onChange={(e) => setSelectedDateTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:border-cyan-400 focus:outline-none"
-                      title="Select date and time to jump to"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      onClick={() => setShowDateTimePicker(false)}
-                      className="px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSimulationDateTime();
-                        setShowDateTimePicker(false);
-                      }}
-                      className="px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
-                    >
-                      Jump
-                    </button>
-                  </div>
+        {showDateTimePicker && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl max-w-xl w-full mx-4">
+              <h3 className="text-white text-lg font-bold mb-4 text-center">
+                Jump to Date & Time
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Select Date and Time:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={selectedDateTime}
+                    onChange={(e) => setSelectedDateTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:border-cyan-400 focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowDateTimePicker(false)}
+                    className="px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSimulationDateTime();
+                      setShowDateTimePicker(false);
+                    }}
+                    className="px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white rounded-md font-medium transition-colors duration-200"
+                  >
+                    Jump
+                  </button>
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,16 @@
 import * as THREE from "three";
-// import { getStandardBodyDiameter } from "@/app/lib/scalingUtils";
+import {
+  kmToRenderUnits,
+  ASTRONOMICAL_CONSTANTS,
+} from "@/app/lib/scalingUtils"; // NEW import
 
 export function createSun(camera: THREE.Camera) {
-  const geometry = new THREE.SphereGeometry(2, 64, 64);
+  // Use real sun diameter (km) -> render units (radius)
+  const sunDiameterRenderUnits = kmToRenderUnits(
+    ASTRONOMICAL_CONSTANTS.SUN_DIAMETER_KM,
+  );
+  const sunRadiusRU = Math.max(0.5, sunDiameterRenderUnits / 2)*5; // ensure visible minimum
+  const geometry = new THREE.SphereGeometry(sunRadiusRU, 64, 64);
 
   // Load texture
   const textureLoader = new THREE.TextureLoader();
