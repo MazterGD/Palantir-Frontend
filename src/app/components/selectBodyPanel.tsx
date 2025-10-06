@@ -35,9 +35,9 @@ export default function SelectedBodyPanel({
       <h3 className="mb-2 text-base md:text-lg font-semibold text-slate-300 drop-shadow-md">
         Selected: {selectedBody.name}
       </h3>
-      <div className="mb-3 text-xs md:text-sm opacity-80">
-        ID: {selectedBody.id || "N/A"}
-      </div>
+      {selectedBody.id && (
+        <div className="mb-3 text-sm opacity-80">ID: {selectedBody.id}</div>
+      )}
 
       {"applyForce" in selectedBody && (
         <div className="mt-3 md:mt-4 flex items-center flex-col">
