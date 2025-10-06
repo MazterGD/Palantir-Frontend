@@ -15,6 +15,10 @@ export default function Home() {
     router.push("/solar_system");
   }
 
+    function clickImpactMap() {
+    router.push("/hit_map");
+  }
+
   function clickAbout() {
     router.push("/about");
   }
@@ -67,13 +71,23 @@ export default function Home() {
             elements, and impact mapping, Palantir brings space dynamics and
             risk assessment into one intuitive visualization environment.
           </p>
-          <button
-            onClick={clickExplore}
-            className="px-12 py-2 rounded-full text-xl font-bold bg-gradient-to-r from-slate-700 via-slate-600 to-blue-700 text-white border-2 border-slate-500/50 hover:from-slate-600 hover:via-slate-500 hover:to-blue-600 hover:border-slate-400/70 transition-all duration-300 shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_50px_rgba(59,130,246,0.5)] hover:scale-110 active:scale-105"
-            aria-label="Start Exploring Asteroids"
-          >
-            Explore
-          </button>
+          <div className="flex flex-row gap-4">
+            {" "}
+            <button
+              onClick={clickExplore}
+              className="px-12 py-2 rounded-full text-xl font-bold bg-gradient-to-r from-slate-700 via-slate-600 to-blue-700 text-white border-2 border-slate-500/50 hover:from-slate-600 hover:via-slate-500 hover:to-blue-600 hover:border-slate-400/70 transition-all duration-300 shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_50px_rgba(59,130,246,0.5)] hover:scale-110 active:scale-105"
+              aria-label="Start Exploring Asteroids"
+            >
+              Explore
+            </button>{" "}
+            <button
+              onClick={clickImpactMap}
+              className="px-12 py-2 rounded-full text-xl font-bold bg-gradient-to-r from-slate-700 via-slate-600 to-blue-700 text-white border-2 border-slate-500/50 hover:from-slate-600 hover:via-slate-500 hover:to-blue-600 hover:border-slate-400/70 transition-all duration-300 shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_50px_rgba(59,130,246,0.5)] hover:scale-110 active:scale-105"
+              aria-label="Start Exploring Asteroids"
+            >
+              Impact Map
+            </button>
+          </div>
         </main>
       </div>
     </main>

@@ -41,16 +41,16 @@ export default function MapView() {
 
   const searchParams = useSearchParams();
 
-  const neoName = searchParams.get("name") || "";
-  const neoId = searchParams.get("id") || "";
-  const diameter = searchParams.get("diameter") || "";
-  const density = searchParams.get("density") || "";
-  const angle = searchParams.get("angle") || "";
-  const velocity = searchParams.get("velocity") || "";
-  const longitude = searchParams.get("long") || "";
-  const latitude = searchParams.get("lat") || "";
-  const depth = searchParams.get("depth") || "";
-  const trgt_type = searchParams.get("trgt_type") || "";
+const neoName = searchParams.get("name") || "Custom Asteroid";
+const neoId = searchParams.get("id") || "136478";
+const diameter = searchParams.get("diameter") || "380.8"; // in meters
+const density = searchParams.get("density") || "4000"; // kg/m³ (typical rocky asteroid)
+const angle = searchParams.get("angle") || "45"; // degrees
+const velocity = searchParams.get("velocity") || "16"; // km/s
+const longitude = searchParams.get("long") || "79.900756";
+const latitude = searchParams.get("lat") || "6.795024";
+const depth = searchParams.get("depth") || "0";
+const trgt_type = searchParams.get("trgt_type") || "s";
 
   const [formData, setFormData] = useState<FormData>({
     name: neoName,
@@ -80,7 +80,8 @@ export default function MapView() {
 
   // Watch for changes in layersState
   useEffect(() => {
-    if (!map.current) return;
+    const mapRef = map.current;
+  if (!mapRef || !mapRef.isStyleLoaded()) return;
     toggleLayer("label_city", layersState.Labels);
     toggleLayer("label_village", layersState.Labels);
     toggleLayer("label_town", layersState.Labels);
