@@ -326,10 +326,10 @@ export default function MapView() {
         )}
       </div>
       <div
-        className={`absolute top-10 right-10 z-10 ${leagueSpartan.className}`}
+        className={`absolute top-0 right-0 z-10 ${leagueSpartan.className}`}
       >
         <div className="hidden md:block absolute top-10 right-10">
-          <div className="h-[90vh] overflow-scroll scroll-smooth flex flex-col gap-2 hide-scrollbar">
+          <div className="h-[90vh] w-[25vw] overflow-scroll scroll-smooth flex flex-col gap-2 hide-scrollbar">
             <div className="flex flex-col gap-2 bg-slate-500/50 backdrop-blur-sm p-8 rounded-sm">
               <h2 className="text-2xl font-bold  mb-4">Asteroid Info</h2>
               <form className="grid grid-cols-2 gap-4">
