@@ -74,6 +74,8 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
         
         console.log(`Loaded ${asteroidObjects.length} asteroids successfully`);      } catch (error) {
         console.error('Error loading asteroid data from API:', error);
+        console.warn('⚠️  Backend API may not be configured. Check .env.local for BACKEND_API_URL');
+        console.info('ℹ️  Search will show planets only. Asteroid data requires backend API connection.');
         
         // Still update the state with whatever celestial bodies we have
         // This ensures we at least show the planets and moons even if asteroid data failed

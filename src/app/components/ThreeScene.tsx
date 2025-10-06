@@ -23,6 +23,8 @@ import { addStarsBackground } from "./three/createBackground";
 import ControlPanel from "./ControlPanel";
 import AsteroidVisualizer from "./dataBox";
 import SelectedBodyPanel from "./selectBodyPanel";
+import SearchUI from "./SearchUI";
+import { useAsteroidSelection } from "../lib/useAsteroidSelection";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RiResetRightLine } from "react-icons/ri";
 import { IoIosPause } from "react-icons/io";
@@ -85,6 +87,7 @@ export default function ThreeScene() {
   const [isLoading, setIsLoading] = useState(true);
   const [sceneInitialized, setSceneInitialized] = useState(false);
   const [selectedBody, setSelectedBody] = useState<CelestialBody | null>(null);
+  const [celestialBodiesMap, setCelestialBodiesMap] = useState<Map<string, CelestialBody>>(new Map());
   const [forceX, setForceX] = useState("10");
   const [forceY, setForceY] = useState("0");
   const [forceZ, setForceZ] = useState("0");
@@ -414,6 +417,15 @@ export default function ThreeScene() {
       };
 
       celestialBodiesRef.push(celestialBody);
+
+      // Add to map for search functionality
+      setCelestialBodiesMap(prev => {
+        const newMap = new Map(prev);
+        if (planet.id) {
+          newMap.set(planet.id, celestialBody);
+        }
+        return newMap;
+      });
 
       if (planet.haloSprite) {
         interactiveObjectsRef.set(planet.haloSprite, celestialBody);
@@ -795,6 +807,14 @@ export default function ThreeScene() {
 
       celestialBodiesRef.push(asteroidBody);
 
+      // Add to map for search functionality
+      setCelestialBodiesMap(prev => {
+        const newMap = new Map(prev);
+        if (asteroid.id) {
+          newMap.set(asteroid.id, asteroidBody);
+        }
+        return newMap;
+      });
 
       // if (asteroid.labelSprite) {
       //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
@@ -805,6 +825,18 @@ export default function ThreeScene() {
       // }
     });
   }, [asteroidsData, sceneInitialized]);
+
+  // Use the asteroid selection hook for search functionality
+  const { handleCelestialBodySelection } = useAsteroidSelection({
+    camera: cameraRef,
+    controls: controlsRef,
+    celestialBodiesMap,
+  });
+
+  // Handler for when a celestial body is selected in the search UI
+  const handleSelectCelestialBody = async (bodyId: string, type: string) => {
+    await handleCelestialBodySelection(bodyId, type);
+  };
 
   const handleZoomIn = () => {
     if (controlsRef && cameraRef) {
@@ -1062,6 +1094,9 @@ export default function ThreeScene() {
           </div>
         )}
       </div>
+
+      {/* Search UI - always rendered, manages its own visibility */}
+      <SearchUI onSelectBody={handleSelectCelestialBody} />
     </div>
   );
 }
