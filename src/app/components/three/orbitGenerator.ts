@@ -5,7 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import * as THREE from "three";
-import { kmToRenderUnits } from "@/app/lib/scalingUtils"; // NEW import
+import { kmToRenderUnits } from "@/app/lib/scalingUtils";
 
 export interface Point3D {
   x: number;
@@ -63,6 +63,10 @@ export class OrbitGenerator {
 
   private julianToUnix(jd: number): number {
     return (jd - 2440587.5) * 86400;
+  }
+
+  get epoch(): number {
+    return this.elements.epoch;
   }
 
   private rotatePoint(
@@ -208,10 +212,11 @@ export class OrbitGenerator {
     const x = r * ((cosE - e) / (1 - e * cosE));
     const y = r * ((Math.sqrt(1 - e * e) * sinE) / (1 - e * cosE));
 
-    // velocities (approximate) are in km/s
-    const vx = -Math.sqrt(398600.4418 / (a * (1 - e * e))) * sinE;
-    const vy =
-      Math.sqrt(398600.4418 / (a * (1 - e * e))) * Math.sqrt(1 - e * e) * cosE;
+    // CORRECTION: Use Sun's gravitational parameter (1.32712440018e11)
+    const muSun = 1.32712440018e11;
+    const factor = Math.sqrt(muSun / (a * (1 - e * e)));
+    const vx = -factor * sinE;
+    const vy = factor * Math.sqrt(1 - e * e) * cosE;
 
     const position3D = this.apply3DRotations([{ x, y, z: 0 }])[0];
     const velocity3D = this.apply3DRotations([{ x: vx, y: vy, z: 0 }])[0];
@@ -223,7 +228,7 @@ export class OrbitGenerator {
     position: Point3D,
     velocity: Point3D,
     epoch: number,
-    mu: number = 398600.4418,
+    mu: number = 1.32712440018e11, // FIX: Default to Sun's parameter
   ): OrbitElements {
     const r = Math.sqrt(position.x ** 2 + position.y ** 2 + position.z ** 2);
     const v = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
@@ -250,7 +255,7 @@ export class OrbitGenerator {
     const e = Math.sqrt(ex ** 2 + ey ** 2 + ez ** 2);
 
     // inclination in radians
-    const i = Math.acos(hz / h);
+    const i = Math.acos(Math.min(1, Math.max(-1, hz / h)));
 
     // ascending node in radians
     let ascendingNode = 0;
@@ -362,9 +367,7 @@ export class ScaledOrbitGenerator {
 
       let currentOpacity = baseOpacity;
 
-      if (
-        distance < Math.max(0, minDistance - fadeNear)
-      ) {
+      if (distance < Math.max(0, minDistance - fadeNear)) {
         currentOpacity = 0;
       } else if (distance < minDistance) {
         const fadeStart = Math.max(0, minDistance - fadeNear);
