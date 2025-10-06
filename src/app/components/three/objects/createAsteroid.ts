@@ -1,3 +1,4 @@
+// asteroid creation
 import * as THREE from "three";
 import {
   OrbitGenerator,
@@ -8,7 +9,6 @@ import {
 import { AsteroidData } from "@/app/lib/asteroidData";
 import { createLabel } from "../objectTextLables";
 import { kmToRenderUnits } from "@/app/lib/scalingUtils";
-import { addObjectLabel } from "../objectLabel";
 
 export interface Asteroid {
   id: string;
@@ -24,6 +24,9 @@ export interface Asteroid {
   showOrbit?: () => void;
   hideOrbit?: () => void;
   applyForce?: (force: Point3D, deltaTime: number, currentTime: number) => void;
+  // Store original orbit data for physics calculations
+  originalOrbitElements?: any;
+  resetOrbit?: () => void;
 }
 
 export const createAsteroid = (
@@ -34,8 +37,16 @@ export const createAsteroid = (
 ): Asteroid => {
   const { id, name, diameter, color, ...orbitElements } = asteroidData;
 
-  const orbitGenerator = new OrbitGenerator(orbitElements);
-  const scaledGenerator = new ScaledOrbitGenerator(orbitGenerator);
+  // Store original orbit elements
+  const originalOrbitElements = { ...orbitElements };
+
+  let orbitGenerator = new OrbitGenerator(orbitElements);
+  let scaledGenerator = new ScaledOrbitGenerator(orbitGenerator);
+
+  const initialStateVectors = orbitGenerator.getCurrentStateVectors(
+    orbitGenerator.epoch,
+  );
+  const initialOrbitElements = { ...orbitElements };
 
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array([0, 0, 0]);
@@ -43,7 +54,7 @@ export const createAsteroid = (
 
   const material = new THREE.PointsMaterial({
     color: new THREE.Color(0x4fc3f7),
-    size: 3,
+    size: 8, // Increased size for better visibility and easier clicking
     sizeAttenuation: false,
     transparent: true,
     opacity: 0.8,
@@ -53,27 +64,8 @@ export const createAsteroid = (
 
   const points = new THREE.Points(geometry, material);
 
-    const texturePath = "/textures/Sprites/circle.png";
-    let map: THREE.Texture | undefined;
-    if (texturePath) {
-      map = new THREE.TextureLoader().load(texturePath);
-    }
-  
-    const SPRITE_BASE_SIZE = 1;
-  
-    const haloResult = addObjectLabel(points as any, camera, {
-      texture: map,
-      size: SPRITE_BASE_SIZE,
-      minDistance: 10,
-      maxDistance: 200,
-      opacity: 1,
-      fadeNear: 10 * 0.9,
-      fadeFar: 100,
-    });
-
-    halos_and_labels.push(haloResult.update);
-
-  const orbitLineResult = scaledGenerator.generateOrbitLine(camera, points, {
+  // Create initial orbit line (hidden)
+  let orbitLineResult = scaledGenerator.generateOrbitLine(camera, points, {
     color: "#ffffff",
     ...ORBIT_PRESETS.subtle,
     minDistance: 0.01,
@@ -83,8 +75,10 @@ export const createAsteroid = (
   orbitLineResult.line.visible = false;
   scene.add(orbitLineResult.line);
 
-  // Store the update function for later use
-  let orbitUpdateFunction = orbitLineResult.update;
+  // Store references for cleanup
+  let currentOrbitLine: THREE.Object3D | undefined = orbitLineResult.line;
+  let currentOrbitUpdate = orbitLineResult.update;
+  let isOrbitVisible = false;
 
   let labelSprite: THREE.Sprite | undefined;
   let setLabelHighlight: ((highlighted: boolean) => void) | undefined;
@@ -127,32 +121,70 @@ export const createAsteroid = (
       material.size = 3;
       material.opacity = 0.9;
     } else {
-      material.size = 5;
-      material.opacity = 0.7;
+      material.size = 3;
+      material.opacity = 0.8;
+    }
+  };
+
+  const cleanupOrbit = () => {
+    if (currentOrbitLine) {
+      // Remove from update loop
+      const index = halos_and_labels.indexOf(currentOrbitUpdate);
+      if (index > -1) {
+        halos_and_labels.splice(index, 1);
+      }
+
+      // Remove from scene
+      scene.remove(currentOrbitLine);
+
+      // Dispose of geometry and material
+      if ("geometry" in currentOrbitLine) {
+        (currentOrbitLine as any).geometry?.dispose();
+      }
+      if ("material" in currentOrbitLine) {
+        const mat = (currentOrbitLine as any).material;
+        if (mat) {
+          if (Array.isArray(mat)) {
+            mat.forEach((m) => m.dispose());
+          } else {
+            mat.dispose();
+          }
+        }
+      }
+
+      currentOrbitLine = undefined;
     }
   };
 
   const showOrbit = () => {
-    console.log("Showing orbit for asteroid:", name);
-    if (orbitLineResult.line) {
-      orbitLineResult.line.visible = true;
-      if (orbitLineResult.line.material) {
-        orbitLineResult.line.material.needsUpdate = true;
-        orbitLineResult.line.material.opacity = ORBIT_PRESETS.standard.opacity;
+    if (currentOrbitLine && !isOrbitVisible) {
+      currentOrbitLine.visible = true;
+      isOrbitVisible = true;
+
+      // Add to update loop if not already there
+      if (!halos_and_labels.includes(currentOrbitUpdate)) {
+        halos_and_labels.push(currentOrbitUpdate);
       }
-      // Add update function when showing
-      if (!halos_and_labels.includes(orbitUpdateFunction)) {
-        halos_and_labels.push(orbitUpdateFunction);
+
+      // Update material properties
+      if ("material" in currentOrbitLine) {
+        const line = currentOrbitLine as any;
+        if (line.material) {
+          line.material.opacity = ORBIT_PRESETS.bright.opacity;
+          line.material.linewidth = ORBIT_PRESETS.bright.lineWidth;
+          line.material.needsUpdate = true;
+        }
       }
     }
   };
 
   const hideOrbit = () => {
-    console.log("Hiding orbit for asteroid:", name);
-    if (orbitLineResult.line) {
-      orbitLineResult.line.visible = false;
-      // Remove update function when hiding
-      const index = halos_and_labels.indexOf(orbitUpdateFunction);
+    if (currentOrbitLine && isOrbitVisible) {
+      currentOrbitLine.visible = false;
+      isOrbitVisible = false;
+
+      // Remove from update loop
+      const index = halos_and_labels.indexOf(currentOrbitUpdate);
       if (index > -1) {
         halos_and_labels.splice(index, 1);
       }
@@ -164,63 +196,110 @@ export const createAsteroid = (
     deltaTime: number,
     currentTime: number,
   ) => {
-    const mass = ((diameter * 1000) ** 3 * Math.PI * 2000) / 6;
+    const mu = 1.32712440018e11; // km³/s² for the Sun
 
-    const julianDate = currentTime / 86400 + 2440587.5;
-    const stateVectors = orbitGenerator.getCurrentStateVectors(julianDate);
+    // Compute asteroid mass in kg (realistic approximation)
+    const radiusM = (diameter / 2) * 1000;
+    const volumeM3 = (4 / 3) * Math.PI * Math.pow(radiusM, 3);
+    const density = 2000; // kg/m³
+    const asteroidMass = volumeM3 * density;
 
-    const acceleration = {
-      x: force.x / mass,
-      y: force.y / mass,
-      z: force.z / mass,
-    };
-
-    const newVelocity = {
-      x: stateVectors.velocity.x + acceleration.x * deltaTime,
-      y: stateVectors.velocity.y + acceleration.y * deltaTime,
-      z: stateVectors.velocity.z + acceleration.z * deltaTime,
-    };
-
-    const newElements = OrbitGenerator.fromStateVectors(
-      stateVectors.position,
-      newVelocity,
-      julianDate,
-    );
-
-    const newOrbitGenerator = new OrbitGenerator(newElements);
-    const newScaledGenerator = new ScaledOrbitGenerator(newOrbitGenerator);
-
-    asteroid.orbitGenerator = newScaledGenerator;
-
-    // Remove old force-modified orbit if it exists
-    if (asteroid.orbitLine && asteroid.orbitLine.visible) {
-      // Remove update function from halos_and_labels
-      const oldUpdateIndex = halos_and_labels.indexOf(orbitUpdateFunction);
-      if (oldUpdateIndex > -1) {
-        halos_and_labels.splice(oldUpdateIndex, 1);
-      }
-      scene.remove(asteroid.orbitLine);
+    // If force is zero, skip recalculation entirely to prevent rounding drift
+    if (force.x === 0 && force.y === 0 && force.z === 0) {
+      return;
     }
 
-    const newOrbitLineResult = newScaledGenerator.generateOrbitLine(
+    // Convert force to acceleration (m/s²)
+    const ax = force.x / asteroidMass;
+    const ay = force.y / asteroidMass;
+    const az = force.z / asteroidMass;
+
+    // Get current state vectors (position in km, velocity in km/s)
+    const julianDate = currentTime / 86400 + 2440587.5;
+    const state = orbitGenerator.getCurrentStateVectors(julianDate);
+
+    // Convert acceleration from m/s² → km/s²
+    const ax_km = ax / 1000;
+    const ay_km = ay / 1000;
+    const az_km = az / 1000;
+
+    // Δv = a * Δt
+    const dvx = ax_km * deltaTime;
+    const dvy = ay_km * deltaTime;
+    const dvz = az_km * deltaTime;
+
+    // Apply Δv to the current velocity
+    const newVelocity = {
+      x: state.velocity.x + dvx,
+      y: state.velocity.y + dvy,
+      z: state.velocity.z + dvz,
+    };
+
+    // Generate new orbital elements from updated state vectors
+    const newElements = OrbitGenerator.fromStateVectors(
+      state.position,
+      newVelocity,
+      julianDate,
+      mu,
+    );
+
+    // Cleanup old orbit visuals
+    cleanupOrbit();
+
+    // Create new orbit generator
+    orbitGenerator = new OrbitGenerator(newElements);
+    scaledGenerator = new ScaledOrbitGenerator(orbitGenerator);
+
+    // Generate new orbit line
+    const newOrbitLineResult = scaledGenerator.generateOrbitLine(
       camera,
       points,
       {
-        color: "#ffffff",
+        color: "#ffff00",
         ...ORBIT_PRESETS.bright,
-        minDistance: 0.01,
-        fadeNear: 0,
       },
     );
 
-    newOrbitLineResult.line.visible = true;
-    scene.add(newOrbitLineResult.line);
+    currentOrbitLine = newOrbitLineResult.line;
+    currentOrbitUpdate = newOrbitLineResult.update;
+    scene.add(currentOrbitLine);
+    currentOrbitLine.visible = true;
+    isOrbitVisible = true;
 
-    // Replace the update function
-    orbitUpdateFunction = newOrbitLineResult.update;
-    halos_and_labels.push(orbitUpdateFunction);
+    halos_and_labels.push(currentOrbitUpdate);
 
-    asteroid.orbitLine = newOrbitLineResult.line;
+    asteroid.orbitGenerator = scaledGenerator;
+    asteroid.orbitLine = currentOrbitLine;
+  };
+
+  const resetOrbit = () => {
+    cleanupOrbit(); // Reuse your existing cleanup function
+
+    // Recreate the orbit generator from the saved initial state
+    orbitGenerator = new OrbitGenerator(initialOrbitElements);
+    scaledGenerator = new ScaledOrbitGenerator(orbitGenerator);
+
+    // Generate a new orbit line for the initial orbit
+    const newOrbitLineResult = scaledGenerator.generateOrbitLine(
+      camera,
+      points,
+      {
+        color: "#ffff00",
+        ...ORBIT_PRESETS.bright,
+      },
+    );
+
+    currentOrbitLine = newOrbitLineResult.line;
+    currentOrbitUpdate = newOrbitLineResult.update;
+    scene.add(currentOrbitLine);
+    currentOrbitLine.visible = true;
+    isOrbitVisible = true;
+
+    halos_and_labels.push(currentOrbitUpdate);
+
+    // Update the asteroid's reference
+    asteroid.orbitGenerator = scaledGenerator;
+    asteroid.orbitLine = currentOrbitLine;
   };
 
   const asteroid: Asteroid = {
@@ -230,13 +309,15 @@ export const createAsteroid = (
     diameter: kmToRenderUnits(diameter),
     color: "#4fc3f7",
     mesh: points,
-    orbitLine: orbitLineResult.line,
+    orbitLine: currentOrbitLine,
     labelSprite,
     setLabelHighlight,
     updateLOD,
     showOrbit,
     hideOrbit,
     applyForce,
+    originalOrbitElements,
+    resetOrbit
   };
 
   return asteroid;
@@ -252,26 +333,4 @@ export const createAsteroids = (
   return asteroidsData.map((data) =>
     createAsteroid(data, camera, halos_and_labels, scene),
   );
-};
-
-export const isAsteroidOrbitVisible = (
-  asteroids: Asteroid[],
-  asteroidId: string,
-): boolean => {
-  const asteroid = asteroids.find((a) => a.id === asteroidId);
-  return asteroid?.orbitLine?.visible ?? false;
-};
-
-export const toggleAsteroidOrbit = (
-  asteroids: Asteroid[],
-  asteroidId: string,
-): void => {
-  const asteroid = asteroids.find((a) => a.id === asteroidId);
-  if (!asteroid) return;
-
-  if (asteroid.orbitLine?.visible) {
-    asteroid.hideOrbit?.();
-  } else {
-    asteroid.showOrbit?.();
-  }
 };
