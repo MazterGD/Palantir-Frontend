@@ -93,3 +93,75 @@ export function transformAsteroidData(
     isPotentiallyHazardous: data.is_potentially_hazardous_asteroid,
   };
 }
+
+// Extended interface for detailed asteroid information
+export interface AsteroidDetailedInfo {
+  name: string;
+  diameter: number;
+  rotation_period?: number;
+  orbit_period?: number;
+  distance_from_sun?: number;
+  composition?: string;
+  discovery_date?: string;
+  discovered_by?: string;
+  classification?: string;
+}
+
+// Function to fetch asteroid names from the API
+export async function fetchAsteroidNames(): Promise<{ names: string[] }> {
+  try {
+    const response = await fetch('/api/asteroids/names');
+    if (!response.ok) {
+      throw new Error(`API returned status ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // Extract names from the response
+    let names: string[] = [];
+    if (Array.isArray(data)) {
+      names = data.map((item: any) => typeof item === 'string' ? item : item.name).filter(Boolean);
+    } else if (data.names && Array.isArray(data.names)) {
+      names = data.names;
+    } else if (data.asteroids && Array.isArray(data.asteroids)) {
+      names = data.asteroids.map((a: any) => a.name).filter(Boolean);
+    }
+    
+    console.log(`✓ Loaded ${names.length} asteroid names from API`);
+    return { names };
+  } catch (error) {
+    console.error('Failed to fetch asteroid names:', error);
+    // Return empty array on error - SearchUI will show planets only
+    return { names: [] };
+  }
+}
+
+// Function to fetch detailed asteroid information
+export async function fetchAsteroidDetails(asteroidName: string): Promise<AsteroidDetailedInfo> {
+  try {
+    const response = await fetch(`/api/asteroids/details/${encodeURIComponent(asteroidName)}`);
+    if (!response.ok) {
+      throw new Error(`API returned status ${response.status}`);
+    }
+    const data = await response.json();
+    
+    return {
+      name: data.name || asteroidName,
+      diameter: data.diameter || data.estimated_diameter_max || 10,
+      rotation_period: data.rotation_period,
+      orbit_period: data.orbital_period || data.orbit_period,
+      distance_from_sun: data.semi_major_axis || data.distance_from_sun,
+      composition: data.composition || data.spectral_type,
+      discovery_date: data.discovery_date,
+      discovered_by: data.discovered_by,
+      classification: data.classification || data.orbit_class,
+    };
+  } catch (error) {
+    console.error(`Failed to fetch asteroid details for ${asteroidName}:`, error);
+    // Return minimal fallback data
+    return {
+      name: asteroidName,
+      diameter: 10,
+      classification: "Data unavailable",
+    };
+  }
+}

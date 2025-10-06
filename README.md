@@ -2,6 +2,23 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Environment Setup
+
+1. **Copy the environment template:**
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+2. **Configure the backend API:**
+   Edit `.env.local` and set your backend API URL:
+   ```
+   BACKEND_API_URL=https://your-backend-api-url.com
+   ```
+   
+   > **Note:** The backend API is required for asteroid data. If not configured, the search will only show planets.
+
+### Running the Development Server
+
 First, run the development server:
 
 ```bash
