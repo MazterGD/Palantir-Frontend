@@ -1021,11 +1021,6 @@ export default function ThreeScene() {
         <div className="absolute top-0 left-0 w-full h-full bg-black flex flex-col justify-center items-center text-white text-lg z-[1000]">
           <div className="w-[50px] h-[50px] border-[5px] border-gray-300 border-t-blue-500 rounded-full animate-spin mb-5" />
           <p>Loading asteroid data...</p>
-          {asteroidsData && (
-            <p className="text-sm mt-2.5">
-              Loaded {asteroidsData.length} asteroids
-            </p>
-          )}
         </div>
       )}
 
