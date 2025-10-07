@@ -138,6 +138,7 @@ export default function SelectedBodyPanel({
               </button>
             </div>
           </div>
+          
           <div className="flex flex-col w-full gap-2 sm:gap-2.5 mt-2">
             <button
               onClick={applyForceToSelectedAsteroid}
