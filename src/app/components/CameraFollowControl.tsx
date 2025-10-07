@@ -28,7 +28,7 @@ export default function CameraFollowControl({
   const [showControls, setShowControls] = useState(false);
 
   return (
-    <div className="absolute top-[calc(50%-280px)] right-2 md:right-5 flex flex-col gap-1.5 md:gap-2 z-10 items-center">
+    <div className="absolute top-[calc(50%-320px)] right-2 md:right-5 flex flex-col gap-1.5 md:gap-2 z-10 items-center">
       {/* Rotation Controls Panel - Shows on button click */}
       {showControls && isFollowing && (
         <div className="absolute right-full mr-3 top-0 bg-[rgba(20,20,40,0.95)] border-2 border-[rgba(100,180,255,0.4)] rounded-xl p-4 backdrop-blur-md shadow-2xl min-w-[240px] animate-in slide-in-from-right">
