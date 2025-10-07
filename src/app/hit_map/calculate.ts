@@ -15,21 +15,21 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
 
   // Default values for optional parameters
   const abAltBurst = imp.abAltBurst || 0; // Altitude of airburst in meters
-  const imVel = imp.imVel || imp.pjVel; // Impact velocity defaults to projectile velocity (km/s)
+  const imVel = imp.imVel || 0; // Impact velocity defaults to projectile velocity (km/s)
   const imDist = imp.imDist || 0; // Distance from impact in km
 
   // --- Mass ---
   // Calculate mass: volume of sphere (π * d^3 / 6) * density
-  const mass = ((Math.PI * Math.pow(imp.pjDiam, 3)) / 6) * imp.pjDens;
+  const mass = ((Math.PI * Math.pow(imp.pjDiam, 3)) / 6) * imp.pjDens; // correct
 
   // --- Initial energy ---
   // Kinetic energy: 0.5 * mass * (velocity in m/s)^2
-  let pjEnergy = 0.5 * mass * Math.pow(imp.pjVel * 1000, 2);
-  const energy0_megatons = pjEnergy / (4.186 * Math.pow(10, 15)); // Convert Joules to megatons TNT
+  let pjEnergy = 0.5 * mass * Math.pow(imp.pjVel * 1000, 2); // correct
+  const energy0_megatons = pjEnergy / (4.186 * Math.pow(10, 15)); // Convert Joules to megatons TNT // correct
 
   // --- Momentum ---
   // Linear momentum: mass * velocity (m/s)
-  let linmom = mass * (imVel * 1000);
+  let linmom = mass * (imVel * 1000); // correct
   // Angular momentum: mass * velocity (m/s) * cos(angle) * Earth radius
   let angmom =
     mass * (imVel * 1000) * Math.cos((imp.pjAngle * Math.PI) / 180) * R_earth;
@@ -42,7 +42,7 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
     pjEnergy *= beta;
     linmom *= beta;
     angmom *= beta;
-  }
+  } // correct
 
   // --- Impact energy ---
   let imEnergy;
@@ -76,10 +76,8 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
 
   // --- Impact frequency ---
   // Calculate frequency based on energy in megatons
-  const megaton_power = Math.floor(Math.log(energy0_megatons) / Math.LN10);
-  const scaled_megatons = energy0_megatons / Math.pow(10, megaton_power);
-  const imFreq =
-    110 * Math.pow(scaled_megatons * Math.pow(10, megaton_power), 0.77);
+  const diam = imp.pjDiam/1000; // diameter in km checked and correctttt
+  const imFreq = Math.pow(diam,-2.5)/1000000;
 
   // console.log(imp);
   // console.log({
@@ -105,7 +103,7 @@ export function calcAsteroidEnergy(imp: ImpactorInput): AsteroidImpactResult {
     angularMomentum: angmom, // kg·m^3/s
     seafloorVelocity: vseafloor, // km/s
     seafloorEnergy: energy_seafloor, // Joules
-    imFreq: imFreq, // years
+    imFreq: imFreq, // 1/years
   };
 }
 

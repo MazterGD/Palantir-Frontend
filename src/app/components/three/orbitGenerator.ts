@@ -5,7 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import * as THREE from "three";
-import { kmToRenderUnits } from "@/app/lib/scalingUtils"; // NEW import
+import { kmToRenderUnits } from "@/app/lib/scalingUtils";
 
 export interface Point3D {
   x: number;
@@ -63,6 +63,10 @@ export class OrbitGenerator {
 
   private julianToUnix(jd: number): number {
     return (jd - 2440587.5) * 86400;
+  }
+
+  get epoch(): number {
+    return this.elements.epoch;
   }
 
   private rotatePoint(
@@ -395,9 +399,7 @@ export class ScaledOrbitGenerator {
 
       let currentOpacity = baseOpacity;
 
-      if (
-        distance < Math.max(0, minDistance - fadeNear)
-      ) {
+      if (distance < Math.max(0, minDistance - fadeNear)) {
         currentOpacity = 0;
       } else if (distance < minDistance) {
         const fadeStart = Math.max(0, minDistance - fadeNear);

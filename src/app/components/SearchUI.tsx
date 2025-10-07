@@ -219,7 +219,7 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
       {/* Search Button */}
       <button 
         onClick={toggleSearchUI}
-        className="fixed top-4 right-4 bg-slate-900/75 backdrop-blur border-none rounded-full w-10 h-10 flex items-center justify-center cursor-pointer z-[100] shadow-[0_2px_10px_rgba(0,0,0,0.2)] hover:bg-slate-900/90 transition-colors"
+        className="fixed top-4 right-4 bg-slate-900/75 backdrop-blur border-none rounded-full w-10 h-10 flex items-center justify-center cursor-pointer z-[1200] shadow-[0_2px_10px_rgba(0,0,0,0.2)] hover:bg-slate-900/90 transition-colors"
         aria-label="Open search"
       >
         <svg 
@@ -242,7 +242,7 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
       
       {/* Search UI Panel */}
       {showSearchUI && (
-        <div ref={searchContainerRef} className="fixed top-0 right-0 p-4 z-[1000] w-full max-w-[400px]">
+        <div ref={searchContainerRef} className="fixed top-0 right-0 p-4 z-[1200] w-full max-w-[400px]">
           <div className={`bg-slate-900/95 backdrop-blur-xl rounded-xl p-4 text-white transition-all duration-300 ${
             searchQuery 
               ? 'border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,0.5),0_0_15px_rgba(66,153,225,0.4)]' 

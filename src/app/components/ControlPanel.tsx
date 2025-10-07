@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { RiResetLeftLine } from "react-icons/ri";
 
 interface ControlPanelProps {
   onZoomIn: () => void;
@@ -82,6 +83,7 @@ export default function ControlPanel({
             onTouchStart={() => setIsDragging(true)}
             onTouchEnd={() => setIsDragging(false)}
             aria-label="Zoom Level"
+            style={{ accentColor: "white" }}
           />
           <div className="absolute left-1/2 top-[15px] bottom-[15px] w-[5px] md:w-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] -translate-x-1/2 z-10 shadow-inner">
             <div
@@ -109,24 +111,14 @@ export default function ControlPanel({
             <path d="M18 13H6v-2h12v2z" fill="currentColor" />
           </svg>
         </button>
-      </div>
 
-      {/* Reset view button at the bottom right */}
-      <div className="absolute bottom-4 right-2 md:bottom-5 md:right-5 z-10">
-        <button className="m-0 w-8 h-8 md:w-auto md:h-auto flex items-center justify-center" onClick={onResetView} aria-label="Reset View">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            className="md:w-6 md:h-6"
-          >
-            <path fill="none" d="M0 0h24v24H0z" />
-            <path
-              d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-8h4v2h-6V7h2v5z"
-              fill="currentColor"
-            />
-          </svg>
+        {/* Reset view button below zoom controls with gap */}
+        <button 
+          className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] rounded-full bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] text-white cursor-pointer flex items-center justify-center shadow-md backdrop-blur-sm hover:bg-[rgba(30,30,60,0.8)] hover:border-[rgba(255,255,255,0.5)] active:translate-y-0 mt-3 md:mt-4" 
+          onClick={onResetView} 
+          aria-label="Reset View"
+        >
+          <RiResetLeftLine />
         </button>
       </div>
     </>

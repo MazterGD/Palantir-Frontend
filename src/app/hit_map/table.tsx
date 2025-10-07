@@ -8,19 +8,19 @@ const ImpactTable = ({ data }: { data: AsteroidImpactResult }) => {
 
     if (type === "imFreq") {
       if (value < 1) {
-        const reciprocal = 1 / value;
+        const years_apart = 1 / value;
         return {
-          value: `~1 per ${reciprocal >= 1000 ? reciprocal.toLocaleString() : reciprocal.toFixed(0)}`,
+          value: `~1 per ${years_apart >= 1000 ? years_apart.toLocaleString() : years_apart.toFixed(0)}`,
           unit: "years",
         };
       }
-      const unit = value >= 1000 ? "kyr" : "years";
-      const scaledValue = value >= 1000 ? value / 1000 : value;
-      return {
-        value: `~1 per ${scaledValue >= 100 ? scaledValue.toLocaleString() : scaledValue.toFixed(0)}`,
-        unit,
-      };
-    }
+      else{
+        return {
+          value: `~${value.toFixed(3)}`,
+          unit: "per year",
+        };
+      }
+    } // correct
 
     let scaledValue = value;
     let unit = getBaseUnit(type);
@@ -159,16 +159,16 @@ const ImpactTable = ({ data }: { data: AsteroidImpactResult }) => {
       value: formatNumber(data.angularMomentum, "angularMomentum").value,
       unit: formatNumber(data.angularMomentum, "angularMomentum").unit,
     },
-    {
-      label: "Seafloor Velocity",
-      value: formatNumber(data.seafloorVelocity, "seafloorVelocity").value,
-      unit: formatNumber(data.seafloorVelocity, "seafloorVelocity").unit,
-    },
-    {
-      label: "Seafloor Energy",
-      value: formatNumber(data.seafloorEnergy, "energy").value,
-      unit: formatNumber(data.seafloorEnergy, "energy").unit,
-    },
+    // {
+    //   label: "Seafloor Velocity",
+    //   value: formatNumber(data.seafloorVelocity, "seafloorVelocity").value,
+    //   unit: formatNumber(data.seafloorVelocity, "seafloorVelocity").unit,
+    // },
+    // {
+    //   label: "Seafloor Energy",
+    //   value: formatNumber(data.seafloorEnergy, "energy").value,
+    //   unit: formatNumber(data.seafloorEnergy, "energy").unit,
+    // },
     {
       label: "Collision Frequency",
       value: formatNumber(data.imFreq, "imFreq").value,
