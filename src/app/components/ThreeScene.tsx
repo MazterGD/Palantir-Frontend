@@ -22,8 +22,8 @@ import {
 import { addStarsBackground } from "./three/createBackground";
 import ControlPanel from "./ControlPanel";
 import AsteroidVisualizer from "./dataBox";
-import SelectedBodyPanel from "./selectBodyPanel";
 import SearchUI from "./SearchUI";
+import ObjectOptionsBar from "./ObjectOptionsBar";
 import { useAsteroidSelection } from "../lib/useAsteroidSelection";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RiResetRightLine } from "react-icons/ri";
@@ -93,6 +93,7 @@ export default function ThreeScene() {
   const [forceZ, setForceZ] = useState("0");
   const [deltaTime, setDeltaTime] = useState("1");
   const [showAsteroidVisualizer, setShowAsteroidVisualizer] = useState(false);
+  const [showOptionsBar, setShowOptionsBar] = useState(false);
   const [selectedAsteroidId, setSelectedAsteroidId] = useState<string | null>(
     null,
   );
@@ -307,6 +308,7 @@ export default function ThreeScene() {
     currentFocusedBody = null;
     setSelectedBody(null);
     setShowAsteroidVisualizer(false);
+    setShowOptionsBar(false);
     setSelectedAsteroidId(null);
     
     // Reset minimum distance back to sun's surface
@@ -316,12 +318,18 @@ export default function ThreeScene() {
     }
   };
 
+  const handleOpenDetails = () => {
+    setShowOptionsBar(false);
+    setShowAsteroidVisualizer(true);
+  };
+
   const handleCloseVisualizer = () => {
     if (currentSelectedAsteroid) {
       currentSelectedAsteroid.hideOrbit?.();
       currentSelectedAsteroid = null;
     }
     setShowAsteroidVisualizer(false);
+    setShowOptionsBar(true);
     setSelectedAsteroidId(null);
     currentSelectedBody = null;
     currentFocusedBody = null;
@@ -551,7 +559,8 @@ export default function ThreeScene() {
         showOrbitForBody(body);
         currentSelectedAsteroid = body;
         setSelectedAsteroidId(body.id!);
-        setShowAsteroidVisualizer(true);
+        setShowAsteroidVisualizer(false);
+        setShowOptionsBar(true);
       } else {
         if (currentSelectedAsteroid) {
           currentSelectedAsteroid.hideOrbit?.();
@@ -560,6 +569,7 @@ export default function ThreeScene() {
 
         showOrbitForBody(body);
         setShowAsteroidVisualizer(false);
+        setShowOptionsBar(true);
         setSelectedAsteroidId(null);
       }
 
@@ -985,30 +995,32 @@ export default function ThreeScene() {
         onZoomChange={handleZoomChange}
       />
 
-      {showAsteroidVisualizer && selectedAsteroidId && (
-        <div className="absolute top-0 left-0 w-full md:w-[400px] h-full z-[1000] pointer-events-auto">
-          <AsteroidVisualizer
-            id={selectedAsteroidId}
-            onCloseHandler={handleCloseVisualizer}
-          />
-        </div>
+      {/* Options Bar - appears at top when object is selected */}
+      {showOptionsBar && !showAsteroidVisualizer && (selectedAsteroidId || selectedBody) && (
+        <ObjectOptionsBar
+          hasAsteroidData={!!selectedAsteroidId || !!selectedBody}
+          onSelectAsteroidDetails={handleOpenDetails}
+          onClose={clearSelection}
+        />
       )}
 
-      {selectedBody && (
-        <SelectedBodyPanel
-          selectedBody={selectedBody}
-          forceX={forceX}
-          forceY={forceY}
-          forceZ={forceZ}
-          deltaTime={deltaTime}
-          setForceX={setForceX}
-          setForceY={setForceY}
-          setForceZ={setForceZ}
-          setDeltaTime={setDeltaTime}
-          applyForceToSelectedAsteroid={applyForceToSelectedAsteroid}
-          showOrbitForBody={showOrbitForBody}
-          clearSelection={clearSelection}
-        />
+      {showAsteroidVisualizer && (selectedAsteroidId || selectedBody) && (
+        <div className="absolute top-0 left-0 pointer-events-none z-[1000]">
+          <AsteroidVisualizer
+            id={selectedAsteroidId || selectedBody?.id || ""}
+            onCloseHandler={handleCloseVisualizer}
+            selectedBody={selectedBody}
+            forceX={forceX}
+            forceY={forceY}
+            forceZ={forceZ}
+            deltaTime={deltaTime}
+            setForceX={setForceX}
+            setForceY={setForceY}
+            setForceZ={setForceZ}
+            setDeltaTime={setDeltaTime}
+            applyForceToSelectedAsteroid={applyForceToSelectedAsteroid}
+          />
+        </div>
       )}
 
       {error && (

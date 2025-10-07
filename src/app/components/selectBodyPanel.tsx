@@ -31,77 +31,92 @@ export default function SelectedBodyPanel({
   clearSelection,
 }: SelectedBodyPanelProps) {
   return (
-    <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-900/95 text-slate-200 p-3 md:p-4 rounded-2xl z-[1001] w-[90vw] max-w-[280px] md:max-w-[320px] border border-slate-600/50 shadow-[0_0_12px_rgba(100,116,139,0.5)] backdrop-blur-md">
-      <h3 className="mb-2 text-base md:text-lg font-semibold text-slate-300 drop-shadow-md">
-        Selected: {selectedBody.name}
-      </h3>
-      {selectedBody.id && (
-        <div className="mb-3 text-sm opacity-80">ID: {selectedBody.id}</div>
-      )}
+    <div className="absolute bottom-4 left-4 sm:bottom-auto sm:top-4 sm:left-auto sm:right-4 bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-200 p-4 md:p-5 rounded-2xl z-[1001] w-[calc(100vw-32px)] sm:w-[360px] max-w-[360px] border border-slate-500/40 shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_20px_rgba(100,116,139,0.3)] backdrop-blur-xl max-h-[calc(50vh-50px)] sm:max-h-[85vh] overflow-y-auto custom-scrollbar pointer-events-auto animate-[slideInBottom_0.3s_ease-out] sm:animate-[slideInRight_0.3s_ease-out]">
+      <div className="flex items-start justify-between mb-3 sm:mb-4">
+        <div className="flex-1">
+          <h3 className="text-base sm:text-lg md:text-xl font-bold text-white tracking-tight mb-1 drop-shadow-md">
+            {selectedBody.name}
+          </h3>
+          {selectedBody.id && (
+            <div className="text-[10px] sm:text-xs text-slate-400 font-mono">ID: {selectedBody.id}</div>
+          )}
+        </div>
+        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-blue-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
+      </div>
 
       {"applyForce" in selectedBody && (
-        <div className="mt-3 md:mt-4 flex items-center flex-col">
-          <div className="font-semibold mb-2 text-sm md:text-base text-slate-200">
-            Apply Force (N):
+        <div className="mt-3 sm:mt-4 md:mt-5 flex items-center flex-col">
+          <div className="w-full mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-slate-700/50">
+            <h4 className="font-bold text-xs sm:text-sm md:text-base text-white uppercase tracking-wider">
+              Apply Force (N)
+            </h4>
+            <p className="text-[10px] sm:text-xs text-slate-400 mt-1">Adjust force vectors and time</p>
           </div>
 
-          <div className="mb-2 md:mb-3 w-full">
-            <label className="block text-xs mb-1 text-slate-300">X:</label>
+          <div className="mb-2 sm:mb-3 w-full">
+            <label className="block text-[10px] sm:text-xs font-semibold mb-1 sm:mb-1.5 text-slate-300 uppercase tracking-wide">X:</label>
             <input
               type="number"
               value={forceX}
               onChange={(e) => setForceX(e.target.value)}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 bg-slate-800/50 border-slate-600/50 text-slate-100 text-sm focus:outline-none focus:border-slate-500/70 transition-all duration-200"
+              className="w-full border rounded-xl p-2 sm:p-2.5 md:p-3 px-3 sm:px-4 bg-slate-800/70 border-slate-600/40 text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-500/60 focus:bg-slate-800/90 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 hover:border-slate-500/60"
+              placeholder="0"
               aria-label="Force X"
             />
           </div>
 
-          <div className="mb-2 md:mb-3 w-full">
-            <label className="block text-xs mb-1 text-slate-300">Y:</label>
+          <div className="mb-2 sm:mb-3 w-full">
+            <label className="block text-[10px] sm:text-xs font-semibold mb-1 sm:mb-1.5 text-slate-300 uppercase tracking-wide">Y:</label>
             <input
               type="number"
               value={forceY}
               onChange={(e) => setForceY(e.target.value)}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 bg-slate-800/50 border-slate-600/50 text-slate-100 text-sm focus:outline-none focus:border-slate-500/70 transition-all duration-200"
+              className="w-full border rounded-xl p-2 sm:p-2.5 md:p-3 px-3 sm:px-4 bg-slate-800/70 border-slate-600/40 text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-500/60 focus:bg-slate-800/90 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 hover:border-slate-500/60"
+              placeholder="0"
               aria-label="Force Y"
             />
           </div>
 
-          <div className="mb-2 md:mb-3 w-full">
-            <label className="block text-xs mb-1 text-slate-300">Z:</label>
+          <div className="mb-2 sm:mb-3 w-full">
+            <label className="block text-[10px] sm:text-xs font-semibold mb-1 sm:mb-1.5 text-slate-300 uppercase tracking-wide">Z:</label>
             <input
               type="number"
               value={forceZ}
               onChange={(e) => setForceZ(e.target.value)}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 bg-slate-800/50 border-slate-600/50 text-slate-100 text-sm focus:outline-none focus:border-slate-500/70 transition-all duration-200"
+              className="w-full border rounded-xl p-2 sm:p-2.5 md:p-3 px-3 sm:px-4 bg-slate-800/70 border-slate-600/40 text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-500/60 focus:bg-slate-800/90 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 hover:border-slate-500/60"
+              placeholder="0"
               aria-label="Force Z"
             />
           </div>
 
-          <div className="mb-3 md:mb-4 w-full">
-            <label className="block text-xs mb-1 text-slate-300">
+          <div className="mb-3 sm:mb-4 w-full">
+            <label className="block text-[10px] sm:text-xs font-semibold mb-1 sm:mb-1.5 text-slate-300 uppercase tracking-wide">
               Delta Time (s):
             </label>
             <input
               type="number"
               value={deltaTime}
               onChange={(e) => setDeltaTime(e.target.value)}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 bg-slate-800/50 border-slate-600/50 text-slate-100 text-sm focus:outline-none focus:border-slate-500/70 transition-all duration-200"
+              className="w-full border rounded-xl p-2 sm:p-2.5 md:p-3 px-3 sm:px-4 bg-slate-800/70 border-slate-600/40 text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-500/60 focus:bg-slate-800/90 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 hover:border-slate-500/60"
+              placeholder="1"
               aria-label="Delta Time"
             />
           </div>
-          <div className="flex flex-col w-full gap-1.5 md:gap-0">
+          <div className="flex flex-col w-full gap-2 sm:gap-2.5 mt-2">
             <button
               onClick={applyForceToSelectedAsteroid}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 text-sm md:text-base bg-gradient-to-r from-slate-500 to-slate-600 text-white font-semibold border-slate-400/60 hover:from-slate-600 hover:to-slate-700 hover:border-slate-300/70 transition-all duration-300 shadow-[0_0_10px_rgba(100,116,139,0.5)] hover:shadow-[0_0_14px_rgba(100,116,139,0.7)]"
+              className="w-full rounded-xl p-2.5 sm:p-3 md:p-3.5 text-xs sm:text-sm md:text-base bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold border-none hover:from-blue-700 hover:to-blue-600 active:scale-95 transition-all duration-200 shadow-[0_4px_14px_rgba(59,130,246,0.4)] hover:shadow-[0_6px_20px_rgba(59,130,246,0.6)] flex items-center justify-center gap-2"
               aria-label="Apply Force"
             >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
               Apply Force
             </button>
 
             {/* <button
               onClick={() => showOrbitForBody(selectedBody)}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 mt-1.5 md:mt-2 bg-slate-700/50 border-slate-600/50 text-slate-300 text-xs md:text-sm hover:bg-slate-600/60 hover:border-slate-500/70 hover:text-slate-100 transition-all duration-300"
+              className="w-full rounded-xl p-2.5 md:p-3 bg-slate-700/60 border border-slate-600/50 text-slate-300 text-xs md:text-sm font-medium hover:bg-slate-600/70 hover:border-slate-500/70 hover:text-white active:scale-95 transition-all duration-200"
               aria-label="Highlight Orbit"
             >
               Highlight Orbit
@@ -109,7 +124,7 @@ export default function SelectedBodyPanel({
 
             <button
               onClick={clearSelection}
-              className="w-full border rounded-full p-1.5 md:p-2 pl-3 md:pl-4 mt-1.5 md:mt-2 bg-slate-800/50 border-red-600/50 text-red-400 text-xs md:text-sm hover:bg-red-600/20 hover:border-red-500/70 hover:text-red-300 transition-all duration-300"
+              className="w-full rounded-xl p-2 sm:p-2.5 md:p-3 bg-slate-800/60 border border-red-500/40 text-red-400 text-xs sm:text-xs md:text-sm font-medium hover:bg-red-600/20 hover:border-red-500/70 hover:text-red-300 active:scale-95 transition-all duration-200"
               aria-label="Clear Selection"
             >
               Clear Selection
