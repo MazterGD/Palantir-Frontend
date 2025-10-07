@@ -110,6 +110,7 @@ export default function ThreeScene() {
   const [isCameraFollowing, setIsCameraFollowing] = useState(false);
   const [followSmoothness, setFollowSmoothness] = useState(0.1);
   const [followLookAhead, setFollowLookAhead] = useState(0);
+  const [rotationAngles, setRotationAngles] = useState({ horizontal: 0, vertical: 0 });
 
   const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21];
 
@@ -394,6 +395,27 @@ export default function ThreeScene() {
       cameraFollowControllerRef.updateOptions({ lookAhead: value });
     }
   }, []);
+
+  const handleResetRotation = useCallback(() => {
+    if (cameraFollowControllerRef) {
+      cameraFollowControllerRef.resetRotation();
+      setRotationAngles({ horizontal: 0, vertical: 0 });
+    }
+  }, []);
+
+  // Update rotation angles periodically when following
+  useEffect(() => {
+    if (!isCameraFollowing) return;
+
+    const interval = setInterval(() => {
+      if (cameraFollowControllerRef) {
+        const angles = cameraFollowControllerRef.getRotationAngles();
+        setRotationAngles(angles);
+      }
+    }, 100); // Update every 100ms
+
+    return () => clearInterval(interval);
+  }, [isCameraFollowing]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -703,6 +725,109 @@ export default function ThreeScene() {
     renderer.domElement.addEventListener("mousemove", onMouseMove);
     renderer.domElement.addEventListener("click", onClick);
 
+    // Keyboard controls for camera rotation when following
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!cameraFollowControllerRef || !cameraFollowControllerRef.isEnabled()) {
+        return;
+      }
+
+      switch (event.key.toLowerCase()) {
+        case "arrowleft":
+        case "a":
+          event.preventDefault();
+          cameraFollowControllerRef.rotateLeft();
+          break;
+        case "arrowright":
+        case "d":
+          event.preventDefault();
+          cameraFollowControllerRef.rotateRight();
+          break;
+        case "arrowup":
+        case "w":
+          event.preventDefault();
+          cameraFollowControllerRef.rotateUp();
+          break;
+        case "arrowdown":
+        case "s":
+          event.preventDefault();
+          cameraFollowControllerRef.rotateDown();
+          break;
+        case "r":
+          event.preventDefault();
+          cameraFollowControllerRef.resetRotation();
+          break;
+      }
+    };
+
+    // Touch controls for camera rotation
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isTouchRotating = false;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (!cameraFollowControllerRef || !cameraFollowControllerRef.isEnabled()) {
+        return;
+      }
+
+      // Only handle two-finger touch for rotation
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        isTouchRotating = true;
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        touchStartX = (touch1.clientX + touch2.clientX) / 2;
+        touchStartY = (touch1.clientY + touch2.clientY) / 2;
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!cameraFollowControllerRef || !cameraFollowControllerRef.isEnabled() || !isTouchRotating) {
+        return;
+      }
+
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        const touchX = (touch1.clientX + touch2.clientX) / 2;
+        const touchY = (touch1.clientY + touch2.clientY) / 2;
+
+        const deltaX = touchX - touchStartX;
+        const deltaY = touchY - touchStartY;
+
+        // Rotate based on swipe direction
+        const sensitivity = 0.002;
+        if (Math.abs(deltaX) > 5) {
+          if (deltaX > 0) {
+            cameraFollowControllerRef.rotateRight();
+          } else {
+            cameraFollowControllerRef.rotateLeft();
+          }
+          touchStartX = touchX;
+        }
+
+        if (Math.abs(deltaY) > 5) {
+          if (deltaY > 0) {
+            cameraFollowControllerRef.rotateDown();
+          } else {
+            cameraFollowControllerRef.rotateUp();
+          }
+          touchStartY = touchY;
+        }
+      }
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) {
+        isTouchRotating = false;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    renderer.domElement.addEventListener("touchstart", handleTouchStart, { passive: false });
+    renderer.domElement.addEventListener("touchmove", handleTouchMove, { passive: false });
+    renderer.domElement.addEventListener("touchend", handleTouchEnd);
+
     addLights(scene);
     const { update: renderWithPostProcessing, resize: resizePostProcessing } =
       setupPostProcessing(scene, camera, renderer);
@@ -828,8 +953,12 @@ export default function ThreeScene() {
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("keydown", handleKeyDown);
       renderer.domElement.removeEventListener("mousemove", onMouseMove);
       renderer.domElement.removeEventListener("click", onClick);
+      renderer.domElement.removeEventListener("touchstart", handleTouchStart);
+      renderer.domElement.removeEventListener("touchmove", handleTouchMove);
+      renderer.domElement.removeEventListener("touchend", handleTouchEnd);
       controls.removeEventListener("change", updateSliderFromCamera);
       controls.dispose();
       renderer.dispose();
@@ -1043,6 +1172,17 @@ export default function ThreeScene() {
       // Enforce minimum distance limit - cannot go below surface
       targetDistance = Math.max(targetDistance, minZoomDistance);
 
+      // If camera follow is active, update the follow controller's offset distance
+      if (isCameraFollowing && cameraFollowControllerRef && currentFocusedBody) {
+        const bodyRadius = currentFocusedBody.diameter / 2;
+        cameraFollowControllerRef.updateOptions({ 
+          offsetDistance: targetDistance,
+          offsetHeight: targetDistance * 0.3
+        });
+        // Don't manually move camera - let follow controller handle it
+        return;
+      }
+
       const directionVector = new THREE.Vector3()
         .subVectors(cameraRef.position, controlsRef.target)
         .normalize();
@@ -1084,6 +1224,8 @@ export default function ThreeScene() {
         lookAhead={followLookAhead}
         onLookAheadChange={handleLookAheadChange}
         disabled={!selectedBody && !currentFocusedBody}
+        rotationAngles={rotationAngles}
+        onResetRotation={handleResetRotation}
       />
 
       {/* Options Bar - appears at top when object is selected */}

@@ -20,6 +20,11 @@ export class CameraFollowController {
   private previousBodyPosition: THREE.Vector3 = new THREE.Vector3();
   private velocity: THREE.Vector3 = new THREE.Vector3();
   private isFirstUpdate: boolean = true;
+  
+  // Manual rotation controls (in radians)
+  private rotationHorizontal: number = 0; // Azimuth angle around vertical axis
+  private rotationVertical: number = 0;   // Elevation angle
+  private rotationSpeed: number = 0.02;   // Radians per input step
 
   constructor(
     camera: THREE.Camera,
@@ -30,7 +35,7 @@ export class CameraFollowController {
     this.controls = controls;
     this.options = {
       enabled: false,
-      offsetDistance: 5,
+      offsetDistance: 3,
       offsetHeight: 2,
       smoothness: 0.1,
       lookAhead: 0,
@@ -51,7 +56,7 @@ export class CameraFollowController {
       // Calculate offset based on body size
       const bodyRadius = body.diameter / 2;
       const isAsteroid = body.id && "applyForce" in body;
-      const baseDistance = bodyRadius * (isAsteroid ? 10000 : 5);
+      const baseDistance = bodyRadius * (isAsteroid ? 5000 : 3);
       
       this.options.offsetDistance = baseDistance;
       this.options.offsetHeight = baseDistance * 0.3;
@@ -121,9 +126,9 @@ export class CameraFollowController {
     this.previousBodyPosition.copy(bodyPosition);
     this.isFirstUpdate = false;
 
-    // Calculate camera offset direction
+    // Calculate base camera offset direction
     // Default to a nice angle if no motion detected
-    let offsetDirection: THREE.Vector3;
+    let baseOffsetDirection: THREE.Vector3;
     
     if (this.velocity.length() > 0.00001) {
       // Position camera behind and slightly to the side of the motion direction
@@ -132,26 +137,43 @@ export class CameraFollowController {
       const sideVector = new THREE.Vector3().crossVectors(upVector, behind).normalize();
       
       // Blend behind and side for a more cinematic angle
-      offsetDirection = behind.multiplyScalar(0.8).add(sideVector.multiplyScalar(0.2)).normalize();
+      baseOffsetDirection = behind.multiplyScalar(0.8).add(sideVector.multiplyScalar(0.2)).normalize();
     } else {
       // Default viewing angle: from above and to the side
       // Use a 45-degree angle that provides good visibility
-      offsetDirection = new THREE.Vector3(0.7, 0.7, 0).normalize();
+      baseOffsetDirection = new THREE.Vector3(0.7, 0.7, 0).normalize();
     }
 
-    // Create a stable up vector (Z-axis in your coordinate system)
-    const upVector = new THREE.Vector3(0, 0, 1);
+    // Apply manual rotation offsets
+    // Create rotation matrices for horizontal and vertical rotation
+    const upVector = new THREE.Vector3(0, 0, 1); // Z-axis is up
     
-    // Calculate right vector (perpendicular to offset and up)
+    // Apply horizontal rotation (around Z-axis)
+    const horizontalMatrix = new THREE.Matrix4().makeRotationAxis(upVector, this.rotationHorizontal);
+    const offsetDirection = baseOffsetDirection.clone().applyMatrix4(horizontalMatrix);
+    
+    // Calculate right vector for vertical rotation
     const rightVector = new THREE.Vector3().crossVectors(upVector, offsetDirection);
-    if (rightVector.length() < 0.01) {
-      // If offset is parallel to up, use a different right vector
-      rightVector.set(1, 0, 0);
+    if (rightVector.length() > 0.01) {
+      rightVector.normalize();
+      
+      // Apply vertical rotation (around right vector)
+      const verticalMatrix = new THREE.Matrix4().makeRotationAxis(rightVector, this.rotationVertical);
+      offsetDirection.applyMatrix4(verticalMatrix);
     }
-    rightVector.normalize();
+    
+    offsetDirection.normalize();
+    
+    // Recalculate right vector for proper camera orientation
+    const finalRightVector = new THREE.Vector3().crossVectors(upVector, offsetDirection);
+    if (finalRightVector.length() < 0.01) {
+      // If offset is parallel to up, use a different right vector
+      finalRightVector.set(1, 0, 0);
+    }
+    finalRightVector.normalize();
     
     // Recalculate proper up vector
-    const properUpVector = new THREE.Vector3().crossVectors(offsetDirection, rightVector).normalize();
+    const properUpVector = new THREE.Vector3().crossVectors(offsetDirection, finalRightVector).normalize();
 
     // Calculate desired camera position
     // Position behind and above the object
@@ -184,5 +206,45 @@ export class CameraFollowController {
     this.options.enabled = false;
     this.isFirstUpdate = true;
     this.velocity.set(0, 0, 0);
+    this.rotationHorizontal = 0;
+    this.rotationVertical = 0;
+  }
+
+  // Manual rotation controls
+  rotateLeft() {
+    this.rotationHorizontal += this.rotationSpeed;
+  }
+
+  rotateRight() {
+    this.rotationHorizontal -= this.rotationSpeed;
+  }
+
+  rotateUp() {
+    // Limit vertical rotation to prevent flipping
+    this.rotationVertical = Math.min(Math.PI / 2 - 0.1, this.rotationVertical + this.rotationSpeed);
+  }
+
+  rotateDown() {
+    // Limit vertical rotation to prevent flipping
+    this.rotationVertical = Math.max(-Math.PI / 2 + 0.1, this.rotationVertical - this.rotationSpeed);
+  }
+
+  // Get current rotation angles (in degrees for display)
+  getRotationAngles(): { horizontal: number; vertical: number } {
+    return {
+      horizontal: (this.rotationHorizontal * 180) / Math.PI,
+      vertical: (this.rotationVertical * 180) / Math.PI,
+    };
+  }
+
+  // Reset rotation to default
+  resetRotation() {
+    this.rotationHorizontal = 0;
+    this.rotationVertical = 0;
+  }
+
+  // Set rotation speed
+  setRotationSpeed(speed: number) {
+    this.rotationSpeed = Math.max(0.005, Math.min(0.1, speed));
   }
 }
