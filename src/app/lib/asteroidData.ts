@@ -55,25 +55,31 @@ export function transformAsteroidData(
 ): AsteroidData {
   const data = apiResponse.asteroid;
 
-  // Validate required fields
   if (!data.semi_major_axis || !data.eccentricity || !data.orbital_period) {
     throw new Error("Missing required orbital data");
   }
 
-  // Convert semi-major axis from AU -> km (assuming API provides AU)
+  // Validate eccentricity
+  if (data.eccentricity < 0 || data.eccentricity >= 1) {
+    throw new Error(`Invalid eccentricity: ${data.eccentricity}`);
+  }
+
+  // Validate semi-major axis
+  if (data.semi_major_axis <= 0) {
+    throw new Error(`Invalid semi-major axis: ${data.semi_major_axis}`);
+  }
+
   const semiMajorKm = auToKm(data.semi_major_axis);
 
-  // Mean motion in radians/day (orbital_period is days)
   const meanMotionRadPerDay = (2 * Math.PI) / data.orbital_period;
 
-  // Average the min and max diameter estimates, provide fallback
   const diameter =
     data.estimated_diameter_max && data.estimated_diameter_min
       ? (data.estimated_diameter_max + data.estimated_diameter_min) / 2
-      : 1; // Default diameter if missing
+      : 1;
 
-  // Convert Modified Julian Date to Julian Date (MJD + 2400000.5)
-  const julianEpoch = data.epoch_osculation + 2400000.5;
+  // FIXED: epoch_osculation is already in Julian Date, no conversion needed
+  const julianEpoch = data.epoch_osculation;
 
   return {
     id: data.id,

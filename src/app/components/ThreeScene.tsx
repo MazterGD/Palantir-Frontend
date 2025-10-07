@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 
 import { setupScene } from "./three/setupScene";
 import { setupControls } from "./three/setupControls";
@@ -93,10 +92,10 @@ export default function ThreeScene() {
   const [celestialBodiesMap, setCelestialBodiesMap] = useState<
     Map<string, CelestialBody>
   >(new Map());
-  const [forceX, setForceX] = useState("10");
+  const [forceX, setForceX] = useState("100");
   const [forceY, setForceY] = useState("0");
   const [forceZ, setForceZ] = useState("0");
-  const [deltaTime, setDeltaTime] = useState("1");
+  const [deltaTime, setDeltaTime] = useState("86400");
   const [showAsteroidVisualizer, setShowAsteroidVisualizer] = useState(false);
   const [showOptionsBar, setShowOptionsBar] = useState(false);
   const [selectedAsteroidId, setSelectedAsteroidId] = useState<string | null>(
