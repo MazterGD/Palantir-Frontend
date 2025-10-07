@@ -12,6 +12,7 @@ import { getSceneBoundaries, kmToRenderUnits } from "@/app/lib/scalingUtils"; //
 import { min } from "three/tsl";
 
 export interface Planet {
+  id: string;     // Added id property
   name: string;
   orbitGenerator: ScaledOrbitGenerator;
   diameter: number;
@@ -258,6 +259,7 @@ export const createPlanet = (
     rotationPeriod !== 0 ? (2 * Math.PI) / rotationPeriod : 0;
 
   return {
+    id: name, // Added id as lowercase planetName to use for searching
     name: planetName,
     orbitGenerator: scaledOrbitGenerator,
     diameter: renderDiameter,
