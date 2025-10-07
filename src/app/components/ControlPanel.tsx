@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, memo } from "react";
 import { RiResetLeftLine } from "react-icons/ri";
 
 interface ControlPanelProps {
@@ -11,7 +11,7 @@ interface ControlPanelProps {
   onZoomChange: (value: number) => void;
 }
 
-export default function ControlPanel({
+const ControlPanel = memo(function ControlPanel({
   onZoomIn,
   onZoomOut,
   onResetView,
@@ -123,4 +123,6 @@ export default function ControlPanel({
       </div>
     </>
   );
-}
+});
+
+export default ControlPanel;

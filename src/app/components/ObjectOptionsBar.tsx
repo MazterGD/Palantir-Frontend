@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { GiAsteroid } from "react-icons/gi";
 import { FiX } from "react-icons/fi";
 
@@ -9,7 +10,7 @@ interface ObjectOptionsBarProps {
   onClose: () => void;
 }
 
-export default function ObjectOptionsBar({
+const ObjectOptionsBar = memo(function ObjectOptionsBar({
   hasAsteroidData,
   onSelectAsteroidDetails,
   onClose,
@@ -40,4 +41,6 @@ export default function ObjectOptionsBar({
       </div>
     </div>
   );
-}
+});
+
+export default ObjectOptionsBar;
