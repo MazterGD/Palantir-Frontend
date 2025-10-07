@@ -98,14 +98,14 @@ export default function ThreeScene() {
     null,
   );
 
-  const [speedMultiplier, setSpeedMultiplier] = useState(21);
+  const [speedMultiplier, setSpeedMultiplier] = useState(23);
   const [isPaused, setIsPaused] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [selectedDateTime, setSelectedDateTime] = useState<string>("");
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(50);
 
-  const currentSpeedOption = speedScale[speedMultiplier] || speedScale[21];
+  const currentSpeedOption = speedScale[speedMultiplier] || speedScale[23];
 
   const speedMultiplierRef = useRef(speedMultiplier);
   const isPausedRef = useRef(isPaused);
@@ -190,7 +190,7 @@ export default function ThreeScene() {
 
   const resetTime = useCallback(() => {
     currentTimeRef.current = 0;
-    setSpeedMultiplier(21);
+    setSpeedMultiplier(23);
     setIsPaused(false);
     const now = new Date();
     startDateRef.current = now;
