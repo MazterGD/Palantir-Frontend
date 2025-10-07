@@ -16,7 +16,7 @@ export default function ObjectOptionsBar({
 }: ObjectOptionsBarProps) {
   return (
     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1100] pointer-events-auto">
-      <div className="flex items-center gap-3 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-md rounded-full px-4 py-2 shadow-2xl border border-slate-700/50">
+      <div className="flex items-center gap-3 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-md rounded-full px-2 py-2 shadow-2xl border border-slate-700/50">
         {/* Object Details Option */}
         {hasAsteroidData && (
           <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { RiResetLeftLine } from "react-icons/ri";
 
 interface ControlPanelProps {
   onZoomIn: () => void;
@@ -82,6 +83,7 @@ export default function ControlPanel({
             onTouchStart={() => setIsDragging(true)}
             onTouchEnd={() => setIsDragging(false)}
             aria-label="Zoom Level"
+            style={{ accentColor: "white" }}
           />
           <div className="absolute left-1/2 top-[15px] bottom-[15px] w-[5px] md:w-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] -translate-x-1/2 z-10 shadow-inner">
             <div
@@ -116,19 +118,7 @@ export default function ControlPanel({
           onClick={onResetView} 
           aria-label="Reset View"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            className="md:w-6 md:h-6"
-          >
-            <path fill="none" d="M0 0h24v24H0z" />
-            <path
-              d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-8h4v2h-6V7h2v5z"
-              fill="currentColor"
-            />
-          </svg>
+          <RiResetLeftLine />
         </button>
       </div>
     </>
