@@ -4,7 +4,7 @@
  */
 
 const CACHE_PREFIX = 'galanor_cache_';
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2'; // Bumped version for new features
 
 interface CacheEntry<T> {
   data: T;
@@ -20,6 +20,31 @@ interface CacheOptions {
 }
 
 const DEFAULT_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+/**
+ * Generate a simple hash from a string (for cache keys)
+ */
+const hashString = (str: string): string => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
+};
+
+/**
+ * Create a cache key from query parameters
+ */
+export const createQueryCacheKey = (baseKey: string, params: Record<string, any>): string => {
+  const sortedParams = Object.keys(params)
+    .sort()
+    .map(key => `${key}=${params[key]}`)
+    .join('&');
+  const hash = hashString(sortedParams);
+  return `${baseKey}_${hash}`;
+};
 
 /**
  * Check if we're in a browser environment
@@ -210,5 +235,85 @@ export const hasCachedData = (key: string): boolean => {
     return localStorage.getItem(cacheKey) !== null;
   } catch (error) {
     return false;
+  }
+};
+
+/**
+ * Get or fetch data with caching
+ * This is a higher-order function that handles cache logic automatically
+ */
+export const getCachedOrFetch = async <T>(
+  cacheKey: string,
+  fetchFn: () => Promise<T>,
+  options: CacheOptions = {}
+): Promise<T> => {
+  // Try to get from cache first
+  const cached = loadFromCache<T>(cacheKey, options);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Fetch fresh data
+  const data = await fetchFn();
+  
+  // Save to cache
+  saveToCache(cacheKey, data);
+  
+  return data;
+};
+
+/**
+ * Prefetch and cache data in the background
+ */
+export const prefetchAndCache = async <T>(
+  cacheKey: string,
+  fetchFn: () => Promise<T>
+): Promise<void> => {
+  try {
+    const data = await fetchFn();
+    saveToCache(cacheKey, data);
+  } catch (error) {
+    console.warn(`Failed to prefetch data for ${cacheKey}:`, error);
+  }
+};
+
+/**
+ * Clear expired cache entries (cleanup utility)
+ */
+export const clearExpiredCache = (ttl: number = DEFAULT_TTL): number => {
+  if (!isBrowser()) return 0;
+
+  try {
+    const keys = Object.keys(localStorage);
+    const galanorKeys = keys.filter(key => key.startsWith(CACHE_PREFIX));
+    let clearedCount = 0;
+
+    galanorKeys.forEach(key => {
+      try {
+        const value = localStorage.getItem(key);
+        if (!value) return;
+
+        const cacheEntry = JSON.parse(value) as CacheEntry<any>;
+        const age = Date.now() - cacheEntry.timestamp;
+
+        if (age > ttl) {
+          localStorage.removeItem(key);
+          clearedCount++;
+        }
+      } catch (error) {
+        // If parsing fails, remove the corrupted entry
+        localStorage.removeItem(key);
+        clearedCount++;
+      }
+    });
+
+    if (clearedCount > 0) {
+      console.log(`Cleared ${clearedCount} expired cache entries`);
+    }
+
+    return clearedCount;
+  } catch (error) {
+    console.error('Failed to clear expired cache:', error);
+    return 0;
   }
 };
