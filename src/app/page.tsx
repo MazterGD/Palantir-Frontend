@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { League_Spartan } from "next/font/google";
+import { useState } from "react";
 
 const league = League_Spartan({
   subsets: ["latin"],
@@ -10,12 +11,13 @@ const league = League_Spartan({
 
 export default function Home() {
   const router = useRouter();
+  const [videoLoaded, setVideoLoaded] = useState(false);
 
   function clickExplore() {
     router.push("/solar_system");
   }
 
-    function clickImpactMap() {
+  function clickImpactMap() {
     router.push("/hit_map");
   }
 
@@ -89,6 +91,49 @@ export default function Home() {
             </button>
           </div>
         </main>
+{/* Tutorial Video */}
+<section className="relative z-10 flex flex-col items-center justify-center pb-16 mt-20 text-center px-4 select-none">
+  <h3 className="text-4xl font-semibold text-white mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] ">
+    Watch the Tutorial
+  </h3>
+  <p className="text-slate-300 mb-16 max-w-2xl">
+    Watch this short video to learn how to navigate and use the features of Palantir effectively.
+  </p>
+
+  {!videoLoaded ? (
+    <button
+      onClick={() => setVideoLoaded(true)}
+      className="px-10 py-3 rounded-full text-lg font-bold bg-gradient-to-r from-slate-700 via-slate-600 to-blue-700 text-white border border-slate-500/50 hover:from-slate-600 hover:via-slate-500 hover:to-blue-600 hover:border-slate-400/70 transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_40px_rgba(59,130,246,0.5)] hover:scale-105"
+    >
+      ▶ Play Tutorial
+    </button>
+  ) : (
+    <div
+      onContextMenu={(e) => e.preventDefault()} // disable right-click
+      className="relative w-full max-w-3xl"
+    >
+      <video
+        controls
+        controlsList="nodownload nofullscreen noremoteplayback"
+        disablePictureInPicture
+        preload="none"
+        poster="/images/tutorial_poster.jpg" // optional placeholder
+        className="w-full rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.6)] pointer-events-auto"
+        onContextMenu={(e) => e.preventDefault()} // block right-click menu on video itself
+      >
+        <source src="/videos/tutorial.mp4" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+
+      {/* Transparent overlay to block direct interaction like "inspect element" click */}
+      <div
+        className="absolute inset-0 pointer-events-none select-none"
+        draggable={false}
+      ></div>
+    </div>
+  )}
+</section>
+
       </div>
     </main>
   );
