@@ -35,46 +35,52 @@ export default function SelectedBodyPanel({
       <h3 className="mb-2 text-lg font-semibold text-slate-300 drop-shadow-md">
         Selected: {selectedBody.name}
       </h3>
-      <div className="mb-3 text-sm opacity-80">
-        ID: {selectedBody.id || "N/A"}
-      </div>
+      {selectedBody.id && (
+        <div className="mb-3 text-sm opacity-80">ID: {selectedBody.id}</div>
+      )}
 
       {"applyForce" in selectedBody && (
         <div className="mt-4">
           <div className="font-semibold mb-2 text-slate-200">
-            Apply Force (N):
+            Apply Force (Giga Newtons):
+          </div>
+          <div className="text-xs text-slate-400 mb-2">
+            1 GN = 1,000,000,000 N. Typical values: 10-1000 GN
           </div>
 
           <div className="mb-3">
-            <label className="block text-xs mb-1 text-slate-300">X:</label>
+            <label className="block text-xs mb-1 text-slate-300">X (GN):</label>
             <input
               type="number"
               value={forceX}
               onChange={(e) => setForceX(e.target.value)}
               className="w-full p-2 bg-slate-800/50 border border-slate-600/50 rounded-md text-slate-100 focus:outline-none focus:border-slate-500/70 transition-all duration-200"
-              aria-label="Force X"
+              aria-label="Force X in Giga Newtons"
+              placeholder="e.g., 100"
             />
           </div>
 
           <div className="mb-3">
-            <label className="block text-xs mb-1 text-slate-300">Y:</label>
+            <label className="block text-xs mb-1 text-slate-300">Y (GN):</label>
             <input
               type="number"
               value={forceY}
               onChange={(e) => setForceY(e.target.value)}
               className="w-full p-2 bg-slate-800/50 border border-slate-600/50 rounded-md text-slate-100 focus:outline-none focus:border-slate-500/70 transition-all duration-200"
-              aria-label="Force Y"
+              aria-label="Force Y in Giga Newtons"
+              placeholder="e.g., 100"
             />
           </div>
 
           <div className="mb-3">
-            <label className="block text-xs mb-1 text-slate-300">Z:</label>
+            <label className="block text-xs mb-1 text-slate-300">Z (GN):</label>
             <input
               type="number"
               value={forceZ}
               onChange={(e) => setForceZ(e.target.value)}
               className="w-full p-2 bg-slate-800/50 border border-slate-600/50 rounded-md text-slate-100 focus:outline-none focus:border-slate-500/70 transition-all duration-200"
-              aria-label="Force Z"
+              aria-label="Force Z in Giga Newtons"
+              placeholder="e.g., 100"
             />
           </div>
 
@@ -88,7 +94,41 @@ export default function SelectedBodyPanel({
               onChange={(e) => setDeltaTime(e.target.value)}
               className="w-full p-2 bg-slate-800/50 border border-slate-600/50 rounded-md text-slate-100 focus:outline-none focus:border-slate-500/70 transition-all duration-200"
               aria-label="Delta Time"
+              placeholder="e.g., 3600"
             />
+            <div className="text-xs text-slate-400 mt-1">
+              Suggested: 3600 (1 hour) to 86400 (1 day)
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs mb-1 text-slate-300">
+              Quick Presets:
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setForceX("500");
+                  setForceY("0");
+                  setForceZ("0");
+                  setDeltaTime("86400");
+                }}
+                className="p-1 text-xs bg-slate-700/50 border border-slate-600/50 rounded hover:bg-slate-600/60"
+              >
+                500 GN, 1 day
+              </button>
+              <button
+                onClick={() => {
+                  setForceX("1000");
+                  setForceY("0");
+                  setForceZ("0");
+                  setDeltaTime("86400");
+                }}
+                className="p-1 text-xs bg-slate-700/50 border border-slate-600/50 rounded hover:bg-slate-600/60"
+              >
+                1000 GN, 1 day
+              </button>
+            </div>
           </div>
 
           <button

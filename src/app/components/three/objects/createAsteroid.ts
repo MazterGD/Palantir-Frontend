@@ -9,6 +9,7 @@ import {
 import { AsteroidData } from "@/app/lib/asteroidData";
 import { createLabel } from "../objectTextLables";
 import { kmToRenderUnits } from "@/app/lib/scalingUtils";
+import { addObjectLabel } from "../objectLabel";
 
 export interface Asteroid {
   id: string;
@@ -63,6 +64,26 @@ export const createAsteroid = (
   });
 
   const points = new THREE.Points(geometry, material);
+
+  const texturePath = "/textures/Sprites/asteroid.webp";
+  let map: THREE.Texture | undefined;
+  if (texturePath) {
+    map = new THREE.TextureLoader().load(texturePath);
+  }
+
+  const SPRITE_BASE_SIZE = 1;
+
+  const haloResult = addObjectLabel(points as any, camera, {
+    texture: map,
+    size: SPRITE_BASE_SIZE,
+    minDistance: 10,
+    maxDistance: 200,
+    opacity: 1,
+    fadeNear: 10 * 0.9,
+    fadeFar: 100,
+  });
+
+  halos_and_labels.push(haloResult.update);
 
   // Create initial orbit line (hidden)
   let orbitLineResult = scaledGenerator.generateOrbitLine(camera, points, {
@@ -192,7 +213,7 @@ export const createAsteroid = (
   };
 
   const applyForce = (
-    force: Point3D,
+    forceGN: Point3D,
     deltaTime: number,
     currentTime: number,
   ) => {
@@ -203,6 +224,13 @@ export const createAsteroid = (
     const volumeM3 = (4 / 3) * Math.PI * Math.pow(radiusM, 3);
     const density = 2000; // kg/m³
     const asteroidMass = volumeM3 * density;
+
+    // Convert force from Mega Newtons to Newtons (1 MN = 1,000,000 N)
+    const force = {
+      x: forceGN.x * 1e9,
+      y: forceGN.y * 1e9,
+      z: forceGN.z * 1e9,
+    };
 
     // If force is zero, skip recalculation entirely to prevent rounding drift
     if (force.x === 0 && force.y === 0 && force.z === 0) {
@@ -235,6 +263,12 @@ export const createAsteroid = (
       z: state.velocity.z + dvz,
     };
 
+    console.log("=== APPLYING FORCE ===");
+    console.log("Input Force (N):", force);
+    console.log("Delta Time (s):", deltaTime);
+    console.log("Asteroid Mass (kg):", asteroidMass);
+    console.log("Delta V (km/s):", { x: dvx, y: dvy, z: dvz });
+
     // Generate new orbital elements from updated state vectors
     const newElements = OrbitGenerator.fromStateVectors(
       state.position,
@@ -242,6 +276,13 @@ export const createAsteroid = (
       julianDate,
       mu,
     );
+
+    console.log("NEW Orbital Elements:", newElements);
+    console.log(
+      "OLD Semi-major Axis (km):",
+      originalOrbitElements.semiMajorAxis,
+    );
+    console.log("NEW Semi-major Axis (km):", newElements.semiMajorAxis);
 
     // Cleanup old orbit visuals
     cleanupOrbit();
@@ -317,7 +358,7 @@ export const createAsteroid = (
     hideOrbit,
     applyForce,
     originalOrbitElements,
-    resetOrbit
+    resetOrbit,
   };
 
   return asteroid;
