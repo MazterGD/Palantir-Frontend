@@ -370,8 +370,6 @@ export class ScaledOrbitGenerator {
       ruPositions[i * 3 + 2] = kmToRenderUnits(p.z);
     }
 
-    console.log("First 10 orbit vertices:", orbitPoints.slice(0, 10));
-
     const geometry = new LineGeometry();
     geometry.setPositions(ruPositions);
 

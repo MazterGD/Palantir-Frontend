@@ -31,6 +31,7 @@ import { RiResetRightLine } from "react-icons/ri";
 import { IoIosPause } from "react-icons/io";
 import { FaPlay } from "react-icons/fa";
 import { League_Spartan } from "next/font/google";
+import AsteroidCountSlider from "./ui/AsteroidCountSlider";
 
 const leagueSpartan = League_Spartan({
   subsets: ["latin"],
@@ -122,12 +123,107 @@ export default function ThreeScene() {
   const isPausedRef = useRef(isPaused);
   const currentTimeRef = useRef(0);
   const startDateRef = useRef(new Date());
-
+  const [asteroidCount, setAsteroidCount] = useState(1500);
+  const [asteroidReloadKey, setAsteroidReloadKey] = useState(0);
+  const [isUpdatingAsteroids, setIsUpdatingAsteroids] = useState(false);
   const {
     asteroids: asteroidsData,
     loading,
     error,
-  } = useAsteroidsBulk(1, 1500);
+  } = useAsteroidsBulk(1, asteroidCount);
+  const handleAsteroidCountChange = useCallback((value: number) => {
+    setAsteroidCount(value);
+    setIsUpdatingAsteroids(true); // Show loading when count changes
+    // Force re-render of asteroids by updating the key
+    setAsteroidReloadKey((prev) => prev + 1);
+  }, []);
+
+  const cleanupAsteroids = useCallback(() => {
+    setIsUpdatingAsteroids(true); // Ensure loading is shown during cleanup
+
+    if (!sceneRef) {
+      setIsUpdatingAsteroids(false); // Hide loading if no scene
+      return;
+    }
+
+    // Filter out asteroids from celestialBodiesRef
+    const asteroidsToRemove = celestialBodiesRef.filter((body) => body.id);
+
+    asteroidsToRemove.forEach((asteroid, index) => {
+      if (!sceneRef) {
+        return;
+      }
+
+      // Remove the main mesh from the scene
+      if (asteroid.mesh.parent === sceneRef) {
+        sceneRef.remove(asteroid.mesh);
+      }
+
+      // Type-safe geometry and material disposal for Points
+      const pointsMesh = asteroid.mesh as THREE.Points;
+      if (pointsMesh.geometry) {
+        pointsMesh.geometry.dispose();
+      }
+
+      if (pointsMesh.material) {
+        const material = pointsMesh.material;
+        if (Array.isArray(material)) {
+          material.forEach((m) => m.dispose());
+        } else {
+          material.dispose();
+        }
+      }
+
+      // Remove orbit line
+      if (asteroid.orbitLine && asteroid.orbitLine.parent === sceneRef) {
+        sceneRef.remove(asteroid.orbitLine);
+
+        const orbitLine = asteroid.orbitLine as THREE.Line;
+        if (orbitLine.geometry) orbitLine.geometry.dispose();
+        if (orbitLine.material) {
+          if (Array.isArray(orbitLine.material)) {
+            orbitLine.material.forEach((m) => m.dispose());
+          } else {
+            orbitLine.material.dispose();
+          }
+        }
+      }
+
+      // Remove label sprite
+      if (asteroid.labelSprite && asteroid.labelSprite.parent === sceneRef) {
+        sceneRef.remove(asteroid.labelSprite);
+        if (asteroid.labelSprite.material) {
+          asteroid.labelSprite.material.dispose();
+        }
+      }
+
+      // Remove from interactiveObjectsRef
+      let interactiveCount = 0;
+      interactiveObjectsRef.forEach((body, key) => {
+        if (body === asteroid) {
+          interactiveObjectsRef.delete(key);
+          interactiveCount++;
+        }
+      });
+    });
+
+    // Now update the celestialBodiesRef array
+    const beforeCount = celestialBodiesRef.length;
+    celestialBodiesRef = celestialBodiesRef.filter((body) => !body.id);
+
+    // Clean up celestialBodiesMap
+    setCelestialBodiesMap((prev) => {
+      const newMap = new Map(prev);
+      let removedCount = 0;
+      Array.from(newMap.entries()).forEach(([key, value]) => {
+        if (value.id) {
+          newMap.delete(key);
+          removedCount++;
+        }
+      });
+      return newMap;
+    });
+  }, []);
 
   useEffect(() => {
     if (asteroidsData && sceneInitialized) {
@@ -1008,6 +1104,8 @@ export default function ThreeScene() {
       return;
     }
 
+    cleanupAsteroids();
+
     const createdAsteroids = createAsteroids(
       asteroidsData,
       cameraRef,
@@ -1043,43 +1141,35 @@ export default function ThreeScene() {
 
       celestialBodiesRef.push(asteroidBody);
 
-      // Add to map for search functionality with multiple key formats
+      // Update celestial bodies map
       setCelestialBodiesMap((prev) => {
         const newMap = new Map(prev);
+        // Clear previous asteroids
+        Array.from(prev.entries()).forEach(([key, value]) => {
+          if (value.id) {
+            newMap.delete(key);
+          }
+        });
+
+        // Add new asteroids
         if (asteroid.id) {
-          // Add by ID (e.g., "14033")
           newMap.set(asteroid.id, asteroidBody);
-
-          // Also add by "asteroid_ID" format for search compatibility
           newMap.set(`asteroid_${asteroid.id}`, asteroidBody);
-
-          // Add by name if available (e.g., "14033 Example")
           if (asteroid.name) {
             newMap.set(asteroid.name, asteroidBody);
-            // Add by sanitized name format used in SearchUI
             const sanitizedName = asteroid.name.replace(/[^a-zA-Z0-9]/g, "_");
             newMap.set(`asteroid_${sanitizedName}`, asteroidBody);
-          }
-
-          // Log first few additions for debugging
-          if (newMap.size <= 15) {
-            console.log(
-              `Added asteroid to map with keys: ${asteroid.id}, asteroid_${asteroid.id}, ${asteroid.name}`,
-            );
           }
         }
         return newMap;
       });
 
-      // if (asteroid.labelSprite) {
-      //   interactiveObjectsRef.set(asteroid.labelSprite, asteroidBody);
-      // }
       interactiveObjectsRef.set(asteroid.mesh, asteroidBody);
-      // if (asteroid.orbitLine) {
-      //   interactiveObjectsRef.set(asteroid.orbitLine, asteroidBody);
-      // }
     });
-  }, [asteroidsData, sceneInitialized]);
+
+    // Hide loading after asteroids are created
+    setIsUpdatingAsteroids(false);
+  }, [asteroidsData, sceneInitialized, asteroidReloadKey, cleanupAsteroids]);
 
   // Use the asteroid selection hook for search functionality
   const { handleCelestialBodySelection } = useAsteroidSelection({
@@ -1285,10 +1375,14 @@ export default function ThreeScene() {
         </div>
       )}
 
-      {(loading || isLoading) && (
+      {(loading || isLoading || isUpdatingAsteroids) && (
         <div className="absolute top-0 left-0 w-full h-full bg-black flex flex-col justify-center items-center text-white text-lg z-[1000]">
           <div className="w-[50px] h-[50px] border-[5px] border-gray-300 border-t-blue-500 rounded-full animate-spin mb-5" />
-          <p>Loading asteroid data...</p>
+          <p>
+            {isUpdatingAsteroids
+              ? `Updating asteroids... (${asteroidCount})`
+              : "Loading asteroid data..."}
+          </p>
         </div>
       )}
 
@@ -1383,6 +1477,11 @@ export default function ThreeScene() {
 
       {/* Search UI - always rendered, manages its own visibility */}
       <SearchUI onSelectBody={handleSelectCelestialBody} />
+
+      <AsteroidCountSlider
+        asteroidCount={asteroidCount}
+        onAsteroidCountChange={handleAsteroidCountChange}
+      />
     </div>
   );
 }
