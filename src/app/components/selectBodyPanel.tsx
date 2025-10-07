@@ -101,7 +101,6 @@ export default function SelectedBodyPanel({
               value={deltaTime}
               onChange={(e) => setDeltaTime(e.target.value)}
               className="w-full border rounded-xl p-2 sm:p-2.5 md:p-3 px-3 sm:px-4 bg-slate-800/70 border-slate-600/40 text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-500/60 focus:bg-slate-800/90 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 hover:border-slate-500/60"
-              placeholder="1"
               aria-label="Delta Time"
               placeholder="e.g., 3600"
             />
@@ -139,6 +138,7 @@ export default function SelectedBodyPanel({
               </button>
             </div>
           </div>
+          
           <div className="flex flex-col w-full gap-2 sm:gap-2.5 mt-2">
             <button
               onClick={applyForceToSelectedAsteroid}
