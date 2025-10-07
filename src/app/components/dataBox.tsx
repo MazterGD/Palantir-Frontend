@@ -500,92 +500,14 @@ export default function AsteroidVisualizer({
 
               {showForceControls && (
                 <div className="mt-4 space-y-3 animate-[slideInBottom_0.3s_ease-out]">
-                  <div className="p-4 bg-gradient-to-br from-slate-950/95 to-slate-900/95 rounded-xl border-2 border-blue-500/30 shadow-2xl shadow-blue-900/20">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/30">
-                      <svg
-                        className="w-4 h-4 text-blue-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 10V3L4 14h7v7l9-11h-7z"
-                        />
-                      </svg>
-                      <p className="text-xs text-slate-200 font-semibold">
-                        ADJUST FORCE VECTORS (GN) AND TIME
-                      </p>
-                    </div>
-                    <div className="text-[10px] text-slate-300">
-                      1 GN = 1,000,000,000 N. Start with 10-1000 GN for visible
-                      changes.
-                    </div>
-
-                    <div className="space-y-3 mt-2">
-                      <div>
-                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
-                          Force X (GN):
-                        </label>
-                        <input
-                          type="number"
-                          value={forceX}
-                          onChange={(e) => setForceX?.(e.target.value)}
-                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
-                          placeholder="1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
-                          Force Y (GN):
-                        </label>
-                        <input
-                          type="number"
-                          value={forceY}
-                          onChange={(e) => setForceY?.(e.target.value)}
-                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
-                          placeholder="1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
-                          Force Z (GN):
-                        </label>
-                        <input
-                          type="number"
-                          value={forceZ}
-                          onChange={(e) => setForceZ?.(e.target.value)}
-                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
-                          placeholder="1"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
-                          Delta Time (s):
-                        </label>
-                        <input
-                          type="number"
-                          value={deltaTime}
-                          onChange={(e) => setDeltaTime?.(e.target.value)}
-                          className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
-                          placeholder="3600"
-                        />
-                        <div className="text-xs text-slate-400 mt-1">
-                          3600 (1 hour) to 86400 (1 day)
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={applyForceToSelectedAsteroid}
-                        className="w-full mt-4 rounded-xl p-3.5 text-base bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white font-bold border-2 border-blue-400/50 hover:from-blue-700 hover:via-blue-600 hover:to-blue-700 hover:border-blue-300/70 active:scale-95 transition-all duration-200 shadow-[0_8px_24px_rgba(59,130,246,0.5)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.7)] flex items-center justify-center gap-3 animate-pulse hover:animate-none"
-                      >
+                  {/* Scrollable Container with Drag */}
+                  <div 
+                    className="max-h-[50vh] overflow-y-auto overflow-x-hidden custom-scrollbar"
+                  >
+                    <div className="p-4 bg-gradient-to-br from-slate-950/95 to-slate-900/95 rounded-xl border-2 border-blue-500/30 shadow-2xl shadow-blue-900/20">
+                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/30">
                         <svg
-                          className="w-5 h-5"
+                          className="w-4 h-4 text-blue-400"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -593,12 +515,95 @@ export default function AsteroidVisualizer({
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            strokeWidth={2.5}
+                            strokeWidth={2}
                             d="M13 10V3L4 14h7v7l9-11h-7z"
                           />
                         </svg>
-                        <span className="text-base">Apply Force</span>
-                      </button>
+                        <p className="text-xs text-slate-200 font-semibold">
+                          ADJUST FORCE VECTORS (GN) AND TIME
+                        </p>
+                      </div>
+                      <div className="text-[10px] text-slate-300">
+                        1 GN = 1,000,000,000 N. Start with 10-1000 GN for visible
+                        changes.
+                      </div>
+
+                      <div className="space-y-3 mt-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
+                            Force X (GN):
+                          </label>
+                          <input
+                            type="number"
+                            value={forceX}
+                            onChange={(e) => setForceX?.(e.target.value)}
+                            className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                            placeholder="100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
+                            Force Y (GN):
+                          </label>
+                          <input
+                            type="number"
+                            value={forceY}
+                            onChange={(e) => setForceY?.(e.target.value)}
+                            className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                            placeholder="0"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
+                            Force Z (GN):
+                          </label>
+                          <input
+                            type="number"
+                            value={forceZ}
+                            onChange={(e) => setForceZ?.(e.target.value)}
+                            className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                            placeholder="0"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold mb-1 text-slate-200 uppercase tracking-wide">
+                            Delta Time (s):
+                          </label>
+                          <input
+                            type="number"
+                            value={deltaTime}
+                            onChange={(e) => setDeltaTime?.(e.target.value)}
+                            className="w-full border rounded-lg p-2 px-3 bg-slate-950/90 border-slate-600/50 text-white text-xs font-medium focus:outline-none focus:border-blue-400/80 focus:bg-slate-950 focus:ring-2 focus:ring-blue-500/30 transition-all duration-200 hover:border-slate-500/70 shadow-inner"
+                            placeholder="3600"
+                          />
+                          <div className="text-xs text-slate-400 mt-1">
+                            3600 (1 hour) to 86400 (1 day)
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={applyForceToSelectedAsteroid}
+                          className="w-full mt-4 rounded-xl p-3.5 text-base bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white font-bold border-2 border-blue-400/50 hover:from-blue-700 hover:via-blue-600 hover:to-blue-700 hover:border-blue-300/70 active:scale-95 transition-all duration-200 shadow-[0_8px_24px_rgba(59,130,246,0.5)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.7)] flex items-center justify-center gap-3 animate-pulse hover:animate-none"
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2.5}
+                              d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                          </svg>
+                          <span className="text-base">Apply Force</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
