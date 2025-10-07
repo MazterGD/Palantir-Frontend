@@ -1269,16 +1269,16 @@ export default function ThreeScene() {
         </div>
       )}
 
-      <div className="absolute bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-3 md:p-8 rounded-4xl w-[95%] sm:w-[90%] md:w-[600px] max-w-[95vw] backdrop-blur-sm">
+      <div className="absolute bottom-32 md:bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center p-3 md:p-8 rounded-4xl w-[95%] sm:w-[90%] md:w-[600px] max-w-[95vw] backdrop-blur-sm">
         <div className="flex items-center w-full mb-2 md:mb-4">
-          <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2 md:py-4 my-1 md:my-1.5 shadow-md backdrop-blur-sm w-full px-2 md:px-4">
+          <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-4 md:py-4 my-1 md:my-1.5 shadow-md backdrop-blur-sm w-full px-4 md:px-4">
             <input
               type="range"
               min="0"
               max={speedScale.length - 1}
               value={speedMultiplier}
               onChange={(e) => handleSliderChange(parseInt(e.target.value))}
-              className="w-full h-1 appearance-none bg-gray-800 rounded-lg outline-none time-slider border-2 border-[rgba(255,255,255,0.3)]"
+              className="w-full h-1 appearance-none rounded-lg outline-none time-slider bg-slate-500/50"
               style={{ accentColor: "white" }}
             />
           </div>

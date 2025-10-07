@@ -103,7 +103,7 @@ export default function Home() {
   {!videoLoaded ? (
     <button
       onClick={() => setVideoLoaded(true)}
-      className="px-6 md:px-12 py-3 rounded-full text-lg font-bold bg-gradient-to-r from-slate-700 via-slate-600 to-blue-700 text-white border border-slate-500/50 hover:from-slate-600 hover:via-slate-500 hover:to-blue-600 hover:border-slate-400/70 transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_40px_rgba(59,130,246,0.5)] hover:scale-105"
+      className="px-6 md:px-12 py-2 rounded-full text-xl font-bold bg-gradient-to-r from-slate-700 via-slate-600 to-blue-700 text-white border-2 border-slate-500/50 hover:from-slate-600 hover:via-slate-500 hover:to-blue-600 hover:border-slate-400/70 transition-all duration-300 shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_50px_rgba(59,130,246,0.5)] hover:scale-110 active:scale-105"
     >
       ▶ Play Tutorial
     </button>
