@@ -83,6 +83,7 @@ export default function ControlPanel({
             onTouchStart={() => setIsDragging(true)}
             onTouchEnd={() => setIsDragging(false)}
             aria-label="Zoom Level"
+            style={{ accentColor: "white" }}
           />
           <div className="absolute left-1/2 top-[15px] bottom-[15px] w-[5px] md:w-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] -translate-x-1/2 z-10 shadow-inner">
             <div
