@@ -66,24 +66,24 @@ export const createAsteroid = (
   const points = new THREE.Points(geometry, material);
 
   const texturePath = "/textures/Sprites/asteroid.webp";
-  let map: THREE.Texture | undefined;
-  if (texturePath) {
-    map = new THREE.TextureLoader().load(texturePath);
-  }
+    let map: THREE.Texture | undefined;
+    if (texturePath) {
+      map = new THREE.TextureLoader().load(texturePath);
+    }
+  
+    const SPRITE_BASE_SIZE = 1;
+  
+    const haloResult = addObjectLabel(points as any, camera, {
+      texture: map,
+      size: SPRITE_BASE_SIZE,
+      minDistance: 10,
+      maxDistance: 200,
+      opacity: 1,
+      fadeNear: 10 * 0.9,
+      fadeFar: 100,
+    });
 
-  const SPRITE_BASE_SIZE = 1;
-
-  const haloResult = addObjectLabel(points as any, camera, {
-    texture: map,
-    size: SPRITE_BASE_SIZE,
-    minDistance: 10,
-    maxDistance: 200,
-    opacity: 1,
-    fadeNear: 10 * 0.9,
-    fadeFar: 100,
-  });
-
-  halos_and_labels.push(haloResult.update);
+    halos_and_labels.push(haloResult.update);
 
   // Create initial orbit line (hidden)
   let orbitLineResult = scaledGenerator.generateOrbitLine(camera, points, {
