@@ -833,22 +833,18 @@ export default function ThreeScene() {
 
       switch (event.key.toLowerCase()) {
         case "arrowleft":
-        case "a":
           event.preventDefault();
           cameraFollowControllerRef.rotateLeft();
           break;
         case "arrowright":
-        case "d":
           event.preventDefault();
           cameraFollowControllerRef.rotateRight();
           break;
         case "arrowup":
-        case "w":
           event.preventDefault();
           cameraFollowControllerRef.rotateUp();
           break;
         case "arrowdown":
-        case "s":
           event.preventDefault();
           cameraFollowControllerRef.rotateDown();
           break;
