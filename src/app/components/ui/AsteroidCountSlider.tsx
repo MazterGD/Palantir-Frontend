@@ -28,7 +28,8 @@ export default function AsteroidCountSlider({
   );
 
   const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value);
+    // Invert the value since we're rotating the slider
+    const value = 5001 - parseInt(e.target.value);
     setLocalValue(value);
   }, []);
 
@@ -43,41 +44,36 @@ export default function AsteroidCountSlider({
   }, [localValue, debouncedUpdate]);
 
   return (
-    <div className="absolute bottom-32 right-5 flex flex-col gap-2 z-10 items-center">
-      <div className="text-white text-xs bg-[rgba(20,20,40,0.7)] border border-[rgba(255,255,255,0.3)] rounded-lg px-3 py-1 backdrop-blur-sm">
-        {localValue} Asteroids {isDragging && "(Dragging)"}
-      </div>
-
-      <div className="relative flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-4 my-1.5 shadow-md backdrop-blur-sm w-[200px] px-4">
-        <div className="absolute left-4 right-4 h-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] z-10 shadow-inner">
-          <div 
-            className="absolute left-0 top-0 h-full rounded-sm bg-gradient-to-r from-cyan-400/80 to-purple-500/80"
-            style={{ width: `${(localValue / 5000) * 100}%` }}
-          ></div>
-        </div>
-        
+    <div className="absolute left-2 md:left-5 top-1/2 -translate-y-[calc(50%+15px)] flex flex-col gap-1.5 md:gap-2 z-10 items-center">
+      <div className="relative w-[35px] h-[140px] md:w-[40px] md:h-[180px] flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2.5 my-1 md:my-1.5 shadow-md backdrop-blur-sm">
         <input
           type="range"
           min="1"
           max="5000"
-          value={localValue}
+          value={5001 - localValue}
           onChange={handleSliderChange}
           onMouseDown={handleDragStart}
           onMouseUp={handleDragEnd}
           onMouseLeave={handleDragEnd}
           onTouchStart={handleDragStart}
           onTouchEnd={handleDragEnd}
-          className="w-full h-2 appearance-none rounded-lg outline-none cursor-pointer relative z-20 bg-transparent"
+          className="appearance-none w-[140px] md:w-[180px] h-1 bg-transparent cursor-pointer relative z-20 rotate-90 origin-center m-0 pointer-events-auto"
           aria-label="Asteroid Count"
           style={{ 
-            background: "transparent"
+            background: "transparent",
+            accentColor: "white"
           }}
         />
-        
-        <div className="absolute -bottom-6 left-0 right-0 flex justify-between text-xs text-white/70">
-          <span>1</span>
-          <span>5000</span>
+        <div className="absolute left-1/2 top-[15px] bottom-[15px] w-[5px] md:w-[6px] bg-[rgba(255,255,255,0.2)] rounded-[3px] -translate-x-1/2 z-10 shadow-inner">
+          <div 
+            className="absolute bottom-0 left-0 w-full rounded-sm bg-gradient-to-t from-cyan-400/80 to-purple-500/80"
+            style={{ height: `${(localValue / 5000) * 100}%` }}
+          ></div>
         </div>
+      </div>
+
+      <div className="text-white text-[9px] md:text-[10px] bg-[rgba(20,20,40,0.7)] border border-[rgba(255,255,255,0.3)] rounded-lg px-1.5 md:px-2 py-0.5 md:py-1 backdrop-blur-sm whitespace-nowrap text-center leading-tight">
+        {localValue}<br/>ASTEROIDS
       </div>
     </div>
   );

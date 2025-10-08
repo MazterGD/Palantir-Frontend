@@ -772,8 +772,8 @@ export default function ThreeScene() {
       // Update minimum distance based on the focused body's size
       if (controlsRef) {
         const bodyRadius = body.diameter / 2;
-        // Set minimum distance to 1.5x the body's radius (safety margin to prevent clipping)
-        controlsRef.minDistance = Math.max(0.1, bodyRadius * 1.5);
+        // Set minimum distance to 5x the body's radius (increased safety margin to prevent over-zooming)
+        controlsRef.minDistance = Math.max(1.0, bodyRadius * 5);
       }
     };
 
@@ -1194,7 +1194,7 @@ export default function ThreeScene() {
       let minZoomDistance = sceneBounds.innerBoundary;
       if (currentFocusedBody) {
         const bodyRadius = currentFocusedBody.diameter / 2;
-        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+        minZoomDistance = Math.max(1.0, bodyRadius * 5);
       }
 
       const cameraDistanceForReset = getRecommendedCameraDistance();
@@ -1203,8 +1203,8 @@ export default function ThreeScene() {
         minZoomDistance +
         (cameraDistanceForReset - minZoomDistance) * normalizedValue;
 
-      // Only apply zoom if it's at or above the surface
-      if (testDistance >= minZoomDistance || newZoomLevel >= 0) {
+      // Only apply zoom if it's at or above the minimum distance
+      if (testDistance >= minZoomDistance) {
         setZoomLevel(newZoomLevel);
         handleZoomChange(newZoomLevel);
       }
@@ -1251,7 +1251,7 @@ export default function ThreeScene() {
       let minZoomDistance = sceneBounds.innerBoundary;
       if (currentFocusedBody) {
         const bodyRadius = currentFocusedBody.diameter / 2;
-        minZoomDistance = Math.max(0.1, bodyRadius * 1.5);
+        minZoomDistance = Math.max(1.0, bodyRadius * 5);
       }
 
       const cameraDistanceForReset = getRecommendedCameraDistance();
@@ -1342,9 +1342,9 @@ export default function ThreeScene() {
       {/* Options Bar - appears at top when object is selected */}
       {showOptionsBar &&
         !showAsteroidVisualizer &&
-        (selectedAsteroidId || selectedBody) && (
+        selectedAsteroidId && (
           <ObjectOptionsBar
-            hasAsteroidData={!!selectedAsteroidId || !!selectedBody}
+            hasAsteroidData={!!selectedAsteroidId}
             onSelectAsteroidDetails={handleOpenDetails}
             onClose={clearSelection}
           />
