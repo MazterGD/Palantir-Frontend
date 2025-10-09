@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, memo } from "react";
+import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { RiResetLeftLine } from "react-icons/ri";
 
 interface ControlPanelProps {
@@ -19,6 +19,7 @@ const ControlPanel = memo(function ControlPanel({
   onZoomChange,
 }: ControlPanelProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   // Logarithmic scale constants
   const MIN_LOG = Math.log(1); // log(1) = 0
@@ -44,6 +45,17 @@ const ControlPanel = memo(function ControlPanel({
     const linearValue = logToLinear(logPosition);
     onZoomChange(linearValue);
   };
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLInputElement>) => {
+    if (!sliderRef.current) return;
+    e.preventDefault();
+    const rect = sliderRef.current.getBoundingClientRect();
+    const touchY = e.touches[0].clientY;
+    const relativeY = Math.max(0, Math.min(1, (touchY - rect.top) / rect.height));
+    const logPosition = Math.round(1000 * relativeY);
+    const linearValue = logToLinear(logPosition);
+    onZoomChange(linearValue);
+  }, [onZoomChange]);
   
   // Get logarithmic position for the current zoom level
   const logPosition = linearToLog(zoomLevel);
@@ -69,7 +81,7 @@ const ControlPanel = memo(function ControlPanel({
           </svg>
         </button>
 
-        <div className="relative w-[35px] h-[140px] md:w-[40px] md:h-[180px] flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2.5 my-1 md:my-1.5 shadow-md backdrop-blur-sm">
+        <div ref={sliderRef} className="relative w-[35px] h-[140px] md:w-[40px] md:h-[180px] flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2.5 my-1 md:my-1.5 shadow-md backdrop-blur-sm">
           <input
             type="range"
             min="0"
@@ -82,6 +94,7 @@ const ControlPanel = memo(function ControlPanel({
             onMouseLeave={() => setIsDragging(false)}
             onTouchStart={() => setIsDragging(true)}
             onTouchEnd={() => setIsDragging(false)}
+            onTouchMove={handleTouchMove}
             aria-label="Zoom Level"
             style={{ accentColor: "white" }}
           />

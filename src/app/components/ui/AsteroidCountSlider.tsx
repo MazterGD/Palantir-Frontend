@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 interface AsteroidCountSliderProps {
   asteroidCount: number;
@@ -13,6 +13,7 @@ export default function AsteroidCountSlider({
 }: AsteroidCountSliderProps) {
   const [localValue, setLocalValue] = useState(asteroidCount);
   const [isDragging, setIsDragging] = useState(false);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   // Update local value when prop changes (from external updates)
   useEffect(() => {
@@ -43,9 +44,19 @@ export default function AsteroidCountSlider({
     debouncedUpdate(localValue);
   }, [localValue, debouncedUpdate]);
 
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLInputElement>) => {
+    if (!sliderRef.current) return;
+    e.preventDefault();
+    const rect = sliderRef.current.getBoundingClientRect();
+    const touchY = e.touches[0].clientY;
+    const relativeY = Math.max(0, Math.min(1, (touchY - rect.top) / rect.height));
+    const value = Math.round(5000 * relativeY) + 1;
+    setLocalValue(value);
+  }, []);
+
   return (
     <div className="absolute left-2 md:left-5 top-1/2 -translate-y-[calc(50%+15px)] flex flex-col gap-1.5 md:gap-2 z-10 items-center">
-      <div className="relative w-[35px] h-[140px] md:w-[40px] md:h-[180px] flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2.5 my-1 md:my-1.5 shadow-md backdrop-blur-sm">
+      <div ref={sliderRef} className="relative w-[35px] h-[140px] md:w-[40px] md:h-[180px] flex items-center justify-center bg-[rgba(20,20,40,0.7)] border-2 border-[rgba(255,255,255,0.3)] rounded-[20px] py-2.5 my-1 md:my-1.5 shadow-md backdrop-blur-sm">
         <input
           type="range"
           min="1"
@@ -57,6 +68,7 @@ export default function AsteroidCountSlider({
           onMouseLeave={handleDragEnd}
           onTouchStart={handleDragStart}
           onTouchEnd={handleDragEnd}
+          onTouchMove={handleTouchMove}
           className="appearance-none w-[140px] md:w-[180px] h-1 bg-transparent cursor-pointer relative z-20 rotate-90 origin-center m-0 pointer-events-auto"
           aria-label="Asteroid Count"
           style={{ 
