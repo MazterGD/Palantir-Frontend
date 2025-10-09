@@ -1,6 +1,8 @@
 // hooks/useAsteroidsFilter.ts
 import { useState, useEffect } from 'react';
 import { AsteroidData, transformAsteroidData } from '../lib/asteroidData';
+import { createQueryCacheKey, getCachedOrFetch } from '../lib/cacheUtils';
+import { deduplicatedFetch } from '../lib/requestDeduplication';
 
 interface UseAsteroidsFilterResult {
   asteroids: AsteroidData[];
@@ -12,6 +14,11 @@ interface UseAsteroidsFilterResult {
     total: number;
     totalPages: number;
   } | null;
+}
+
+interface FilterResponse {
+  asteroids: any[];
+  pagination: any;
 }
 
 export function useAsteroidsFilter(
@@ -33,19 +40,30 @@ export function useAsteroidsFilter(
       setError(null);
 
       try {
-        const response = await fetch(
-          `/api/asteroid/filter?min=${min}&max=${max}&page=${page}&limit=${limit}`
-        );
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch filtered asteroids: ${response.statusText}`);
-        }
+        // Create a unique cache key based on query parameters
+        const cacheKey = createQueryCacheKey('asteroids-filter', {
+          min,
+          max,
+          page,
+          limit
+        });
 
-        const data = await response.json();
-        
-        if (!data.asteroids) {
-          throw new Error('Invalid response format');
-        }
+        // Use cached data or fetch new data with deduplication
+        const data = await getCachedOrFetch<FilterResponse>(
+          cacheKey,
+          async () => {
+            // Use deduplicated fetch to prevent multiple simultaneous requests
+            const url = `/api/asteroid/filter?min=${min}&max=${max}&page=${page}&limit=${limit}`;
+            const responseData = await deduplicatedFetch<FilterResponse>(url);
+            
+            if (!responseData.asteroids) {
+              throw new Error('Invalid response format');
+            }
+
+            return responseData;
+          },
+          { ttl: 60 * 60 * 1000 } // Cache for 1 hour
+        );
 
         const transformedAsteroids = data.asteroids.map((asteroid: any) => 
           transformAsteroidData({ asteroid })

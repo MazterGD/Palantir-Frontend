@@ -1,6 +1,9 @@
 // app/api/asteroid/bulk/route.ts
 import { NextResponse } from 'next/server';
 
+// Enable Next.js caching with revalidation
+export const revalidate = 3600; // Revalidate cache every hour (in seconds)
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const backendUrl = process.env.BACKEND_API_URL;
@@ -10,8 +13,15 @@ export async function GET(request: Request) {
   console.log(`Fetching asteroids bulk - page: ${page}, limit: ${limit}`);
 
   try {
+    // Fetch with Next.js cache configuration
     const response = await fetch(
-      `${backendUrl}/asteroid/asteroids?page=${page}&limit=${limit}`
+      `${backendUrl}/asteroid/asteroids?page=${page}&limit=${limit}`,
+      {
+        next: {
+          revalidate: 3600, // Cache for 1 hour
+          tags: [`asteroids-bulk-${page}-${limit}`] // Cache tag for invalidation
+        }
+      }
     );
 
     console.log('Bulk backend response status:', response.status);
@@ -50,7 +60,12 @@ export async function GET(request: Request) {
       }
     };
 
-    return NextResponse.json(transformedData);
+    // Add cache headers for client-side caching
+    return NextResponse.json(transformedData, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+      }
+    });
   } catch (error) {
     console.error('Error in bulk asteroids API route:', error);
     return NextResponse.json(

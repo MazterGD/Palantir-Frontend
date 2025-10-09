@@ -1,6 +1,8 @@
 // hooks/useAsteroidsBulk.ts
 import { useState, useEffect } from 'react';
 import { AsteroidData, transformAsteroidData } from '../lib/asteroidData';
+import { createQueryCacheKey, getCachedOrFetch } from '../lib/cacheUtils';
+import { deduplicatedFetch } from '../lib/requestDeduplication';
 
 interface UseAsteroidsBulkResult {
   asteroids: AsteroidData[];
@@ -12,6 +14,11 @@ interface UseAsteroidsBulkResult {
     total: number;
     totalPages: number;
   } | null;
+}
+
+interface BulkResponse {
+  asteroids: any[];
+  pagination: any;
 }
 
 export function useAsteroidsBulk(page: number = 1, limit: number = 10): UseAsteroidsBulkResult {
@@ -26,17 +33,28 @@ export function useAsteroidsBulk(page: number = 1, limit: number = 10): UseAster
       setError(null);
 
       try {
-        const response = await fetch(`/api/asteroid/bulk?page=${page}&limit=${limit}`);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch asteroids: ${response.statusText}`);
-        }
+        // Create a unique cache key based on query parameters
+        const cacheKey = createQueryCacheKey('asteroids-bulk', {
+          page,
+          limit
+        });
 
-        const data = await response.json();
-        
-        if (!data.asteroids) {
-          throw new Error('Invalid response format');
-        }
+        // Use cached data or fetch new data with deduplication
+        const data = await getCachedOrFetch<BulkResponse>(
+          cacheKey,
+          async () => {
+            // Use deduplicated fetch to prevent multiple simultaneous requests
+            const url = `/api/asteroid/bulk?page=${page}&limit=${limit}`;
+            const responseData = await deduplicatedFetch<BulkResponse>(url);
+            
+            if (!responseData.asteroids) {
+              throw new Error('Invalid response format');
+            }
+
+            return responseData;
+          },
+          { ttl: 60 * 60 * 1000 } // Cache for 1 hour
+        );
 
         const transformedAsteroids = data.asteroids.map((asteroid: any) => 
           transformAsteroidData({ asteroid })

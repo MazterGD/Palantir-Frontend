@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import DataCard from "./ui/dataCard";
 import DataRow from "./ui/dataRow";
 import LoadingAnimation from "./ui/asteroidLoading";
@@ -27,7 +27,7 @@ interface AsteroidVisualizerProps {
   applyForceToSelectedAsteroid?: () => void;
 }
 
-export default function AsteroidVisualizer({
+const AsteroidVisualizer = memo(function AsteroidVisualizer({
   id,
   onCloseHandler,
   selectedBody,
@@ -616,4 +616,6 @@ export default function AsteroidVisualizer({
       )}
     </div>
   );
-}
+});
+
+export default AsteroidVisualizer;

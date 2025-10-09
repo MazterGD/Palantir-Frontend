@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 
 interface CameraFollowControlProps {
   isFollowing: boolean;
@@ -14,7 +14,7 @@ interface CameraFollowControlProps {
   onResetRotation?: () => void;
 }
 
-export default function CameraFollowControl({
+const CameraFollowControl = memo(function CameraFollowControl({
   isFollowing,
   onToggleFollow,
   smoothness,
@@ -179,4 +179,6 @@ export default function CameraFollowControl({
       )}
     </div>
   );
-}
+});
+
+export default CameraFollowControl;

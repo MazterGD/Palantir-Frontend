@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { PLANETS } from "../lib/planetData";
 
 // Base celestial bodies data - only planets from our solar system (no hardcoded asteroids)
@@ -22,7 +22,7 @@ interface SearchUIProps {
  * Includes search button, panel, keyboard shortcuts, and search functionality
  */
 
-const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
+const SearchUI = memo(function SearchUI({ onSelectBody }: SearchUIProps) {
   // Visibility state
   const [showSearchUI, setShowSearchUI] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
@@ -310,6 +310,6 @@ const SearchUI: React.FC<SearchUIProps> = ({ onSelectBody }) => {
       )}
     </>
   );
-};
+});
 
 export default SearchUI;
