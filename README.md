@@ -1,4 +1,4 @@
-# 🌌 Project Palantir – Solar System & Asteroid Impact Visualization
+# 🌌 Project Palantir – Asteroid Orbit and Impact Simulator
 
 Welcome to the **Project Palantir** repository! This project delivers an immersive, scientifically accurate 3D visualization of our solar system, combined with a powerful asteroid impact simulator. Built with cutting-edge web technologies and grounded in real astronomical data, Palantir enables students, researchers, and space enthusiasts to explore planetary motion, track near-Earth asteroids, and simulate catastrophic impact scenarios.
 
