@@ -1,6 +1,6 @@
-# 🌌 Galanor – Solar System & Asteroid Impact Visualization
+# 🌌 Project Palantir – Solar System & Asteroid Impact Visualization
 
-Welcome to the **Galanor** repository! This project delivers an immersive, scientifically-accurate 3D visualization of our solar system combined with a powerful asteroid impact simulator. Built with cutting-edge web technologies and grounded in real astronomical data, Galanor enables students, researchers, and space enthusiasts to explore planetary motion, track near-Earth asteroids, and simulate catastrophic impact scenarios.
+Welcome to the **Project Palantir** repository! This project delivers an immersive, scientifically accurate 3D visualization of our solar system, combined with a powerful asteroid impact simulator. Built with cutting-edge web technologies and grounded in real astronomical data, Palantir enables students, researchers, and space enthusiasts to explore planetary motion, track near-Earth asteroids, and simulate catastrophic impact scenarios.
 
 ---
 
@@ -23,11 +23,11 @@ Welcome to the **Galanor** repository! This project delivers an immersive, scien
 
 ## 🌍 Introduction
 
-Galanor transforms complex astronomical concepts into interactive, visual experiences. By combining real-time 3D rendering with precise orbital mechanics calculations, it provides an unparalleled platform for understanding celestial motion, asteroid trajectories, and potential impact scenarios.
+Palantir transforms complex astronomical concepts into interactive, visual experiences. By combining real-time 3D rendering with precise orbital mechanics calculations, it provides an unparalleled platform for understanding celestial motion, asteroid trajectories, and potential impact scenarios.
 
-### ⚡ Why Use Galanor?
+### ⚡ Why Use Project Palantir?
 
-Traditional astronomy education tools are often static, disconnected, or inaccessible. Galanor addresses these limitations by:
+Traditional astronomy education tools are often static, disconnected, or inaccessible. Palantir addresses these limitations by:
 
 - **Making Space Accessible**: Interactive 3D visualization brings the solar system to your browser
 - **Providing Scientific Accuracy**: Real NASA data with validated orbital mechanics calculations
@@ -131,8 +131,8 @@ Our application is designed to:
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/yourusername/galanor.git
-   cd galanor
+   git clone https://github.com/yourusername/galanor-frontend.git
+   cd galanor-frontend
    ```
 
 2. **Install Dependencies**
@@ -271,7 +271,7 @@ Based on:
 ## 📁 Project Structure
 
 ```plaintext
-galanor/
+galanor-frontend/
 ├── src/
 │   ├── app/
 │   │   ├── api/                          # API routes
@@ -352,7 +352,7 @@ galanor/
 ```
 
 > **Note:** This structure represents the main files and folders. Many feature implementations are further organized into subfolders under `src/app/` for specific functionalities.  
-> For the complete file structure, visit the [GitHub repository](https://github.com/yourusername/galanor).
+> For the complete file structure, visit the [GitHub repository](https://github.com/rashmikadushan/galanor-frontend).
 
 ---
 
@@ -490,7 +490,7 @@ npm run format
 
 ### Performance Monitoring
 
-Galanor includes built-in performance monitoring tools:
+Palantir includes built-in performance monitoring tools:
 
 ```typescript
 import { performanceMonitor } from '@/app/lib/performanceMonitor';
@@ -606,11 +606,11 @@ We welcome contributions from the community! Here's how you can help:
 - **Next.js Team** – Outstanding React framework with excellent developer experience
 - **Open Source Community** – All the libraries and tools that made this project possible
 
-Special thanks to all contributors who have helped improve Galanor through code, documentation, bug reports, and feature suggestions.
+Special thanks to all contributors who have helped improve Project Palantir through code, documentation, bug reports, and feature suggestions.
 
 ---
 
-> **Disclaimer:** Galanor is designed for educational and research purposes. While it uses real astronomical data and validated scientific models, it should not be used as the sole source for mission-critical calculations or official space mission planning. Impact simulations are based on peer-reviewed models but simplified for computational efficiency. Always consult professional astronomers, planetary scientists, and aerospace engineers for real-world applications.
+> **Disclaimer:** Project Palantir is designed for educational and research purposes. While it uses real astronomical data and validated scientific models, it should not be used as the sole source for mission-critical calculations or official space mission planning. Impact simulations are based on peer-reviewed models but simplified for computational efficiency. Always consult professional astronomers, planetary scientists, and aerospace engineers for real-world applications.
 
 ---
 
